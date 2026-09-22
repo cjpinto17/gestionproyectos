@@ -78,27 +78,7 @@ jobs:
       - name: Autenticar con Google
         run: |
           printf '%s' "$CLASP_CREDENTIALS" > ~/.clasprc.json
-          # La credencial debe ser el archivo .clasprc.json completo: si se
-          # copio a medias, es mejor detectarlo aqui que fallar mas adelante.
-          node -e "
-            const fs = require('fs');
-            let datos;
-            try {
-              datos = JSON.parse(fs.readFileSync(process.env.HOME + '/.clasprc.json', 'utf8'));
-            } catch (e) {
-              console.error('La credencial CLASP_CREDENTIALS no es un JSON valido.');
-              console.error('Copie TODO lo que imprime \`cat ~/.clasprc.json\`, desde la llave');
-              console.error('de apertura hasta la de cierre, y vuelva a guardar el secreto.');
-              process.exit(1);
-            }
-            const texto = JSON.stringify(datos);
-            if (texto.indexOf('refresh_token') === -1) {
-              console.error('La credencial no contiene refresh_token: quedo incompleta.');
-              console.error('Repita el paso A.2 de docs/IMPLEMENTACION.md.');
-              process.exit(1);
-            }
-            console.log('Credencial con formato correcto.');
-          "
+          node .github/scripts/normalizar-credencial.js
 
       - name: Apuntar al proyecto de Apps Script
         run: |
@@ -123,6 +103,13 @@ jobs:
               echo "Solucion: entre a https://script.google.com/home/usersettings"
               echo "y active el interruptor 'API de Google Apps Script'."
               echo "Espere un minuto y vuelva a ejecutar este flujo." ;;
+            *"access_token"*|*"Error retrieving access token"*)
+              echo "La credencial quedo en un formato que esta version de clasp no entiende."
+              echo "Solucion: en Cloud Shell ejecute"
+              echo "  npm install -g @google/clasp@2.4.2"
+              echo "  clasp login      (y repita el procedimiento del curl)"
+              echo "  cat ~/.clasprc.json"
+              echo "y actualice el secreto CLASP_CREDENTIALS con el resultado." ;;
             *"invalid_grant"*|*"Invalid Credentials"*|*"401"*|*"unauthorized"*)
               echo "La credencial caduco o fue revocada."
               echo "Solucion: repita el paso A.2 de docs/IMPLEMENTACION.md"
