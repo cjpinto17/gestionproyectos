@@ -1,6 +1,6 @@
 # Publica automaticamente en Google Apps Script todo lo que se suba a la rama.
 #
-# Requiere tres secretos del repositorio (Settings > Secrets and variables > Actions):
+# Requiere estos secretos del repositorio (Settings > Secrets and variables > Actions):
 #   CLASP_CREDENTIALS  Contenido del archivo .clasprc.json que genera "clasp login"
 #   SCRIPT_ID          ID del proyecto de Apps Script
 #   DEPLOYMENT_ID      (opcional) ID de la implementacion web, para actualizarla
@@ -22,9 +22,30 @@ on:
 jobs:
   desplegar:
     runs-on: ubuntu-latest
+
+    # Los secretos se exponen como variables de entorno del job: GitHub no
+    # permite leer el contexto "secrets" dentro de una condicion "if".
+    env:
+      CLASP_CREDENTIALS: ${{ secrets.CLASP_CREDENTIALS }}
+      SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+      DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+
     steps:
       - name: Descargar el codigo
         uses: actions/checkout@v4
+
+      - name: Verificar que los secretos esten configurados
+        run: |
+          faltan=""
+          [ -z "$CLASP_CREDENTIALS" ] && faltan="$faltan CLASP_CREDENTIALS"
+          [ -z "$SCRIPT_ID" ] && faltan="$faltan SCRIPT_ID"
+          if [ -n "$faltan" ]; then
+            echo "Faltan estos secretos del repositorio:$faltan"
+            echo "Configurelos en Settings > Secrets and variables > Actions."
+            echo "El procedimiento esta en docs/IMPLEMENTACION.md, parte 2, camino A."
+            exit 1
+          fi
+          echo "Secretos presentes."
 
       - name: Preparar Node
         uses: actions/setup-node@v4
@@ -35,29 +56,31 @@ jobs:
         run: npm install -g @google/clasp@2.4.2
 
       - name: Autenticar con Google
-        run: echo '${{ secrets.CLASP_CREDENTIALS }}' > ~/.clasprc.json
+        # printf con la variable de entorno evita que el shell interprete el
+        # contenido del token.
+        run: printf '%s' "$CLASP_CREDENTIALS" > ~/.clasprc.json
 
       - name: Apuntar al proyecto de Apps Script
         run: |
-          cat > .clasp.json <<JSON
-          {
-            "scriptId": "${{ secrets.SCRIPT_ID }}",
-            "rootDir": "apps-script",
-            "fileExtension": "gs"
-          }
-          JSON
+          printf '{\n  "scriptId": "%s",\n  "rootDir": "apps-script",\n  "fileExtension": "gs"\n}\n' \
+            "$SCRIPT_ID" > .clasp.json
 
       - name: Subir los archivos
         run: clasp push --force
 
       - name: Actualizar la aplicacion publicada
         # Solo corre si se configuro DEPLOYMENT_ID. Sin el, los cambios quedan
-        # en el editor y se publican manualmente desde "Implementar".
-        if: ${{ secrets.DEPLOYMENT_ID != '' }}
+        # en el editor y se publican desde el boton "Implementar".
+        if: env.DEPLOYMENT_ID != ''
         run: |
           clasp deploy \
-            --deploymentId "${{ secrets.DEPLOYMENT_ID }}" \
+            --deploymentId "$DEPLOYMENT_ID" \
             --description "Despliegue automatico ${{ github.sha }}"
 
       - name: Resumen
-        run: echo "Codigo publicado en Apps Script desde el commit ${{ github.sha }}"
+        run: |
+          echo "Codigo publicado en Apps Script desde el commit ${{ github.sha }}"
+          if [ -z "$DEPLOYMENT_ID" ]; then
+            echo "Nota: no hay DEPLOYMENT_ID configurado, asi que la aplicacion que usa"
+            echo "el equipo sigue en la version anterior hasta publicarla manualmente."
+          fi

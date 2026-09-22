@@ -269,6 +269,8 @@ Es correcto: hay que registrarte.
 | *El sistema está ocupado atendiendo otro cambio* | Dos personas guardaron a la vez | Reintenta en unos segundos |
 | *No se puede acceder a este sitio · localhost:8888* al autorizar clasp | Es el comportamiento normal de Google | Parte 2, camino A, pasos 6 a 10 |
 | *invalid_grant* o *Bad Request* al hacer `curl` | El código de autorización se venció | Repite desde `clasp login` y haz el `curl` en menos de 2 minutos |
+| *Faltan estos secretos del repositorio…* en GitHub Actions | No se guardaron `CLASP_CREDENTIALS` o `SCRIPT_ID` | Parte 2, camino A, paso A.3 |
+| *invalid_grant* dentro de GitHub Actions | La credencial guardada caducó o se revocó | Repite el paso A.2 y actualiza el secreto `CLASP_CREDENTIALS` |
 
 La actividad **nunca se pierde** por un fallo de Drive, Chat o correo: se guarda igual y el
 sistema te avisa qué no pudo hacer.
