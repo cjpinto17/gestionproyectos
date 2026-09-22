@@ -33,11 +33,11 @@ var FRANJA_ESTADO_INI = {
   'EIN-04': 'f-cancelada', 'EIN-05': 'f-finalizada'
 };
 var PRIORIDAD_CLASE = {
-  'PRI-01': 'p-critica', 'PRI-02': 'p-alta', 'PRI-03': 'p-media', 'PRI-04': 'p-baja',
-  'Critica': 'p-critica', 'Crítica': 'p-critica', 'Alta': 'p-alta',
-  'Media': 'p-media', 'Baja': 'p-baja'
+  'PRI-01': 'p-critica', 'PRI-02': 'p-alta', 'PRI-03': 'p-media', 'PRI-04': 'p-baja'
 };
-var PESO_PRIORIDAD = { 'Crítica': 0, 'Critica': 0, 'Alta': 1, 'Media': 2, 'Baja': 3 };
+// Orden de presentacion: critica, alta, media, baja. Lo que no tenga prioridad
+// va al final de la celda.
+var PESO_PRIORIDAD = { 'PRI-01': 0, 'PRI-02': 1, 'PRI-03': 2, 'PRI-04': 3 };
 var COLOR_FASE = ['#00306E','#0B4FA5','#1B6FD0','#3E92E0','#1BB26C','#1DD982','#50EAA2','#9CF3CB'];
 
 /* ================= Utilidades ================= */
@@ -334,12 +334,22 @@ function cargarIniciativas() {
         r.tipos.map(function (t) {
           return '<option value="' + t.id + '">' + esc(t.nombre) + '</option>';
         }).join('');
+    $('filtroPrioridadIni').innerHTML = '<option value="">Todas las prioridades</option>' +
+        r.prioridades.map(function (pr) {
+          return '<option value="' + pr.id + '">' + esc(pr.nombre) + '</option>';
+        }).join('');
+    $('filtroPlataformaIni').innerHTML = '<option value="">Todas las plataformas</option>' +
+        r.plataformas.map(function (pl) {
+          return '<option value="' + pl.id + '">' + esc(pl.nombre) + '</option>';
+        }).join('') + '<option value="__SIN__">Sin plataforma asignada</option>';
     pintarMatriz();
   }).catch(fallo);
 }
 $('buscIni').addEventListener('input', pintarMatriz);
 $('filtroEstadoIni').addEventListener('change', pintarMatriz);
 $('filtroTipoIni').addEventListener('change', pintarMatriz);
+$('filtroPrioridadIni').addEventListener('change', pintarMatriz);
+$('filtroPlataformaIni').addEventListener('change', pintarMatriz);
 
 function ordenPorPrioridad(a, b) {
   var pa = PESO_PRIORIDAD[a.prioridad], pb = PESO_PRIORIDAD[b.prioridad];
@@ -355,6 +365,8 @@ function pintarMatriz() {
   var q = $('buscIni').value.toLowerCase();
   var estado = $('filtroEstadoIni').value;
   var tipo = $('filtroTipoIni').value;
+  var prioridad = $('filtroPrioridadIni').value;
+  var plataforma = $('filtroPlataformaIni').value;
   var cont = $('matriz');
 
   // Filas: lineas estrategicas de negocio. Columnas: verticales de producto.
@@ -369,6 +381,12 @@ function pintarMatriz() {
     return (lista || []).filter(function (i) {
       if (estado && i.estado !== estado) return false;
       if (tipo && i.tipo !== tipo) return false;
+      if (prioridad && i.prioridad !== prioridad) return false;
+      if (plataforma === '__SIN__') {
+        if (i.plataformaId) return false;
+      } else if (plataforma && i.plataformaId !== plataforma) {
+        return false;
+      }
       if (q && String(i.nombre).toLowerCase().indexOf(q) === -1) return false;
       return true;
     });
@@ -421,12 +439,14 @@ function tarjetaIniciativa(i) {
         (i.fechaFinPlaneada ? '<span>Fin ' + esc(fecha(i.fechaFinPlaneada)) + '</span>' : '') + '</div>'
       : '<div class="fechas"><span>Sin fechas registradas</span></div>';
 
-  return '<article class="ini ' + franja +
-      (i.prioridad === 'Crítica' || i.prioridad === 'Critica' ? ' critica' : '') + '">' +
+  return '<article class="ini ' + franja + (i.prioridad === 'PRI-01' ? ' critica' : '') + '">' +
     '<h4>' + esc(i.nombre) + '</h4>' +
     '<div class="meta">' +
       '<span class="badge ' + clase + '">' + esc(nombreEst) + '</span>' +
-      (i.prioridad ? '<span class="chip ' + (PRIORIDAD_CLASE[i.prioridad] || 'p-baja') + '">' + esc(i.prioridad) + '</span>' : '') +
+      (i.prioridadNombre
+        ? '<span class="chip ' + (PRIORIDAD_CLASE[i.prioridad] || 'p-baja') + '">' +
+          esc(i.prioridadNombre) + '</span>'
+        : '') +
       (tipo ? '<span class="chip c-tipo">' + esc(tipo) + '</span>' : '') +
     '</div>' +
     '<div class="personas">' +

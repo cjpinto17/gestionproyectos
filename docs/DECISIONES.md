@@ -218,6 +218,19 @@ a mano: para eso está el botón **Actualizar** de la barra superior, que fuerza
 `medirRendimiento()` en `Cache.gs` cronometra las cuatro consultas principales con y sin
 caché, para comprobar el efecto sobre los datos reales.
 
+### D-24 · La prioridad se lee tolerante al formato
+El archivo fuente traía la prioridad como texto (*Crítica*, *Alta*, *Media*), mientras que el
+catálogo `Prioridad` y los formularios de la aplicación usan códigos (`PRI-01`…`PRI-04`). Sin
+tratamiento, editar una iniciativa desde Admin la habría dejado en código mientras el resto
+seguía en texto, y el orden y los filtros se habrían roto en silencio.
+
+`normalizarPrioridad_()` resuelve ambos formatos —código, nombre con o sin tilde, en cualquier
+combinación de mayúsculas— y la matriz siempre trabaja con el código. La tarjeta muestra el
+nombre legible. No hace falta migrar la hoja: convive el dato viejo con el nuevo.
+
+Las iniciativas de la matriz se ordenan dentro de cada celda por **Crítica → Alta → Media →
+Baja**, y alfabéticamente dentro del mismo nivel. Las que no tienen prioridad quedan al final.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

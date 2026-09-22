@@ -723,6 +723,28 @@ function getRoadmapVersiones() {
 }
 
 /**
+ * Resuelve una prioridad venga como codigo (PRI-01) o como texto ("Critica",
+ * "critica", "Crítica"). La data original del portafolio llego con el nombre,
+ * mientras que el catalogo y los formularios usan el codigo.
+ * @param {*} valor
+ * @return {string} ID del catalogo, o '' si no se reconoce.
+ * @private
+ */
+function normalizarPrioridad_(valor) {
+  if (!valor) return '';
+  var texto = String(valor).trim();
+  var sinTildes = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  for (var i = 0; i < PRIORIDADES.length; i++) {
+    var p = PRIORIDADES[i];
+    if (texto === p.id) return p.id;
+    if (p.nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() === sinTildes) {
+      return p.id;
+    }
+  }
+  return '';
+}
+
+/**
  * Pagina Iniciativas: matriz de solo lectura Vertical (filas) x LEN (columnas).
  * Las iniciativas sin clasificar caen en las claves SIN_VERTICAL / SIN_LEN y la
  * pagina las muestra aparte, nunca las oculta.
@@ -750,13 +772,16 @@ function getMatrizIniciativas() {
     celdas[clave].push({
       idProyecto: p.ID_Proyecto,
       nombre: p.Nombre_Proyecto,
-      prioridad: p.Prioridad || null,
+      prioridad: normalizarPrioridad_(p.Prioridad),
+      prioridadNombre: mapaCatalogo_(PRIORIDADES)[normalizarPrioridad_(p.Prioridad)] ||
+                       (p.Prioridad || ''),
       tipo: p.Tipo_Iniciativa || null,
       bo: nombreUsuario[p.BO_Usuario] || null,
       po: nombreUsuario[p.PO_Usuario] || null,
       estado: p.Estado_Iniciativa || null,
       fechaInicio: p.Fecha_Inicio || null,
       fechaFinPlaneada: p.Fecha_Fin_Estimada || null,
+      plataformaId: p.Plataforma_ID || '',
       plataforma: nombrePlataforma[p.Plataforma_ID] || null,
       actividades: actividadesPorProyecto[p.ID_Proyecto] || 0,
       actividadesAbiertas: abiertasPorProyecto[p.ID_Proyecto] || 0,
@@ -770,6 +795,8 @@ function getMatrizIniciativas() {
     verticales: VERTICALES,
     tipos: TIPOS_INICIATIVA,
     estados: ESTADOS_INICIATIVA,
+    prioridades: PRIORIDADES,
+    plataformas: PLATAFORMAS,
     celdas: celdas,
     totalIniciativas: datos.proyectos.length
   };
