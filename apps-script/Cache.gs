@@ -25,6 +25,8 @@
 var MEMO_LIBROS = {};
 /** Tablas ya leidas en esta ejecucion. */
 var MEMO_TABLAS = {};
+/** Encabezados reales de cada hoja, ya verificados contra el esquema. */
+var MEMO_ENCABEZADOS = {};
 
 /** Tamano maximo por entrada de CacheService, con margen para acentos (UTF-8). */
 var CACHE_TAMANO_BLOQUE = 45000;
@@ -103,6 +105,7 @@ function guardarEnCache_(tabla, filas) {
  */
 function invalidarTabla_(tabla) {
   delete MEMO_TABLAS[tabla];
+  delete MEMO_ENCABEZADOS[tabla];
   if (!CONFIG.CACHE_SEGUNDOS) return;
   try {
     var cache = CacheService.getScriptCache();
@@ -126,6 +129,7 @@ function limpiarCache() {
   var tablas = Object.keys(ESQUEMA_PARAMETRIZACION).concat(Object.keys(ESQUEMA_TRANSACCIONAL));
   tablas.forEach(invalidarTabla_);
   MEMO_LIBROS = {};
+  MEMO_ENCABEZADOS = {};
   var resultado = { limpiadas: tablas.length,
                     mensaje: 'Memoria vaciada. La proxima consulta leera directo de las hojas.' };
   Logger.log(JSON.stringify(resultado, null, 2));

@@ -216,7 +216,11 @@ function buscarPorPk_(tabla, valorPk) {
  * @private
  */
 function escribirFila_(tabla, numeroFila, registro) {
-  var columnas = getEncabezados(tabla);
+  // Se escribe segun los encabezados REALES de la hoja, no segun el orden del
+  // esquema. Si el esquema gana una columna nueva y la hoja todavia no la
+  // tiene, escribir por posicion correría todos los valores siguientes: la
+  // fase caeria en la columna del estado, el estado en la del bloqueo, y asi.
+  var columnas = asegurarColumnas_(tabla);
   var hoja = getHoja_(tabla);
   var valores = columnas.map(function (c) {
     var v = registro[c];
@@ -224,6 +228,45 @@ function escribirFila_(tabla, numeroFila, registro) {
   });
   hoja.getRange(numeroFila, 1, 1, columnas.length).setValues([valores]);
   invalidarTabla_(tabla);
+}
+
+/**
+ * Devuelve los encabezados reales de la hoja, agregando antes las columnas que
+ * el esquema declara y la hoja aun no tiene. Cada columna nueva se inserta en
+ * la posicion que le corresponde, de modo que los datos ya escritos no se
+ * desalinean: Google Sheets desplaza contenido, formatos y validaciones junto
+ * con la insercion.
+ *
+ * @param {string} tabla
+ * @return {!Array<string>} Encabezados de la hoja, ya alineados con el esquema.
+ * @private
+ */
+function asegurarColumnas_(tabla) {
+  if (MEMO_ENCABEZADOS[tabla]) return MEMO_ENCABEZADOS[tabla];
+
+  var hoja = getHoja_(tabla);
+  var esperados = getEncabezados(tabla);
+  var ancho = Math.max(hoja.getLastColumn(), 1);
+  var actuales = hoja.getRange(1, 1, 1, ancho).getValues()[0]
+      .map(function (v) { return String(v || ''); });
+
+  esperados.forEach(function (campo, i) {
+    if (actuales.indexOf(campo) !== -1) return;
+    var posicion = Math.min(i + 1, actuales.length + 1);
+    if (posicion <= hoja.getMaxColumns()) {
+      hoja.insertColumnBefore(posicion);
+    } else {
+      hoja.insertColumnsAfter(hoja.getMaxColumns(), 1);
+    }
+    hoja.getRange(1, posicion).setValue(campo)
+        .setFontWeight('bold').setFontColor(CONFIG.COLORES.BLANCO)
+        .setBackground(CONFIG.COLORES.NAVY);
+    actuales.splice(posicion - 1, 0, campo);
+    invalidarTabla_(tabla);
+  });
+
+  MEMO_ENCABEZADOS[tabla] = actuales;
+  return actuales;
 }
 
 /**

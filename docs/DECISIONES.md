@@ -246,6 +246,30 @@ plataforma, responsable y búsqueda libre; cada lista se ordena alfabéticamente
 solo ofrece los valores que tienen iniciativas detrás. Si lo escrito no corresponde a ninguna
 opción, el campo se marca en rojo en lugar de devolver un tablero vacío sin explicación.
 
+### D-27 · Las escrituras se guían por los encabezados de la hoja
+**Origen del problema:** al agregar `Orden_Iniciativa` en medio del esquema de `Solicitudes`,
+las hojas ya creadas quedaron sin esa columna. La escritura usaba el orden del esquema, no el
+de la hoja, así que a partir de esa posición cada valor caía una columna a la derecha: la
+fase terminaba en la columna del estado, y Google Sheets la rechazaba por validación
+(*"Los datos introducidos en la celda O4 infringen las reglas de validación"*). El mensaje
+señalaba el síntoma, no la causa.
+
+**Corrección:** `escribirFila_()` lee los encabezados reales de la hoja y escribe contra
+ellos. Si el esquema declara una columna que la hoja no tiene, `asegurarColumnas_()` la
+inserta **en su posición** —no al final—, de modo que Sheets desplaza datos, formatos y
+validaciones junto con ella y las filas existentes quedan alineadas solas.
+
+**Herramientas de mantenimiento** (`Mantenimiento.gs`):
+
+| Función | Qué hace |
+| --- | --- |
+| `verificarEstructura()` | Revisa las 18 hojas contra el esquema e inserta lo que falte |
+| `diagnosticarSolicitudes()` | Informa qué filas tienen valores fuera de su columna, sin tocar nada |
+| `repararSolicitudesDesalineadas()` | Endereza solo las filas que, al corregirlas, quedan con fase y estado válidos; las demás las reporta para revisión manual |
+
+La reparación nunca adivina: si el enderezado no produce una fila coherente, la deja intacta
+y la marca. Es preferible una fila señalada que una fila "reparada" a ciegas.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
