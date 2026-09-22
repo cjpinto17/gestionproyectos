@@ -155,6 +155,14 @@ function sembrarCatalogos_(libro) {
     ];
   }));
 
+  sembrarSiVacio_(libro, 'Lineas_Estrategicas', LINEAS_ESTRATEGICAS.map(function (l) {
+    return [l.id, l.nombre, l.orden];
+  }));
+
+  sembrarSiVacio_(libro, 'Verticales', VERTICALES.map(function (v) {
+    return [v.id, v.nombre, v.orden];
+  }));
+
   // SLA por fase: valores iniciales sugeridos, ajustables desde Administracion.
   var slaSugerido = { 'FAS-01': 5, 'FAS-02': 10, 'FAS-03': 10, 'FAS-04': 15,
                       'FAS-05': 5, 'FAS-06': 5, 'FAS-07': 3, 'FAS-08': 1 };

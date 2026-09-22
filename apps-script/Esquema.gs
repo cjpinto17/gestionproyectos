@@ -62,6 +62,22 @@ var CAUSALES_BLOQUEO = [
   { id: 'CAU-03', nombre: 'Dependencia' }
 ];
 
+/** Lineas Estrategicas de Negocio (LEN): eje horizontal de la matriz de iniciativas. */
+var LINEAS_ESTRATEGICAS = [
+  { id: 'LEN-01', nombre: 'Ingreso estable', orden: 1 },
+  { id: 'LEN-02', nombre: 'Agro', orden: 2 },
+  { id: 'LEN-03', nombre: 'Desarrollo empresarial', orden: 3 },
+  { id: 'LEN-04', nombre: 'Mi negocio independiente', orden: 4 }
+];
+
+/** Verticales de producto: eje vertical de la matriz de iniciativas. */
+var VERTICALES = [
+  { id: 'VER-01', nombre: 'Credito', orden: 1 },
+  { id: 'VER-02', nombre: 'Ahorro e inversion', orden: 2 },
+  { id: 'VER-03', nombre: 'Proteccion', orden: 3 },
+  { id: 'VER-04', nombre: 'Servicios de recaudo', orden: 4 }
+];
+
 var ROLES = [
   { id: 'RO-01', nombre: 'Solicitante' },
   { id: 'RO-02', nombre: 'Product Owner' },
@@ -109,7 +125,11 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'Descripcion', etiqueta: 'Descripcion', tipo: 'longtext' },
       { campo: 'Fecha_Inicio', etiqueta: 'Fecha de inicio', tipo: 'date' },
       { campo: 'Fecha_Fin_Estimada', etiqueta: 'Fecha fin estimada', tipo: 'date' },
-      { campo: 'Estado_Proyecto', etiqueta: 'Estado', tipo: 'enum', opciones: ['Activo', 'Cerrado', 'Pausado'] }
+      { campo: 'Estado_Proyecto', etiqueta: 'Estado', tipo: 'enum', opciones: ['Activo', 'Cerrado', 'Pausado'] },
+      { campo: 'LEN_ID', etiqueta: 'Linea estrategica de negocio', tipo: 'enum', fk: 'Lineas_Estrategicas', requerido: true },
+      { campo: 'Vertical_ID', etiqueta: 'Vertical', tipo: 'enum', fk: 'Verticales', requerido: true },
+      { campo: 'Responsable_Correo', etiqueta: 'Responsable', tipo: 'email', fk: 'Usuarios' },
+      { campo: 'ID_Aplicacion', etiqueta: 'Aplicacion principal', tipo: 'enum', fk: 'Aplicaciones' }
     ]
   },
   Plataforma_Digital: {
@@ -168,6 +188,24 @@ var ESQUEMA_PARAMETRIZACION = {
     columnas: [
       { campo: 'ID_Causal', etiqueta: 'ID Causal', tipo: 'text', requerido: true },
       { campo: 'Nombre_Causal', etiqueta: 'Nombre de la causal', tipo: 'text', requerido: true }
+    ]
+  },
+  Lineas_Estrategicas: {
+    etiqueta: 'Lineas Estrategicas de Negocio',
+    pk: 'ID_LEN',
+    columnas: [
+      { campo: 'ID_LEN', etiqueta: 'ID LEN', tipo: 'text', requerido: true },
+      { campo: 'Nombre_LEN', etiqueta: 'Linea estrategica', tipo: 'text', requerido: true },
+      { campo: 'Orden_LEN', etiqueta: 'Orden en la matriz', tipo: 'number' }
+    ]
+  },
+  Verticales: {
+    etiqueta: 'Verticales',
+    pk: 'ID_Vertical',
+    columnas: [
+      { campo: 'ID_Vertical', etiqueta: 'ID Vertical', tipo: 'text', requerido: true },
+      { campo: 'Nombre_Vertical', etiqueta: 'Vertical', tipo: 'text', requerido: true },
+      { campo: 'Orden_Vertical', etiqueta: 'Orden en la matriz', tipo: 'number' }
     ]
   },
   SLA_Fases: {
@@ -246,6 +284,7 @@ var ESQUEMA_TRANSACCIONAL = {
     columnas: [
       { campo: 'ID_Version', etiqueta: 'ID Version', tipo: 'text', requerido: true },
       { campo: 'ID_Aplicacion', etiqueta: 'Aplicacion', tipo: 'enum', fk: 'Aplicaciones', requerido: true },
+      { campo: 'Plataforma', etiqueta: 'Plataforma digital', tipo: 'enum', fk: 'Plataforma_Digital', requerido: true },
       { campo: 'Numero_Version', etiqueta: 'Numero de version', tipo: 'text', requerido: true },
       { campo: 'Estado_Release', etiqueta: 'Estado del release', tipo: 'enum', opciones: ['Planeada', 'En Produccion'] },
       { campo: 'Fecha_Planeada', etiqueta: 'Fecha planeada', tipo: 'date' },
@@ -291,4 +330,14 @@ function mapaFases() {
 /** @return {!Object<string,string>} Mapa ID_Estado -> Nombre_Estado. */
 function mapaEstados() {
   return ESTADOS.reduce(function (acc, e) { acc[e.id] = e.nombre; return acc; }, {});
+}
+
+/** @return {!Object<string,string>} Mapa ID_LEN -> Nombre_LEN. */
+function mapaLineasEstrategicas() {
+  return LINEAS_ESTRATEGICAS.reduce(function (acc, l) { acc[l.id] = l.nombre; return acc; }, {});
+}
+
+/** @return {!Object<string,string>} Mapa ID_Vertical -> Nombre_Vertical. */
+function mapaVerticales() {
+  return VERTICALES.reduce(function (acc, v) { acc[v.id] = v.nombre; return acc; }, {});
 }

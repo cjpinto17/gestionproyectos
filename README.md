@@ -28,21 +28,23 @@ apps-script/
 ├── Config.gs          Configuración central y accesores de PropertiesService
 ├── Esquema.gs         Modelo de datos declarativo: tablas, columnas y catálogos
 ├── Rbac.gs            Matriz de permisos rol × fase y validación de transiciones
+├── Metricas.gs        Motor de indicadores de la fábrica, calculados desde Sheets
 ├── Setup.gs           Instalador idempotente: crea libros, hojas y catálogos
 ├── Codigo.gs          API del backend: sesión, acceso a datos y endpoints
 ├── Index.html         Contenedor SPA: navbar, router y arranque de sesión
-├── Home.html          Página 1 — Dashboard gerencial
-├── Iniciativas.html   Página 2 — Iniciativas de negocio
+├── Home.html          Página 1 — Dashboard gerencial e indicadores
+├── Iniciativas.html   Página 2 — Matriz Vertical × LEN (solo lectura)
 ├── Gestion.html       Página 3 — Tablero Kanban de 8 fases
-├── Reportes.html      Página 4 — Trazabilidad y métricas
-└── Admin.html         Página 5 — CRUD de parametrización
+├── Roadmap.html       Página 4 — Roadmap de versiones por plataforma
+├── Reportes.html      Página 5 — Actividad mensual y auditoría
+└── Admin.html         Página 6 — CRUD de parametrización
 docs/
 ├── MODELO_DATOS.md    Diccionario de datos de las 15 tablas
 └── DECISIONES.md      Decisiones de diseño y supuestos abiertos
 ```
 
 > El documento funcional describía un único `Codigo.gs`. Se separó en `Config`, `Esquema`,
-> `Rbac` y `Setup` porque Apps Script carga todos los `.gs` en un mismo espacio global: la
+> `Rbac`, `Metricas` y `Setup` porque Apps Script carga todos los `.gs` en un mismo espacio global: la
 > división es organizativa y no altera la arquitectura modular acordada.
 
 ## 3. Despliegue
@@ -64,7 +66,7 @@ clasp open
 
 En el editor de Apps Script:
 
-1. Ejecute **`setupInicial()`** una vez. Crea los dos libros, las 14 hojas con sus
+1. Ejecute **`setupInicial()`** una vez. Crea los dos libros, las 16 hojas con sus
    encabezados, siembra los catálogos y crea la plantilla de requerimiento. Es idempotente:
    puede volver a ejecutarse sin duplicar datos.
 2. Ejecute **`validarInstalacion()`** para confirmar que cada hoja y encabezado coincide con
@@ -99,13 +101,30 @@ guardarConfiguracion({
 
 `diagnosticoConfiguracion()` devuelve en cualquier momento qué está configurado y qué falta.
 
-## 5. Alcance pendiente (fase 2)
+## 5. Indicadores de la fábrica de software
+
+`Metricas.gs` está **implementado** y calcula todo desde las hojas. `getMetricasHome(meses)`
+devuelve cuatro bloques:
+
+| Bloque | Indicadores |
+| --- | --- |
+| **Velocidad** | Lead Time (promedio, mediana, P85), throughput mensual, Cycle Time por fase contra SLA, tiempo neto de construcción |
+| **Calidad** | First Pass Yield, tasa de reproceso, devoluciones de QA y de UAT |
+| **Predictibilidad** | Cumplimiento de SLA por fase, entregas en la fecha comprometida, desvío promedio, eficiencia de flujo |
+| **Carga** | WIP total y por responsable, backlog, tiempo esperado de entrega (ley de Little), demanda vs. entrega, actividades estancadas, bloqueos por causal |
+
+Las fórmulas y su origen exacto están en [`docs/MODELO_DATOS.md`](docs/MODELO_DATOS.md).
+`getReportes(meses)` entrega la actividad mensual por iniciativa y por fase;
+`getRoadmapVersiones()` agrupa las versiones por plataforma; `getMatrizIniciativas()`
+arma la matriz Vertical × LEN.
+
+## 6. Alcance pendiente (fase 2)
 
 - `crearSolicitud`, `actualizarSolicitud`, `cambiarFaseSolicitud`, `marcarBloqueo`.
 - `registrarTransicionAudit` con cálculo de `Horas_En_Fase`.
 - `crearContenedorDrive_`: carpeta con nomenclatura oficial + clonación de la plantilla.
 - `notificarChat_` (tarjetas `cardsV2`) y `notificarCorreo_` (HTML corporativo).
-- `getMetricasHome` y `getReportes`: Lead Time, Cycle Time y cumplimiento de SLA.
 - CRUD de escritura en la página Admin.
-- Kanban: render de columnas y tarjetas, drag & drop y modal de detalle.
+- Render de las 6 páginas: el backend ya devuelve los datos calculados; falta pintarlos.
+- Kanban: columnas, tarjetas, drag & drop y modal de detalle.
 - Guía de configuración de AppSheet sobre las mismas hojas (no es generable por código).

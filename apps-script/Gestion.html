@@ -17,9 +17,18 @@
   </div>
 </div>
 
-<!-- Kanban: 8 columnas con scroll horizontal -->
+<!--
+  Kanban: 8 columnas con scroll horizontal.
+  Cada tarjeta muestra, en este orden:
+    1. Codigo de la actividad      -> ID_Solicitud
+    2. Nombre de la iniciativa     -> Nombre_Iniciativa (resuelto en getDatosKanban)
+    3. Nombre de la actividad      -> Nombre_Solicitud
+    4. Responsable                 -> Nombre_Responsable
+    5. Estado                      -> badge de Estado_Actual
+    6. Version estimada            -> Version_Semantica
+    7. Indicador de alerta         -> visible si Tiene_Bloqueo = "SI"
+-->
 <div id="kanban" class="flex gap-4 overflow-x-auto pb-4">
-  <!-- TODO(fase-2): las columnas se generan desde FASES y las tarjetas desde getSolicitudes(). -->
   <div class="shrink-0 w-72 bg-slate-100 rounded-xl p-3 text-center text-sm text-slate-400">
     Columnas y tarjetas: pendiente fase 2
   </div>
@@ -36,7 +45,8 @@
 </div>
 
 <script>
-  // TODO(fase-2): construir columnas, render de tarjetas, drag & drop nativo
+  // TODO(fase-2): google.script.run.withSuccessHandler(pintarKanban).getDatosKanban(filtros);
+  // Luego: render de columnas desde FASES, drag & drop nativo
   // (dragstart/dragover/drop) y llamada a cambiarFaseSolicitud().
   function inicializar_gestion() { /* carga del tablero */ }
 </script>

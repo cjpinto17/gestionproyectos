@@ -1,6 +1,6 @@
 # Diccionario de datos
 
-14 tablas distribuidas en dos libros de Google Sheets. La fuente de verdad ejecutable es
+16 tablas distribuidas en dos libros de Google Sheets. La fuente de verdad ejecutable es
 `apps-script/Esquema.gs`; este documento es su lectura funcional.
 
 ## Libro 1 — `Parametrizacion_Plataformas_Completo`
@@ -21,9 +21,21 @@ Ocho roles: `RO-01` Solicitante, `RO-02` Product Owner, `RO-03` Analista Fábric
 `RO-04` Desarrollador, `RO-05` Analista QA, `RO-06` Equipo UAT, `RO-07` Comité CAB,
 `RO-08` Administrador.
 
-### `Proyectos`
+### `Proyectos` *(las "iniciativas" del negocio)*
 `ID_Proyecto` (PK), `Nombre_Proyecto`, `Descripcion`, `Fecha_Inicio`,
-`Fecha_Fin_Estimada`, `Estado_Proyecto` (*Activo* / *Cerrado* / *Pausado*).
+`Fecha_Fin_Estimada`, `Estado_Proyecto` (*Activo* / *Cerrado* / *Pausado*),
+`LEN_ID` (FK → `Lineas_Estrategicas`), `Vertical_ID` (FK → `Verticales`),
+`Responsable_Correo` (FK → `Usuarios`), `ID_Aplicacion` (FK → `Aplicaciones`).
+
+Los cuatro últimos campos alimentan la matriz de la página Iniciativas.
+
+### `Lineas_Estrategicas` *(tabla nueva)*
+`ID_LEN` (PK), `Nombre_LEN`, `Orden_LEN`.
+Catálogo: Ingreso estable, Agro, Desarrollo empresarial, Mi negocio independiente.
+
+### `Verticales` *(tabla nueva)*
+`ID_Vertical` (PK), `Nombre_Vertical`, `Orden_Vertical`.
+Catálogo: Crédito, Ahorro e inversión, Protección, Servicios de recaudo.
 
 ### `Plataforma_Digital`
 `ID_Plataforma` (PK), `Nombre_Plataforma`.
@@ -88,15 +100,48 @@ Entidad central. PK `ID_Solicitud` con formato `SOL-YYYYMMDD-XXX`.
 `Estado_Origen`, `Estado_Destino`, `Fecha_Hora_Cambio`, `Usuario_Responsable`,
 `Horas_En_Fase`.
 
+`Fase_Origen` y `Fase_Destino` guardan el **ID** de fase (`FAS-01`…`FAS-08`), no el
+nombre: así un renombre del catálogo no rompe el histórico (ver decisión D-09).
+
 ### `Roadmap_Versiones`
-`ID_Version` (PK, `VER-<timestamp>`), `ID_Aplicacion`, `Numero_Version`,
+`ID_Version` (PK, `VER-<timestamp>`), `ID_Aplicacion`, `Plataforma`, `Numero_Version`,
 `Estado_Release` (*Planeada* / *En Produccion*), `Fecha_Planeada`, `Fecha_Despliegue_Real`.
 
 ---
 
-## Métricas derivadas
+## Indicadores derivados
 
-- **Lead Time / Time to Market:** `Fecha_Despliegue − Fecha_Registro`.
-- **Cycle Time por fase:** suma de `Horas_En_Fase` en `Auditoria_Transiciones`, agrupada por
-  `Fase_Origen`.
-- **Cumplimiento de SLA:** `Cycle Time` de cada fase contra `SLA_Fases.SLA_Dias`.
+Todos se calculan en `apps-script/Metricas.gs` a partir de las hojas. Ninguno usa
+constantes quemadas; si falta el dato, el indicador devuelve `null`.
+
+### Velocidad de entrega
+| Indicador | Fórmula | Origen |
+| --- | --- | --- |
+| Lead Time / Time to Market | `Fecha_Despliegue − Fecha_Registro` (promedio, mediana y P85) | `Solicitudes` |
+| Throughput mensual | Actividades desplegadas por mes | `Solicitudes.Fecha_Despliegue` |
+| Cycle Time por fase | Promedio de `Horas_En_Fase / 24` por `Fase_Origen` | `Auditoria_Transiciones` |
+| Tiempo neto de construcción | `Fecha_Fin_Dev − Fecha_Inicio_Dev` | `Solicitudes` |
+
+### Calidad y reproceso
+| Indicador | Fórmula | Origen |
+| --- | --- | --- |
+| Tasa de reproceso | Transiciones con `orden(destino) < orden(origen)` ÷ total de transiciones | `Auditoria_Transiciones` |
+| First Pass Yield | Actividades en producción que nunca retrocedieron ÷ total en producción | `Auditoria` + `Solicitudes` |
+| Devoluciones QA / UAT | Retrocesos cuyo `Fase_Origen` es `FAS-05` / `FAS-06` | `Auditoria_Transiciones` |
+
+### Predictibilidad
+| Indicador | Fórmula | Origen |
+| --- | --- | --- |
+| Cumplimiento de SLA por fase | % de transiciones con `Horas_En_Fase / 24 ≤ SLA_Dias` | `Auditoria` + `SLA_Fases` |
+| Entregas en fecha | % de versiones con `Fecha_Despliegue_Real ≤ Fecha_Planeada` | `Roadmap_Versiones` |
+| Desvío promedio | `Fecha_Despliegue_Real − Fecha_Planeada` en días | `Roadmap_Versiones` |
+| Eficiencia de flujo | `(Lead Time − horas bloqueada) ÷ Lead Time` | `Auditoria` + `Solicitudes` |
+
+### Carga de trabajo
+| Indicador | Fórmula | Origen |
+| --- | --- | --- |
+| WIP | Actividades en fases 3 a 7, total y por responsable | `Solicitudes.Fase_Actual` |
+| Tiempo esperado de entrega | `WIP ÷ throughput diario` (ley de Little) | derivado |
+| Demanda vs. entrega | Registradas por mes contra desplegadas por mes | `Solicitudes` |
+| Actividades estancadas | Días en la fase actual > `SLA_Dias` de esa fase | `Solicitudes` + `SLA_Fases` |
+| Bloqueos activos | `Tiene_Bloqueo = SÍ` entre las actividades en vuelo, por causal | `Solicitudes` |

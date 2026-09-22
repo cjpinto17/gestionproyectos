@@ -1,14 +1,15 @@
-<!-- Iniciativas.html | Pagina 2: Iniciativas de Negocio -->
-<div class="flex flex-wrap items-center gap-3 mb-6">
+<!-- Iniciativas.html | Pagina 2: Matriz Vertical x LEN (solo lectura) -->
+<div class="flex flex-wrap items-center gap-3 mb-5">
   <div>
     <h1 class="text-2xl font-bold text-navy">Iniciativas de Negocio</h1>
-    <p class="text-sm text-slate-500">Estado macro de los proyectos del portafolio.</p>
+    <p class="text-sm text-slate-500">
+      Portafolio organizado por vertical de producto (filas) y l&iacute;nea estrat&eacute;gica de negocio (columnas). Vista de solo lectura.
+    </p>
   </div>
   <div class="ml-auto flex gap-2">
-    <input id="buscadorProyectos" type="search" placeholder="Buscar proyecto&hellip;"
-           class="border border-slate-300 rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-esmeralda">
-    <select id="filtroEstadoProyecto"
-            class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-esmeralda">
+    <input id="buscadorIniciativas" type="search" placeholder="Buscar iniciativa&hellip;"
+           class="border border-slate-300 rounded-lg px-3 py-2 text-sm w-60">
+    <select id="filtroEstadoIniciativa" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
       <option value="">Todos los estados</option>
       <option value="Activo">Activo</option>
       <option value="Pausado">Pausado</option>
@@ -17,25 +18,27 @@
   </div>
 </div>
 
-<div class="bg-white rounded-xl shadow-sm overflow-hidden">
-  <table class="w-full text-sm">
-    <thead class="bg-navy text-white text-left">
-      <tr>
-        <th class="px-4 py-3 font-medium">ID Proyecto</th>
-        <th class="px-4 py-3 font-medium">Nombre</th>
-        <th class="px-4 py-3 font-medium">Descripci&oacute;n</th>
-        <th class="px-4 py-3 font-medium">Inicio</th>
-        <th class="px-4 py-3 font-medium">Fin estimado</th>
-        <th class="px-4 py-3 font-medium">Estado</th>
-      </tr>
-    </thead>
-    <tbody id="tablaProyectos" class="divide-y divide-slate-100">
-      <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Pendiente fase 2</td></tr>
-    </tbody>
-  </table>
+<!--
+  Matriz: una columna por LEN (Ingreso estable, Agro, Desarrollo empresarial,
+  Mi negocio independiente) y una fila por vertical (Credito, Ahorro e
+  inversion, Proteccion, Servicios de recaudo). Cada celda apila las tarjetas
+  de las iniciativas que cruzan esa vertical con esa LEN.
+
+  Tarjeta: nombre, responsable, estado, fecha de inicio, fecha fin planeada,
+  cantidad de actividades relacionadas y aplicacion.
+-->
+<div class="overflow-x-auto">
+  <div id="matrizIniciativas" class="min-w-[900px]">
+    <div class="bg-white rounded-xl shadow-sm p-8 text-center text-sm text-slate-400">
+      Pendiente fase 2: se alimenta de getMatrizIniciativas().
+    </div>
+  </div>
 </div>
 
 <script>
-  // TODO(fase-2): cargar getCatalogos().proyectos y renderizar con filtros en vivo.
-  function inicializar_iniciativas() { /* carga de proyectos */ }
+  // TODO(fase-2): google.script.run.withSuccessHandler(pintarMatriz).getMatrizIniciativas();
+  // La respuesta trae { lineas, verticales, celdas } donde la clave de cada
+  // celda es "<Vertical_ID>|<LEN_ID>". Las iniciativas sin clasificar caen en
+  // las claves SIN_VERTICAL / SIN_LEN y se muestran en una fila aparte.
+  function inicializar_iniciativas() { /* carga de la matriz */ }
 </script>

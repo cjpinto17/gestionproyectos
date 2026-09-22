@@ -186,7 +186,9 @@ function getCatalogos() {
     tipos: TIPOS_SOLICITUD,
     prioridades: PRIORIDADES,
     causales: CAUSALES_BLOQUEO,
-    roles: ROLES
+    roles: ROLES,
+    lineasEstrategicas: LINEAS_ESTRATEGICAS,
+    verticales: VERTICALES
   };
 }
 
@@ -210,7 +212,38 @@ function generarIdSolicitud_() {
 }
 
 /**
- * Lista las solicitudes para el tablero Kanban, con filtros opcionales.
+ * Datos del tablero Kanban: solicitudes filtradas y ya enriquecidas con el
+ * nombre de la iniciativa y del responsable, mas los catalogos que necesitan
+ * los filtros. Una sola llamada por carga de pagina.
+ * @param {!Object=} filtros
+ * @return {!Object}
+ */
+function getDatosKanban(filtros) {
+  var proyectos = leerTabla('Proyectos');
+  var usuarios = leerTabla('Usuarios');
+  var nombreProyecto = {}, nombreUsuario = {};
+  proyectos.forEach(function (p) { nombreProyecto[p.ID_Proyecto] = p.Nombre_Proyecto; });
+  usuarios.forEach(function (u) { nombreUsuario[u.Correo_ID] = u.Nombre_Completo; });
+
+  var solicitudes = getSolicitudes(filtros).map(function (s) {
+    s.Nombre_Iniciativa = nombreProyecto[s.ID_Proyecto] || s.ID_Proyecto;
+    s.Nombre_Responsable = nombreUsuario[s.Responsable_Actual] || s.Responsable_Actual;
+    return s;
+  });
+
+  return {
+    solicitudes: solicitudes,
+    proyectos: proyectos,
+    usuarios: usuarios,
+    plataformas: leerTabla('Plataforma_Digital'),
+    fases: FASES,
+    estados: ESTADOS,
+    causales: CAUSALES_BLOQUEO
+  };
+}
+
+/**
+ * Lista las solicitudes (actividades) aplicando filtros opcionales.
  * @param {!Object=} filtros { idProyecto, plataforma, responsable, texto }
  * @return {!Array<!Object>}
  */
@@ -298,27 +331,11 @@ function registrarTransicionAudit(solicitud, faseDestino, estadoDestino, correoU
   throw new Error('registrarTransicionAudit: pendiente de implementacion (fase 2).');
 }
 
-/**
- * Metricas del dashboard gerencial (Home).
- * @return {!Object} { iniciativasTotales, solicitudesEnVuelo,
- *                     timeToMarketPromedioDias, bloqueosActivos,
- *                     distribucionPlataforma, cumplimientoSla }
+/*
+ * getMetricasHome(), getReportes(), getRoadmapVersiones() y getMatrizIniciativas()
+ * estan implementados en Metricas.gs: calculan todos los indicadores a partir de
+ * las hojas de Solicitudes, Auditoria_Transiciones, SLA_Fases y Roadmap_Versiones.
  */
-function getMetricasHome() {
-  // TODO(fase-2): Lead Time = Fecha_Despliegue - Fecha_Registro sobre las
-  // solicitudes en FAS-08; SLA comparando Horas_En_Fase contra SLA_Fases.
-  throw new Error('getMetricasHome: pendiente de implementacion (fase 2).');
-}
-
-/**
- * Datos de la pagina de Reportes: Lead Time, Cycle Time por fase y bitacora.
- * @param {!Object=} filtros
- * @return {!Object}
- */
-function getReportes(filtros) {
-  // TODO(fase-2).
-  throw new Error('getReportes: pendiente de implementacion (fase 2).');
-}
 
 /* ================================================================== */
 /* 6. Drive, Chat y correo                                             */
