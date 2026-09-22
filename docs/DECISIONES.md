@@ -93,11 +93,48 @@ Dos definiciones que conviene validar con la Gerencia:
 - **SLA en días calendario.** `SLA_Fases.SLA_Dias` se compara contra `Horas_En_Fase / 24`, que son días corridos. Si el negocio mide en días hábiles, hay que descontar fines de semana y festivos colombianos (implica una tabla de festivos).
 - **Tiempo bloqueado.** La eficiencia de flujo descuenta las horas en bloqueo, que se deducen de las transiciones cuyo `Estado_Destino` es *Bloqueada*. Esto exige que activar y levantar un bloqueo **también** escriba en la bitácora, no solo los cambios de fase.
 
+### D-11 · Carga de la data real del portafolio
+`DatosIniciales.gs` trae las 8 plataformas, los Business Owner entregados y las 39
+iniciativas. `cargarDatosIniciales()` solo escribe en hojas vacías, nunca sobrescribe lo que
+ya exista. Cuatro ajustes aplicados sobre la fuente, todos reversibles desde Administración:
+
+| # | Situación en la fuente | Qué hice |
+| --- | --- | --- |
+| 1 | `PL-07` aparecía dos veces: *Shivam* y *Portal Empresarial* | Asigné `PL-08` a Portal Empresarial |
+| 2 | Los IDs venían como `001`, `002`… | Los prefijé como `INI-001`. Google Sheets convierte el texto `001` en el número `1` y se perdería el formato de la llave primaria |
+| 3 | El estado llegaba como texto (*En progreso*, *Por iniciar*) | Se mapea al catálogo de Estados: `EST-02` y `EST-01` |
+| 4 | Los Business Owner vienen por nombre, sin correo | Quedan creados como `Usuarios` con correo `nombre.apellido@pendiente`, para corregir cuando se confirme el dominio |
+
+### D-12 · Campos nuevos en las iniciativas
+La estructura real trae cuatro campos que el modelo no tenía: **`Prioridad`**,
+**`Tipo_Iniciativa`**, **`BO_Correo`** y **`PO_Correo`**. El `Responsable_Correo` único se
+reemplazó por la pareja BO/PO, que es como el negocio gobierna el portafolio. Se agregó el
+catálogo `Tipos_Iniciativa` con los cinco valores en uso: Negocio, Normativo, Habilitador
+Técnico, Experiencia de cliente e Innovación con propósito.
+
+### D-13 · *Transversal* como valor de LEN y de vertical
+33 de las 39 iniciativas son `LEN = Transversal` y 18 son `Vertical = Transversal`, así que
+ambos catálogos incorporan `LEN-00` y `VER-00` con ese nombre. Consecuencia sobre el diseño
+de la matriz: la celda *Transversal × Transversal* concentra 16 iniciativas y la de
+*Crédito × Transversal* otras 13, mientras que dos columnas completas (*Ingreso estable* y
+*Desarrollo empresarial*) quedan vacías. Por eso las celdas ahora tienen alto máximo con
+desplazamiento, un contador visible y las iniciativas se ordenan con las críticas primero.
+
+### D-14 · Sin dependencias fuera de Google
+Se retiró el CDN de Tailwind (`cdn.tailwindcss.com`). El CSS corporativo vive en
+`Estilos.html` y se sirve desde el mismo Apps Script. La única fuente externa que queda es
+Google Fonts, que es infraestructura de Google; si se requiere cero tráfico externo, basta
+con borrar el `<link>` y el navegador usa la pila de respaldo declarada en los tokens.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
 | --- | --- | --- |
-| S-01 | Catálogos de negocio | Lista de `Aplicaciones` por plataforma, `Proyectos` iniciales y `Usuarios` con su rol |
+| S-01 | Catálogos de negocio | Falta la lista de `Aplicaciones` por plataforma y el resto de `Usuarios` con su rol. Plataformas e iniciativas ya están cargadas |
+| S-12 | Correos de los BO/PO | Claudia Gómez, Mauricio Osorio y los PO pendientes: se necesitan los correos corporativos para que el RBAC funcione |
+| S-13 | Iniciativa `INI-011` | *Gestión comercial (Matrix Fase 5)* llegó solo con nombre: sin prioridad, tipo, LEN, vertical ni estado |
+| S-14 | Fechas del portafolio | Solo `INI-029` e `INI-031` traen fecha (14/09/2026, cargada como fecha de inicio). ¿Las demás no tienen, o están en otra fuente? |
+| S-15 | Plataforma por iniciativa | Las iniciativas no traen plataforma ni aplicación asociada; hoy esa relación solo existe a nivel de actividad |
 | S-02 | Google Chat | URL del webhook del espacio destino |
 | S-03 | Dominio | Dominio corporativo para restringir el SSO |
 | S-04 | Correo | ¿`MailApp` simple o Gmail API con alias/remitente específico? |

@@ -14,7 +14,7 @@ correo y métricas está declarada con su contrato y marcada `TODO(fase-2)`.
 
 | Capa | Tecnología |
 | --- | --- |
-| Frontend | SPA HTML5 + Tailwind CSS servida por `HtmlService` |
+| Frontend | SPA HTML5 + CSS corporativo propio, servida por `HtmlService` (sin CDN externos) |
 | Backend | Google Apps Script (V8), `doGet` / `doPost` |
 | Persistencia | 2 libros de Google Sheets (maestros + transaccional) |
 | Archivos | Google Drive — Unidad Compartida `1ib9cr7o47ecPQ3KSpcAn_mBjiY9LzqaY` |
@@ -30,8 +30,10 @@ apps-script/
 ├── Rbac.gs            Matriz de permisos rol × fase y validación de transiciones
 ├── Metricas.gs        Motor de indicadores de la fábrica, calculados desde Sheets
 ├── Setup.gs           Instalador idempotente: crea libros, hojas y catálogos
+├── DatosIniciales.gs  Data real: 8 plataformas y las 39 iniciativas del portafolio
 ├── Codigo.gs          API del backend: sesión, acceso a datos y endpoints
 ├── Index.html         Contenedor SPA: navbar, router y arranque de sesión
+├── Estilos.html       Hoja de estilos corporativa (sin CDN externos)
 ├── Home.html          Página 1 — Dashboard gerencial e indicadores
 ├── Iniciativas.html   Página 2 — Matriz Vertical × LEN (solo lectura)
 ├── Gestion.html       Página 3 — Tablero Kanban de 8 fases
@@ -66,12 +68,15 @@ clasp open
 
 En el editor de Apps Script:
 
-1. Ejecute **`setupInicial()`** una vez. Crea los dos libros, las 16 hojas con sus
+1. Ejecute **`setupInicial()`** una vez. Crea los dos libros, las 17 hojas con sus
    encabezados, siembra los catálogos y crea la plantilla de requerimiento. Es idempotente:
    puede volver a ejecutarse sin duplicar datos.
 2. Ejecute **`validarInstalacion()`** para confirmar que cada hoja y encabezado coincide con
    el esquema.
-3. Registre la configuración que el instalador no puede deducir:
+3. Ejecute **`cargarDatosIniciales()`** para cargar la data real: las 8 plataformas, los
+   Business Owner entregados y las 39 iniciativas del portafolio. Solo escribe en las hojas
+   que estén vacías, así que es seguro volver a ejecutarla.
+4. Registre la configuración que el instalador no puede deducir:
 
 ```javascript
 guardarConfiguracion({
@@ -80,9 +85,9 @@ guardarConfiguracion({
 });
 ```
 
-4. Cargue los datos de negocio desde la página **Admin** (o directamente en las hojas):
-   `Usuarios` (con su `Rol_ID`), `Proyectos` y `Aplicaciones`.
-5. **Implementar > Nueva implementación > Aplicación web**, ejecutando como
+5. Complete desde la página **Admin** (o directamente en las hojas):
+   el resto de `Usuarios` (con su `Rol_ID`) y el catálogo de `Aplicaciones`.
+6. **Implementar > Nueva implementación > Aplicación web**, ejecutando como
    *usuario que accede* y con acceso restringido al dominio.
 
 > Si ya existen los libros de Sheets, no ejecute el instalador en blanco: registre primero
@@ -125,6 +130,8 @@ arma la matriz Vertical × LEN.
 - `crearContenedorDrive_`: carpeta con nomenclatura oficial + clonación de la plantilla.
 - `notificarChat_` (tarjetas `cardsV2`) y `notificarCorreo_` (HTML corporativo).
 - CRUD de escritura en la página Admin.
-- Render de las 6 páginas: el backend ya devuelve los datos calculados; falta pintarlos.
+- Render de las 6 páginas: el backend ya devuelve los datos calculados; falta portar a los
+  parciales HTML el marcado del borrador aprobado (hoy conservan clases utilitarias de la
+  maqueta previa, que quedaron sin efecto al retirar el CDN).
 - Kanban: columnas, tarjetas, drag & drop y modal de detalle.
 - Guía de configuración de AppSheet sobre las mismas hojas (no es generable por código).

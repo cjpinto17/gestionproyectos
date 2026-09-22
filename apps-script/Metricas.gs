@@ -496,7 +496,10 @@ function getMetricasHome(meses) {
     portafolio: {
       iniciativasTotales: datos.proyectos.length,
       iniciativasActivas: datos.proyectos.filter(function (p) {
-        return p.Estado_Proyecto === 'Activo';
+        return p.Estado_Proyecto === 'EST-02';   // En progreso
+      }).length,
+      iniciativasPorIniciar: datos.proyectos.filter(function (p) {
+        return p.Estado_Proyecto === 'EST-01';
       }).length,
       solicitudesTotales: datos.solicitudes.length,
       solicitudesEnVuelo: datos.solicitudes.filter(function (s) {
@@ -702,7 +705,10 @@ function getMatrizIniciativas() {
     celdas[clave].push({
       idProyecto: p.ID_Proyecto,
       nombre: p.Nombre_Proyecto,
-      responsable: p.Responsable_Correo || null,
+      bo: p.BO_Correo || null,
+      po: p.PO_Correo || null,
+      prioridad: p.Prioridad || null,
+      tipo: p.Tipo_Iniciativa || null,
       estado: p.Estado_Proyecto,
       fechaInicio: p.Fecha_Inicio || null,
       fechaFinPlaneada: p.Fecha_Fin_Estimada || null,
@@ -717,6 +723,7 @@ function getMatrizIniciativas() {
   return {
     lineas: LINEAS_ESTRATEGICAS,
     verticales: VERTICALES,
+    tipos: TIPOS_INICIATIVA,
     celdas: celdas,
     totalIniciativas: datos.proyectos.length
   };

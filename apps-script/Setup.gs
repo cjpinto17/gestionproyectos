@@ -163,6 +163,10 @@ function sembrarCatalogos_(libro) {
     return [v.id, v.nombre, v.orden];
   }));
 
+  sembrarSiVacio_(libro, 'Tipos_Iniciativa', TIPOS_INICIATIVA.map(function (t) {
+    return [t.id, t.nombre];
+  }));
+
   // SLA por fase: valores iniciales sugeridos, ajustables desde Administracion.
   var slaSugerido = { 'FAS-01': 5, 'FAS-02': 10, 'FAS-03': 10, 'FAS-04': 15,
                       'FAS-05': 5, 'FAS-06': 5, 'FAS-07': 3, 'FAS-08': 1 };

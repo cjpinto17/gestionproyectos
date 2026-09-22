@@ -4,29 +4,7 @@
   <base target="_top">
   <meta charset="utf-8">
   <title>Plataformas Digitales</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    // Paleta corporativa de la Compania de Financiamiento.
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            navy: '#00306E',
-            esmeralda: '#1DD982',
-            verdeoscuro: '#1BB26C',
-            menta: '#50EAA2'
-          }
-        }
-      }
-    };
-  </script>
-  <style>
-    body { font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
-    .nav-tab { border-bottom: 3px solid transparent; }
-    .nav-tab.activo { border-bottom-color: #1DD982; color: #FFFFFF; }
-    .pagina { display: none; }
-    .pagina.activa { display: block; }
-  </style>
+  <?!= include('Estilos'); ?>
 </head>
 <body class="bg-slate-50 text-slate-800">
 

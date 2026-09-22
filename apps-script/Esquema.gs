@@ -34,13 +34,16 @@ var ESTADOS = [
   { id: 'EST-06', nombre: 'Terminada' }
 ];
 
-/** Catalogo de plataformas digitales. */
+/** Catalogo de plataformas digitales (data real del negocio). */
 var PLATAFORMAS = [
   { id: 'PL-01', nombre: 'Analizamos' },
   { id: 'PL-02', nombre: 'Aseguramos' },
   { id: 'PL-03', nombre: 'Banca Movil' },
   { id: 'PL-04', nombre: 'Notificamos' },
-  { id: 'PL-05', nombre: 'Talanquera' }
+  { id: 'PL-05', nombre: 'Talanquera' },
+  { id: 'PL-06', nombre: 'Configuramos' },
+  { id: 'PL-07', nombre: 'Shivam' },
+  { id: 'PL-08', nombre: 'Portal Empresarial' }
 ];
 
 var TIPOS_SOLICITUD = [
@@ -64,6 +67,7 @@ var CAUSALES_BLOQUEO = [
 
 /** Lineas Estrategicas de Negocio (LEN): eje horizontal de la matriz de iniciativas. */
 var LINEAS_ESTRATEGICAS = [
+  { id: 'LEN-00', nombre: 'Transversal', orden: 0 },
   { id: 'LEN-01', nombre: 'Ingreso estable', orden: 1 },
   { id: 'LEN-02', nombre: 'Agro', orden: 2 },
   { id: 'LEN-03', nombre: 'Desarrollo empresarial', orden: 3 },
@@ -72,10 +76,20 @@ var LINEAS_ESTRATEGICAS = [
 
 /** Verticales de producto: eje vertical de la matriz de iniciativas. */
 var VERTICALES = [
+  { id: 'VER-00', nombre: 'Transversal', orden: 0 },
   { id: 'VER-01', nombre: 'Credito', orden: 1 },
-  { id: 'VER-02', nombre: 'Ahorro e inversion', orden: 2 },
+  { id: 'VER-02', nombre: 'Ahorro e Inversion', orden: 2 },
   { id: 'VER-03', nombre: 'Proteccion', orden: 3 },
-  { id: 'VER-04', nombre: 'Servicios de recaudo', orden: 4 }
+  { id: 'VER-04', nombre: 'Servicio de Recaudo', orden: 4 }
+];
+
+/** Tipo de iniciativa: naturaleza de la inversion (data real del negocio). */
+var TIPOS_INICIATIVA = [
+  { id: 'TIN-01', nombre: 'Negocio' },
+  { id: 'TIN-02', nombre: 'Normativo' },
+  { id: 'TIN-03', nombre: 'Habilitador Tecnico' },
+  { id: 'TIN-04', nombre: 'Experiencia de cliente' },
+  { id: 'TIN-05', nombre: 'Innovacion con proposito' }
 ];
 
 var ROLES = [
@@ -117,18 +131,22 @@ var ESQUEMA_PARAMETRIZACION = {
     ]
   },
   Proyectos: {
-    etiqueta: 'Proyectos',
+    etiqueta: 'Iniciativas',
     pk: 'ID_Proyecto',
     columnas: [
-      { campo: 'ID_Proyecto', etiqueta: 'ID Proyecto', tipo: 'text', requerido: true },
-      { campo: 'Nombre_Proyecto', etiqueta: 'Nombre del proyecto', tipo: 'text', requerido: true },
+      { campo: 'ID_Proyecto', etiqueta: 'ID Iniciativa', tipo: 'text', requerido: true },
+      { campo: 'Nombre_Proyecto', etiqueta: 'Nombre de la iniciativa', tipo: 'text', requerido: true },
       { campo: 'Descripcion', etiqueta: 'Descripcion', tipo: 'longtext' },
+      { campo: 'Prioridad', etiqueta: 'Prioridad', tipo: 'enum', fk: 'Prioridad' },
+      { campo: 'Tipo_Iniciativa', etiqueta: 'Tipo de iniciativa', tipo: 'enum', fk: 'Tipos_Iniciativa' },
+      { campo: 'BO_Correo', etiqueta: 'Business Owner', tipo: 'email', fk: 'Usuarios' },
+      { campo: 'PO_Correo', etiqueta: 'Product Owner', tipo: 'email', fk: 'Usuarios' },
+      { campo: 'LEN_ID', etiqueta: 'Linea estrategica de negocio', tipo: 'enum', fk: 'Lineas_Estrategicas' },
+      { campo: 'Vertical_ID', etiqueta: 'Vertical', tipo: 'enum', fk: 'Verticales' },
+      { campo: 'Fecha_Estimada', etiqueta: 'Fecha estimada', tipo: 'date' },
       { campo: 'Fecha_Inicio', etiqueta: 'Fecha de inicio', tipo: 'date' },
       { campo: 'Fecha_Fin_Estimada', etiqueta: 'Fecha fin estimada', tipo: 'date' },
-      { campo: 'Estado_Proyecto', etiqueta: 'Estado', tipo: 'enum', opciones: ['Activo', 'Cerrado', 'Pausado'] },
-      { campo: 'LEN_ID', etiqueta: 'Linea estrategica de negocio', tipo: 'enum', fk: 'Lineas_Estrategicas', requerido: true },
-      { campo: 'Vertical_ID', etiqueta: 'Vertical', tipo: 'enum', fk: 'Verticales', requerido: true },
-      { campo: 'Responsable_Correo', etiqueta: 'Responsable', tipo: 'email', fk: 'Usuarios' },
+      { campo: 'Estado_Proyecto', etiqueta: 'Estado', tipo: 'enum', fk: 'Estados' },
       { campo: 'ID_Aplicacion', etiqueta: 'Aplicacion principal', tipo: 'enum', fk: 'Aplicaciones' }
     ]
   },
@@ -197,6 +215,14 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'ID_LEN', etiqueta: 'ID LEN', tipo: 'text', requerido: true },
       { campo: 'Nombre_LEN', etiqueta: 'Linea estrategica', tipo: 'text', requerido: true },
       { campo: 'Orden_LEN', etiqueta: 'Orden en la matriz', tipo: 'number' }
+    ]
+  },
+  Tipos_Iniciativa: {
+    etiqueta: 'Tipos de Iniciativa',
+    pk: 'ID_Tipo_Iniciativa',
+    columnas: [
+      { campo: 'ID_Tipo_Iniciativa', etiqueta: 'ID Tipo', tipo: 'text', requerido: true },
+      { campo: 'Nombre_Tipo_Iniciativa', etiqueta: 'Tipo de iniciativa', tipo: 'text', requerido: true }
     ]
   },
   Verticales: {

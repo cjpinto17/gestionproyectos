@@ -1,6 +1,6 @@
 # Diccionario de datos
 
-16 tablas distribuidas en dos libros de Google Sheets. La fuente de verdad ejecutable es
+17 tablas distribuidas en dos libros de Google Sheets. La fuente de verdad ejecutable es
 `apps-script/Esquema.gs`; este documento es su lectura funcional.
 
 ## Libro 1 — `Parametrizacion_Plataformas_Completo`
@@ -22,24 +22,44 @@ Ocho roles: `RO-01` Solicitante, `RO-02` Product Owner, `RO-03` Analista Fábric
 `RO-08` Administrador.
 
 ### `Proyectos` *(las "iniciativas" del negocio)*
-`ID_Proyecto` (PK), `Nombre_Proyecto`, `Descripcion`, `Fecha_Inicio`,
-`Fecha_Fin_Estimada`, `Estado_Proyecto` (*Activo* / *Cerrado* / *Pausado*),
-`LEN_ID` (FK → `Lineas_Estrategicas`), `Vertical_ID` (FK → `Verticales`),
-`Responsable_Correo` (FK → `Usuarios`), `ID_Aplicacion` (FK → `Aplicaciones`).
+| Campo | Tipo | Notas |
+| --- | --- | --- |
+| `ID_Proyecto` | text | **PK** — formato `INI-001` |
+| `Nombre_Proyecto` | text | |
+| `Descripcion` | longtext | |
+| `Prioridad` | enum → `Prioridad` | Crítica / Alta / Media / Baja |
+| `Tipo_Iniciativa` | enum → `Tipos_Iniciativa` | |
+| `BO_Correo` | email → `Usuarios` | Business Owner |
+| `PO_Correo` | email → `Usuarios` | Product Owner |
+| `LEN_ID` | enum → `Lineas_Estrategicas` | Columna de la matriz |
+| `Vertical_ID` | enum → `Verticales` | Fila de la matriz |
+| `Fecha_Estimada` | date | |
+| `Fecha_Inicio` | date | |
+| `Fecha_Fin_Estimada` | date | |
+| `Estado_Proyecto` | enum → `Estados` | Mismo catálogo de 6 estados |
+| `ID_Aplicacion` | enum → `Aplicaciones` | Aplicación principal |
 
-Los cuatro últimos campos alimentan la matriz de la página Iniciativas.
+Cargada con las 39 iniciativas reales del portafolio.
 
-### `Lineas_Estrategicas` *(tabla nueva)*
+### `Lineas_Estrategicas`
 `ID_LEN` (PK), `Nombre_LEN`, `Orden_LEN`.
-Catálogo: Ingreso estable, Agro, Desarrollo empresarial, Mi negocio independiente.
+Catálogo: **Transversal**, Ingreso estable, Agro, Desarrollo empresarial,
+Mi negocio independiente.
 
-### `Verticales` *(tabla nueva)*
+### `Verticales`
 `ID_Vertical` (PK), `Nombre_Vertical`, `Orden_Vertical`.
-Catálogo: Crédito, Ahorro e inversión, Protección, Servicios de recaudo.
+Catálogo: **Transversal**, Crédito, Ahorro e Inversión, Protección, Servicio de Recaudo.
+
+### `Tipos_Iniciativa` *(tabla nueva)*
+`ID_Tipo_Iniciativa` (PK), `Nombre_Tipo_Iniciativa`.
+Catálogo: Negocio, Normativo, Habilitador Técnico, Experiencia de cliente,
+Innovación con propósito.
 
 ### `Plataforma_Digital`
 `ID_Plataforma` (PK), `Nombre_Plataforma`.
-Catálogo: Analizamos, Aseguramos, Banca Movil, Notificamos, Talanquera.
+Catálogo real: Analizamos (`PL-01`), Aseguramos (`PL-02`), Banca Movil (`PL-03`),
+Notificamos (`PL-04`), Talanquera (`PL-05`), Configuramos (`PL-06`), Shivam (`PL-07`),
+Portal Empresarial (`PL-08`).
 
 ### `Aplicaciones`
 `ID_Aplicacion` (PK), `Nombre_Aplicacion`, `Plataforma_ID` (FK → `Plataforma_Digital`).
