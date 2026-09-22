@@ -34,6 +34,9 @@ yo haga en el repositorio llega solo a Google.
 Una vez configurado, **no tienes que hacer nada más**: cada vez que actualicemos el código en
 GitHub, se publica solo en tu proyecto de Google.
 
+> En el paso A.2 vas a ver una página de error con la dirección `localhost:8888`. **Es parte
+> del procedimiento**, no es una falla: el paso 9 explica qué hacer con ella.
+
 **A.1 · Habilitar la API de Apps Script**
 
 1. Entra a **[script.google.com/home/usersettings](https://script.google.com/home/usersettings)**.
@@ -50,21 +53,42 @@ GitHub, se publica solo en tu proyecto de Google.
    npm install -g @google/clasp
    ```
 
-3. Espera a que termine (1–2 minutos) y escribe:
+3. Espera a que termine (1–2 minutos) y escribe **exactamente esto** (sin `--no-localhost`):
 
    ```
-   clasp login --no-localhost
+   clasp login
    ```
 
-4. Te muestra un enlace largo. Cópialo, ábrelo en otra pestaña, autoriza con tu cuenta
-   corporativa y copia el código que te devuelve. Pégalo en la terminal y presiona Enter.
-5. Escribe:
+4. Te muestra un enlace largo y la terminal **se queda esperando**. Es normal: no la cierres
+   ni presiones nada ahí.
+5. Copia el enlace, ábrelo en otra pestaña del navegador y autoriza con tu cuenta corporativa.
+6. **La página te va a dar error** (*No se puede acceder a este sitio*, `localhost:8888`).
+   Eso es lo esperado: esa dirección vive dentro de la terminal de Google, no en tu
+   computador. **No cierres esa pestaña.**
+7. Copia la **dirección completa** de la barra de direcciones de esa pestaña con error.
+   Empieza por `http://localhost:8888/?code=` y sigue con un texto muy largo.
+8. Vuelve a la pestaña de la terminal y **abre una segunda terminal**: botón **+** en la
+   barra superior de Cloud Shell.
+9. En esa terminal nueva escribe `curl ` (con el espacio), pega la dirección **entre comillas
+   dobles** y presiona Enter. Queda así:
 
    ```
-   cat ~/.clasprc.json
+   curl "http://localhost:8888/?code=4/0AX4...&scope=https://www.googleapis..."
    ```
 
-6. Selecciona **todo** lo que imprime (empieza con `{` y termina con `}`) y cópialo.
+   > Las comillas son obligatorias: sin ellas la dirección se corta y falla.
+   > Hazlo dentro de los 2 minutos siguientes: el código se vence rápido. Si se venció,
+   > repite desde el paso 3.
+
+10. En la **primera** terminal debe aparecer *Authorization successful* o
+    *Logged in as tu.correo@empresa.com*. Ya puedes cerrar la segunda.
+11. En la primera terminal escribe:
+
+    ```
+    cat ~/.clasprc.json
+    ```
+
+12. Selecciona **todo** lo que imprime (empieza con `{` y termina con `}`) y cópialo.
 
 > Ese texto es una llave de acceso a tu cuenta: trátalo como una contraseña. Va a quedar
 > guardado cifrado en GitHub y no se puede volver a leer una vez guardado.
@@ -243,6 +267,8 @@ Es correcto: hay que registrarte.
 | *No se pudo crear la carpeta en Drive* | Falta permiso en la Unidad Compartida | Pide acceso de editor a la unidad `1ib9cr7o47ecPQ3KSpcAn_mBjiY9LzqaY` |
 | *Su rol no tiene permiso sobre la fase…* | El RBAC funcionando | Revisa el rol del usuario en Admin |
 | *El sistema está ocupado atendiendo otro cambio* | Dos personas guardaron a la vez | Reintenta en unos segundos |
+| *No se puede acceder a este sitio · localhost:8888* al autorizar clasp | Es el comportamiento normal de Google | Parte 2, camino A, pasos 6 a 10 |
+| *invalid_grant* o *Bad Request* al hacer `curl` | El código de autorización se venció | Repite desde `clasp login` y haz el `curl` en menos de 2 minutos |
 
 La actividad **nunca se pierde** por un fallo de Drive, Chat o correo: se guarda igual y el
 sistema te avisa qué no pudo hacer.
