@@ -1,0 +1,44 @@
+<!-- Home.html | Pagina 1: Dashboard Gerencial -->
+<h1 class="text-2xl font-bold text-navy mb-1">Dashboard Gerencial</h1>
+<p class="text-sm text-slate-500 mb-6">Cuadro de mando ejecutivo del portafolio de plataformas digitales.</p>
+
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+  <div class="bg-white rounded-xl shadow-sm border-l-4 border-navy p-5">
+    <div class="text-xs uppercase tracking-wide text-slate-500">Iniciativas totales</div>
+    <div id="kpiIniciativas" class="text-3xl font-bold text-navy mt-1">&mdash;</div>
+  </div>
+  <div class="bg-white rounded-xl shadow-sm border-l-4 border-esmeralda p-5">
+    <div class="text-xs uppercase tracking-wide text-slate-500">Solicitudes en vuelo</div>
+    <div id="kpiEnVuelo" class="text-3xl font-bold text-navy mt-1">&mdash;</div>
+    <div class="text-xs text-slate-400 mt-1">Fases 1 a 7</div>
+  </div>
+  <div class="bg-white rounded-xl shadow-sm border-l-4 border-verdeoscuro p-5">
+    <div class="text-xs uppercase tracking-wide text-slate-500">Time to Market promedio</div>
+    <div id="kpiTtm" class="text-3xl font-bold text-navy mt-1">&mdash;</div>
+    <div class="text-xs text-slate-400 mt-1">D&iacute;as calendario</div>
+  </div>
+  <div class="bg-white rounded-xl shadow-sm border-l-4 border-amber-400 p-5">
+    <div class="text-xs uppercase tracking-wide text-slate-500">Bloqueos activos</div>
+    <div id="kpiBloqueos" class="text-3xl font-bold text-navy mt-1">&mdash;</div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  <div class="bg-white rounded-xl shadow-sm p-5">
+    <h2 class="font-semibold text-navy mb-3">Distribuci&oacute;n por plataforma digital</h2>
+    <div id="graficoPlataformas" class="h-64 grid place-items-center text-sm text-slate-400">
+      Pendiente fase 2
+    </div>
+  </div>
+  <div class="bg-white rounded-xl shadow-sm p-5">
+    <h2 class="font-semibold text-navy mb-3">Cumplimiento de SLA por fase</h2>
+    <div id="graficoSla" class="h-64 grid place-items-center text-sm text-slate-400">
+      Pendiente fase 2
+    </div>
+  </div>
+</div>
+
+<script>
+  // TODO(fase-2): google.script.run.withSuccessHandler(pintarHome).getMetricasHome();
+  function inicializar_home() { /* carga diferida de KPIs y graficos */ }
+</script>

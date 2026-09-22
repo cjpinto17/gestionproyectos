@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>Plataformas Digitales</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Paleta corporativa de la Compania de Financiamiento.
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: '#00306E',
+            esmeralda: '#1DD982',
+            verdeoscuro: '#1BB26C',
+            menta: '#50EAA2'
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .nav-tab { border-bottom: 3px solid transparent; }
+    .nav-tab.activo { border-bottom-color: #1DD982; color: #FFFFFF; }
+    .pagina { display: none; }
+    .pagina.activa { display: block; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+  <!-- ============ Barra de navegacion ============ -->
+  <header class="bg-navy text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-[1600px] mx-auto px-4 flex items-center gap-6 h-16">
+      <div class="flex items-center gap-3 shrink-0">
+        <span class="bg-esmeralda text-navy font-black rounded-lg px-2.5 py-1 text-sm">PD</span>
+        <span class="font-semibold tracking-tight">Plataformas Digitales</span>
+      </div>
+
+      <nav class="flex items-center gap-1 text-sm text-slate-300 h-full">
+        <button data-pagina="home"        class="nav-tab px-4 h-full hover:text-white transition">&#127968; Home</button>
+        <button data-pagina="iniciativas" class="nav-tab px-4 h-full hover:text-white transition">&#128640; Iniciativas</button>
+        <button data-pagina="gestion"     class="nav-tab px-4 h-full hover:text-white transition">&#128202; Gesti&oacute;n</button>
+        <button data-pagina="reportes"    class="nav-tab px-4 h-full hover:text-white transition">&#128200; Reportes</button>
+        <button data-pagina="admin"       class="nav-tab px-4 h-full hover:text-white transition" id="tabAdmin">&#9881;&#65039; Admin</button>
+      </nav>
+
+      <div class="ml-auto text-right leading-tight">
+        <div id="usuarioNombre" class="text-sm font-medium">Cargando&hellip;</div>
+        <div id="usuarioRol" class="text-xs text-menta"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ Aviso de acceso denegado ============ -->
+  <div id="avisoAcceso" class="hidden max-w-3xl mx-auto mt-10 bg-white border-l-4 border-amber-400 rounded-lg shadow p-6">
+    <h2 class="font-semibold text-navy mb-1">Acceso no autorizado</h2>
+    <p id="avisoAccesoMotivo" class="text-sm text-slate-600"></p>
+  </div>
+
+  <!-- ============ Contenedor de paginas ============ -->
+  <main id="contenido" class="max-w-[1600px] mx-auto px-4 py-6 hidden">
+    <section id="pagina-home"        class="pagina"><?!= include('Home'); ?></section>
+    <section id="pagina-iniciativas" class="pagina"><?!= include('Iniciativas'); ?></section>
+    <section id="pagina-gestion"     class="pagina"><?!= include('Gestion'); ?></section>
+    <section id="pagina-reportes"    class="pagina"><?!= include('Reportes'); ?></section>
+    <section id="pagina-admin"       class="pagina"><?!= include('Admin'); ?></section>
+  </main>
+
+  <script>
+    /** Contexto del usuario autenticado; lo llena el backend al cargar. */
+    var CTX = null;
+
+    /** Router SPA: muestra una pagina y marca su pestana. */
+    function navegar(pagina) {
+      document.querySelectorAll('.pagina').forEach(function (s) { s.classList.remove('activa'); });
+      var destino = document.getElementById('pagina-' + pagina);
+      if (destino) destino.classList.add('activa');
+
+      document.querySelectorAll('.nav-tab').forEach(function (t) {
+        t.classList.toggle('activo', t.dataset.pagina === pagina);
+      });
+
+      // TODO(fase-2): invocar el inicializador de cada pagina (cargarHome(), etc.).
+      if (typeof window['inicializar_' + pagina] === 'function') {
+        window['inicializar_' + pagina]();
+      }
+    }
+
+    document.querySelectorAll('.nav-tab').forEach(function (tab) {
+      tab.addEventListener('click', function () { navegar(tab.dataset.pagina); });
+    });
+
+    /** Arranque: resuelve el usuario y su rol antes de mostrar nada. */
+    google.script.run
+      .withSuccessHandler(function (ctx) {
+        CTX = ctx;
+        if (!ctx.autorizado) {
+          document.getElementById('usuarioNombre').textContent = ctx.correo || 'Sin sesion';
+          document.getElementById('avisoAccesoMotivo').textContent = ctx.motivo || '';
+          document.getElementById('avisoAcceso').classList.remove('hidden');
+          return;
+        }
+        document.getElementById('usuarioNombre').textContent = ctx.nombre;
+        document.getElementById('usuarioRol').textContent = ctx.rolNombre;
+        if (!ctx.esAdmin) document.getElementById('tabAdmin').classList.add('hidden');
+        document.getElementById('contenido').classList.remove('hidden');
+        navegar('<?= paginaInicial ?>');
+      })
+      .withFailureHandler(function (err) {
+        document.getElementById('avisoAccesoMotivo').textContent = err.message;
+        document.getElementById('avisoAcceso').classList.remove('hidden');
+      })
+      .getContextoUsuario();
+  </script>
+</body>
+</html>

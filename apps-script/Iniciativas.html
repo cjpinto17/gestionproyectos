@@ -1,0 +1,41 @@
+<!-- Iniciativas.html | Pagina 2: Iniciativas de Negocio -->
+<div class="flex flex-wrap items-center gap-3 mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-navy">Iniciativas de Negocio</h1>
+    <p class="text-sm text-slate-500">Estado macro de los proyectos del portafolio.</p>
+  </div>
+  <div class="ml-auto flex gap-2">
+    <input id="buscadorProyectos" type="search" placeholder="Buscar proyecto&hellip;"
+           class="border border-slate-300 rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-esmeralda">
+    <select id="filtroEstadoProyecto"
+            class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-esmeralda">
+      <option value="">Todos los estados</option>
+      <option value="Activo">Activo</option>
+      <option value="Pausado">Pausado</option>
+      <option value="Cerrado">Cerrado</option>
+    </select>
+  </div>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-navy text-white text-left">
+      <tr>
+        <th class="px-4 py-3 font-medium">ID Proyecto</th>
+        <th class="px-4 py-3 font-medium">Nombre</th>
+        <th class="px-4 py-3 font-medium">Descripci&oacute;n</th>
+        <th class="px-4 py-3 font-medium">Inicio</th>
+        <th class="px-4 py-3 font-medium">Fin estimado</th>
+        <th class="px-4 py-3 font-medium">Estado</th>
+      </tr>
+    </thead>
+    <tbody id="tablaProyectos" class="divide-y divide-slate-100">
+      <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Pendiente fase 2</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+  // TODO(fase-2): cargar getCatalogos().proyectos y renderizar con filtros en vivo.
+  function inicializar_iniciativas() { /* carga de proyectos */ }
+</script>
