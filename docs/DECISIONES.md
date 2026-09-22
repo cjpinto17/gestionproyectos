@@ -176,10 +176,23 @@ cada transición. Si la compañía tiene días no laborables adicionales, se agr
 `Festivos` y el cálculo los toma.
 
 ### D-21 · Orientación de la matriz de iniciativas
-Por defecto cada **LEN es una fila horizontal** y las **verticales son las columnas**. La
-página trae el botón *Intercambiar ejes*, que invierte la disposición y recuerda la
-preferencia en el navegador de cada persona. Las celdas se indexan siempre como
-`Vertical_ID|LEN_ID`: la orientación solo cambia el dibujo, nunca los datos.
+Estándar confirmado por el negocio: **las LEN son las filas** y **las verticales son las
+columnas**. El botón de intercambio que existió durante la revisión se retiró. Las celdas se
+siguen indexando como `Vertical_ID|LEN_ID`; la orientación es solo presentación.
+
+### D-23 · Código de color de los estados de iniciativa
+| Estado | Color | Uso |
+| --- | --- | --- |
+| Por iniciar | Gris | Aún no arranca |
+| En progreso | Amarillo | En ejecución |
+| Finalizada | Verde | Cerrada con éxito |
+| En pausa | Rojo | Detenida, exige atención |
+| Cancelada | Gris tachado | Definido por nosotros: el negocio no lo especificó |
+
+El color se aplica en la etiqueta del estado y en la franja superior de la tarjeta, para que
+el estado del portafolio se lea de un vistazo sin entrar a cada iniciativa. La tarjeta muestra
+además **Business Owner**, **Product Owner** y **plataforma digital**; cuando el dato falta,
+dice *sin asignar* en gris, en vez de ocultar el campo.
 
 ### D-20 · Transversal al final de la matriz
 En los catálogos de LEN y verticales, *Transversal* queda con orden 5: se dibuja en la última

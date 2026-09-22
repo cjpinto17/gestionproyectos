@@ -20,9 +20,17 @@ var CLASE_ESTADO = {
   'EST-01': 'b-iniciar', 'EST-02': 'b-progreso', 'EST-03': 'b-aprobada',
   'EST-04': 'b-bloqueada', 'EST-05': 'b-cancelada', 'EST-06': 'b-terminada'
 };
+// Codigo de color de los estados de iniciativa, definido por el negocio.
 var CLASE_ESTADO_INI = {
-  'EIN-01': 'b-iniciar', 'EIN-02': 'b-progreso', 'EIN-03': 'b-pausado',
-  'EIN-04': 'b-cancelada', 'EIN-05': 'b-finalizada'
+  'EIN-01': 'e-por-iniciar',   // gris
+  'EIN-02': 'e-en-progreso',   // amarillo
+  'EIN-03': 'e-en-pausa',      // rojo
+  'EIN-04': 'e-cancelada',     // gris tachado
+  'EIN-05': 'e-finalizada'     // verde
+};
+var FRANJA_ESTADO_INI = {
+  'EIN-01': 'f-por-iniciar', 'EIN-02': 'f-en-progreso', 'EIN-03': 'f-en-pausa',
+  'EIN-04': 'f-cancelada', 'EIN-05': 'f-finalizada'
 };
 var PRIORIDAD_CLASE = {
   'PRI-01': 'p-critica', 'PRI-02': 'p-alta', 'PRI-03': 'p-media', 'PRI-04': 'p-baja',
@@ -336,23 +344,6 @@ function ordenPorPrioridad(a, b) {
   return String(a.nombre).localeCompare(String(b.nombre));
 }
 
-/**
- * Orientacion de la matriz. Por defecto cada LEN es una fila horizontal y las
- * verticales son las columnas; el boton "Intercambiar ejes" invierte los dos.
- * La preferencia se recuerda en el navegador de cada persona.
- */
-var lenEnFilas = true;
-try {
-  var guardadoEjes = localStorage.getItem('matrizLenEnFilas');
-  if (guardadoEjes !== null) lenEnFilas = (guardadoEjes === '1');
-} catch (e) { /* navegacion privada: se queda con el valor por defecto */ }
-
-$('btnIntercambiarEjes').addEventListener('click', function () {
-  lenEnFilas = !lenEnFilas;
-  try { localStorage.setItem('matrizLenEnFilas', lenEnFilas ? '1' : '0'); } catch (e) {}
-  pintarMatriz();
-});
-
 function pintarMatriz() {
   var r = DATOS.matriz;
   if (!r) return;
@@ -360,14 +351,11 @@ function pintarMatriz() {
   var estado = $('filtroEstadoIni').value;
   var cont = $('matriz');
 
-  // Las celdas siempre se indexan como "vertical|LEN": lo unico que cambia con
-  // la orientacion es quien dibuja las filas y quien las columnas.
-  var filas = lenEnFilas ? r.lineas : r.verticales;
-  var columnas = lenEnFilas ? r.verticales : r.lineas;
-  var titulo = lenEnFilas ? 'LEN \\ Vertical' : 'Vertical \\ LEN';
-  function claveCelda(fila, columna) {
-    return lenEnFilas ? (columna.id + '|' + fila.id) : (fila.id + '|' + columna.id);
-  }
+  // Filas: lineas estrategicas de negocio. Columnas: verticales de producto.
+  // Las celdas se indexan siempre como "vertical|LEN", que es como las arma el
+  // backend.
+  var filas = r.lineas;
+  var columnas = r.verticales;
 
   cont.style.gridTemplateColumns = '150px repeat(' + columnas.length + ',1fr)';
 
@@ -379,13 +367,13 @@ function pintarMatriz() {
     });
   }
 
-  var html = '<div class="mz-cab esquina">' + titulo + '</div>';
+  var html = '<div class="mz-cab esquina">LEN \\ Vertical</div>';
   columnas.forEach(function (c) { html += '<div class="mz-cab">' + esc(c.nombre) + '</div>'; });
 
   filas.forEach(function (f) {
     html += '<div class="mz-fila">' + esc(f.nombre) + '</div>';
     columnas.forEach(function (c) {
-      var items = filtrar(r.celdas[claveCelda(f, c)]).sort(ordenPorPrioridad);
+      var items = filtrar(r.celdas[c.id + '|' + f.id]).sort(ordenPorPrioridad);
       html += '<div class="mz-celda' + (items.length ? '' : ' vacia-celda') + '">' +
               (items.length > 3 ? '<div class="mz-conteo">' + items.length + ' iniciativas · desplace</div>' : '') +
               items.map(tarjetaIniciativa).join('') + '</div>';
@@ -412,28 +400,38 @@ function pintarMatriz() {
 
 function tarjetaIniciativa(i) {
   var nombreEst = nombreDeCatalogo(DATOS.matriz.estados, i.estado) || 'Sin estado';
-  var clase = CLASE_ESTADO_INI[i.estado] || 'b-cancelada';
+  var clase = CLASE_ESTADO_INI[i.estado] || 'e-cancelada';
+  var franja = FRANJA_ESTADO_INI[i.estado] || '';
   var tipo = nombreDeCatalogo(DATOS.matriz.tipos, i.tipo);
+
+  var sinAsignar = function (texto) {
+    return '<span style="color:var(--ink-faint)">' + texto + '</span>';
+  };
+
   var fechas = (i.fechaInicio || i.fechaFinPlaneada)
       ? '<div class="fechas">' +
         (i.fechaInicio ? '<span>Inicio ' + esc(fecha(i.fechaInicio)) + '</span>' : '') +
         (i.fechaFinPlaneada ? '<span>Fin ' + esc(fecha(i.fechaFinPlaneada)) + '</span>' : '') + '</div>'
       : '<div class="fechas"><span>Sin fechas registradas</span></div>';
 
-  return '<article class="ini' + (i.prioridad === 'Crítica' || i.prioridad === 'Critica' ? ' critica' : '') + '">' +
+  return '<article class="ini ' + franja +
+      (i.prioridad === 'Crítica' || i.prioridad === 'Critica' ? ' critica' : '') + '">' +
     '<h4>' + esc(i.nombre) + '</h4>' +
     '<div class="meta">' +
       '<span class="badge ' + clase + '">' + esc(nombreEst) + '</span>' +
       (i.prioridad ? '<span class="chip ' + (PRIORIDAD_CLASE[i.prioridad] || 'p-baja') + '">' + esc(i.prioridad) + '</span>' : '') +
       (tipo ? '<span class="chip c-tipo">' + esc(tipo) + '</span>' : '') +
     '</div>' +
+    '<div class="personas">' +
+      '<span><b>BO</b> ' + (i.bo ? esc(i.bo) : sinAsignar('sin asignar')) + '</span>' +
+      '<span><b>PO</b> ' + (i.po ? esc(i.po) : sinAsignar('sin asignar')) + '</span>' +
+    '</div>' +
     '<div class="meta">' +
       '<span class="act">' + i.actividades + ' act.' +
         (i.actividadesAbiertas ? ' · ' + i.actividadesAbiertas +
           (i.actividadesAbiertas === 1 ? ' abierta' : ' abiertas') : '') + '</span>' +
-      '<span>' + (i.bo ? 'BO: ' + esc(i.bo) : '<span style="color:var(--ink-faint)">sin BO asignado</span>') + '</span>' +
-    '</div>' +
-    (i.plataforma ? '<div class="app">' + esc(i.plataforma) + '</div>' : '') + fechas +
+      '<span class="app">' + (i.plataforma ? esc(i.plataforma) : sinAsignar('sin plataforma')) + '</span>' +
+    '</div>' + fechas +
   '</article>';
 }
 

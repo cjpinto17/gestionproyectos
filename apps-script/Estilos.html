@@ -119,6 +119,26 @@
   .b-cancelada{background:#F1F1F4;color:#6B6B76}
   .b-terminada{background:var(--navy);color:#fff}
   .b-finalizada{background:var(--navy);color:#fff}
+
+  /* Estados de la INICIATIVA, con el codigo de color que definio el negocio:
+     por iniciar gris, en progreso amarillo, finalizada verde, en pausa roja. */
+  .e-por-iniciar{background:#E8EDF7;color:#42557A}
+  .e-en-progreso{background:#FEF3C7;color:#92400E}
+  .e-finalizada{background:#DCFCE7;color:#15803D}
+  .e-en-pausa{background:#FEE2E2;color:#B91C1C}
+  .e-cancelada{background:#E5E7EB;color:#4B5563;text-decoration:line-through}
+
+  /* Franja superior de la tarjeta, del mismo color que su estado */
+  .ini.f-por-iniciar{border-top-color:#8A98B4}
+  .ini.f-en-progreso{border-top-color:#F59E0B}
+  .ini.f-finalizada{border-top-color:#16A34A}
+  .ini.f-en-pausa{border-top-color:#DC2626}
+  .ini.f-cancelada{border-top-color:#9CA3AF}
+
+  .ini .personas{display:flex;flex-direction:column;gap:2px;font-size:11px;
+                 color:var(--ink-muted);margin-bottom:5px}
+  .ini .personas b{font-family:var(--display);font-weight:600;color:var(--ink-faint);
+                   font-size:10px;text-transform:uppercase;letter-spacing:.05em}
   .b-activo{background:#DFF7EA;color:#0F7A4C}
   .b-pausado{background:var(--alerta-bg);color:var(--alerta)}
   .b-cerrado{background:#EEF2F9;color:#42557A}
