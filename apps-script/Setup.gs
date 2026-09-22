@@ -375,3 +375,52 @@ function registrarmeComoAdministrador() {
   Logger.log(JSON.stringify(resultado, null, 2));
   return resultado;
 }
+
+
+/**
+ * Agrega a las hojas de catalogo los valores que existen en el codigo y todavia
+ * no estan registrados.
+ *
+ * setupInicial() solo siembra hojas vacias, para no pisar lo que el negocio
+ * haya ajustado. Cuando se suma un valor nuevo a un catalogo (una causal de
+ * bloqueo, un estado, una plataforma), esta funcion lo incorpora sin tocar los
+ * existentes ni duplicar nada.
+ *
+ * @return {!Object} Que se agrego en cada catalogo.
+ */
+function sincronizarCatalogos() {
+  var catalogos = [
+    { hoja: 'Fases', lista: FASES, fila: function (x) { return [x.id, x.nombre, x.orden]; } },
+    { hoja: 'Estados', lista: ESTADOS, fila: function (x) { return [x.id, x.nombre]; } },
+    { hoja: 'Estados_Iniciativa', lista: ESTADOS_INICIATIVA, fila: function (x) { return [x.id, x.nombre]; } },
+    { hoja: 'Plataforma_Digital', lista: PLATAFORMAS, fila: function (x) { return [x.id, x.nombre]; } },
+    { hoja: 'Tipos_Solicitud', lista: TIPOS_SOLICITUD, fila: function (x) { return [x.id, x.nombre]; } },
+    { hoja: 'Tipos_Iniciativa', lista: TIPOS_INICIATIVA, fila: function (x) { return [x.id, x.nombre]; } },
+    { hoja: 'Prioridad', lista: PRIORIDADES, fila: function (x) { return [x.id, x.nombre]; } },
+    { hoja: 'Causales_Bloqueo', lista: CAUSALES_BLOQUEO, fila: function (x) { return [x.id, x.nombre]; } },
+    { hoja: 'Lineas_Estrategicas', lista: LINEAS_ESTRATEGICAS, fila: function (x) { return [x.id, x.nombre, x.orden]; } },
+    { hoja: 'Verticales', lista: VERTICALES, fila: function (x) { return [x.id, x.nombre, x.orden]; } }
+  ];
+
+  var libro = SpreadsheetApp.openById(getIdLibroParametrizacion());
+  var resumen = { agregados: [], sinCambios: [] };
+
+  catalogos.forEach(function (cat) {
+    var hoja = libro.getSheetByName(cat.hoja);
+    if (!hoja) return;
+    var pk = getDefinicionTabla(cat.hoja).def.pk;
+    var existentes = {};
+    leerTabla(cat.hoja).forEach(function (f) { existentes[String(f[pk])] = true; });
+
+    var nuevos = cat.lista.filter(function (x) { return !existentes[x.id]; });
+    if (!nuevos.length) { resumen.sinCambios.push(cat.hoja); return; }
+
+    var filas = nuevos.map(cat.fila);
+    hoja.getRange(hoja.getLastRow() + 1, 1, filas.length, filas[0].length).setValues(filas);
+    invalidarTabla_(cat.hoja);
+    resumen.agregados.push(cat.hoja + ': ' + nuevos.map(function (x) { return x.nombre; }).join(', '));
+  });
+
+  Logger.log(JSON.stringify(resumen, null, 2));
+  return resumen;
+}

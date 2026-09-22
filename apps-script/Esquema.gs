@@ -93,7 +93,8 @@ var PRIORIDADES = [
 var CAUSALES_BLOQUEO = [
   { id: 'CAU-01', nombre: 'Falta de capacidad' },
   { id: 'CAU-02', nombre: 'Falta de aprobacion' },
-  { id: 'CAU-03', nombre: 'Dependencia' }
+  { id: 'CAU-03', nombre: 'Dependencia' },
+  { id: 'CAU-04', nombre: 'Falta informacion de integraciones por parte de TI' }
 ];
 
 /**

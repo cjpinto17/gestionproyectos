@@ -18,12 +18,10 @@
 var CARGA_MAXIMO_POR_EJECUCION = 25;
 
 /**
- * Deja lista la hoja de preparacion.
- * @param {boolean=} conEjemplo Si es true, siembra las solicitudes del tablero
- *     de Servicio de Recaudo entregado por el negocio.
+ * Deja lista la hoja de preparacion, vacia y con listas desplegables.
  * @return {!Object}
  */
-function prepararCargaMasiva(conEjemplo) {
+function prepararCargaMasiva() {
   var libro = SpreadsheetApp.openById(getIdLibroTransaccional());
   var hoja = libro.getSheetByName('Carga_Solicitudes');
   if (!hoja) hoja = libro.insertSheet('Carga_Solicitudes');
@@ -47,9 +45,7 @@ function prepararCargaMasiva(conEjemplo) {
 
   aplicarListas_(hoja, def, 500);
 
-  var resultado = { hoja: 'Carga_Solicitudes', url: libro.getUrl(), sembradas: 0 };
-  if (conEjemplo) resultado.sembradas = sembrarTableroRecaudo_(hoja, columnas);
-
+  var resultado = { hoja: 'Carga_Solicitudes', url: libro.getUrl() };
   hoja.autoResizeColumns(1, columnas.length);
   Logger.log(JSON.stringify(resultado, null, 2));
   return resultado;
@@ -84,17 +80,94 @@ function aplicarListas_(hoja, def, filas) {
 }
 
 /**
- * Siembra las diez solicitudes del tablero de Servicio de Recaudo que entrego
- * el negocio. Solo se llena lo que la imagen permite afirmar: fase, estado,
- * bloqueo y orden dentro de la iniciativa. El resto queda en blanco a proposito,
- * para que el negocio lo complete sin que el sistema invente datos.
+ * Deja listo todo lo necesario para cargar el tablero de Servicio de Recaudo:
+ * sincroniza catalogos, asegura el responsable y siembra las diez solicitudes
+ * con los datos que confirmo el negocio.
+ *
+ * Es segura de repetir: no duplica el usuario ni vuelve a escribir la hoja si
+ * ya tiene filas.
+ *
+ * @return {!Object}
+ */
+function prepararCargaServicioRecaudo() {
+  exigirSesion_();
+
+  // La causal "Falta informacion de integraciones por parte de TI" es nueva:
+  // se incorpora al catalogo antes de usarla.
+  var catalogos = sincronizarCatalogos();
+
+  var responsable = asegurarUsuario_('Sandra Orejarena', 'RO-02', 'Product Owner');
+  var preparacion = prepararCargaMasiva();
+  var sembradas = sembrarTableroRecaudo_(responsable.ID_Usuario);
+
+  var resultado = {
+    catalogos: catalogos,
+    responsable: responsable.ID_Usuario + ' · ' + responsable.Nombre_Completo,
+    hoja: preparacion.hoja,
+    urlLibro: preparacion.url,
+    filasSembradas: sembradas,
+    siguientePaso: sembradas
+        ? 'Revise la hoja Carga_Solicitudes y ejecute procesarCargaMasiva().'
+        : 'La hoja ya tenia filas: no se sobrescribio nada.'
+  };
+  Logger.log(JSON.stringify(resultado, null, 2));
+  return resultado;
+}
+
+/**
+ * Busca un usuario por nombre y lo crea si no existe. Sin correo: queda
+ * asignable de inmediato y podra iniciar sesion cuando se le registre la cuenta.
+ * @param {string} nombre
+ * @param {string} rol
+ * @param {string} cargo
+ * @return {!Object} La fila del usuario.
+ * @private
+ */
+function asegurarUsuario_(nombre, rol, cargo) {
+  var buscado = nombre.trim().toLowerCase();
+  var encontrado = null;
+  leerTabla('Usuarios').forEach(function (u) {
+    if (String(u.Nombre_Completo || '').trim().toLowerCase() === buscado) encontrado = u;
+  });
+  if (encontrado) return encontrado;
+
+  var id = siguienteId_('Usuarios', 'ID_Usuario');
+  var registro = {
+    ID_Usuario: id,
+    Nombre_Completo: nombre,
+    Correo_ID: '',
+    Cargo: cargo || '',
+    Area: 'Plataformas Digitales',
+    Rol_ID: rol,
+    Activo: 'SI'
+  };
+  agregarFila_('Usuarios', registro);
+  return registro;
+}
+
+/**
+ * Siembra las diez solicitudes del tablero entregado por el negocio.
+ *
+ * De la imagen salen la fase, el estado, el bloqueo y el orden dentro de la
+ * iniciativa; el resto son los valores que el negocio confirmo: todas son de
+ * tipo Nuevo, prioridad Critica, plataforma Banca Movil, con la misma causal de
+ * bloqueo y el mismo responsable. Objetivo, entregable y version quedan vacios
+ * porque aun no estan definidos.
+ *
+ * @param {string} idResponsable
  * @return {number} Filas sembradas.
  * @private
  */
-function sembrarTableroRecaudo_(hoja, columnas) {
+function sembrarTableroRecaudo_(idResponsable) {
+  var libro = SpreadsheetApp.openById(getIdLibroTransaccional());
+  var hoja = libro.getSheetByName('Carga_Solicitudes');
+  if (!hoja) throw new Error('Falta la hoja Carga_Solicitudes.');
   if (hoja.getLastRow() > 1) return 0;   // no pisa lo que alguien ya escribio
 
+  var columnas = getEncabezados('Carga_Solicitudes');
   var INICIATIVA = 'INI-008';            // Servicio de Recaudo (Pasarela)
+  var CAUSAL = 'CAU-04';                 // Falta informacion de integraciones por parte de TI
+
   // [orden, nombre, fase, estado, bloqueo]
   var tarjetas = [
     [1, 'Onboarding banca movil (Sin integraciones)', 'FAS-05', 'EST-04', 'SI'],
@@ -104,9 +177,9 @@ function sembrarTableroRecaudo_(hoja, columnas) {
     [5, 'Mejoras al administrador centralizado de servicio de recaudo', 'FAS-03', 'EST-02', 'NO'],
     [6, 'Mantenimiento del negocio (App)', 'FAS-03', 'EST-02', 'NO'],
     [7, 'Onboarding apk, web y plataforma digital', 'FAS-03', 'EST-02', 'NO'],
-    ['', 'Integraciones intercom - Creacion del comercio', 'FAS-02', 'EST-04', 'SI'],
-    ['', 'Integraciones intercom - Creacion del link de pagos', 'FAS-02', 'EST-04', 'SI'],
-    ['', 'Integraciones Shivam - Tarifas', 'FAS-02', 'EST-04', 'SI']
+    [8, 'Integraciones intercom - Creacion del comercio', 'FAS-02', 'EST-04', 'SI'],
+    [9, 'Integraciones intercom - Creacion del link de pagos', 'FAS-02', 'EST-04', 'SI'],
+    [10, 'Integraciones Shivam - Tarifas', 'FAS-02', 'EST-04', 'SI']
   ];
 
   var filas = tarjetas.map(function (t) {
@@ -114,16 +187,20 @@ function sembrarTableroRecaudo_(hoja, columnas) {
       ID_Proyecto: INICIATIVA,
       Orden_Iniciativa: t[0],
       Nombre_Solicitud: t[1],
+      Plataforma_ID: 'PL-03',            // Banca Movil
+      Tipo_Solicitud: 'TIP-03',          // Nuevo
+      Prioridad: 'PRI-01',               // Critica
       Fase_Actual: t[2],
       Estado_Actual: t[3],
-      Tiene_Bloqueo: t[4]
+      Tiene_Bloqueo: t[4],
+      Causal_Bloqueo: t[4] === 'SI' ? CAUSAL : '',
+      Responsable_ID: idResponsable
     };
-    return columnas.map(function (c) {
-      return fila[c] === undefined ? '' : fila[c];
-    });
+    return columnas.map(function (c) { return fila[c] === undefined ? '' : fila[c]; });
   });
 
   hoja.getRange(2, 1, filas.length, columnas.length).setValues(filas);
+  hoja.autoResizeColumns(1, columnas.length);
   return filas.length;
 }
 
