@@ -6,13 +6,29 @@
         <p id="subGestion">Tablero operativo del embudo de 8 fases.</p>
       </div>
       <div class="fila ml-auto">
-        <select class="filtro" id="fProyecto"></select>
-        <select class="filtro" id="fPlataforma"></select>
-        <select class="filtro" id="fResponsable"></select>
-        <input type="search" id="fTexto" placeholder="Código o nombre…" style="width:170px">
-        <button class="btn-primario" id="btnNueva">+ Nueva Actividad</button>
+        <div class="combo"><label for="fLen">L&iacute;nea estrat&eacute;gica</label>
+          <input type="text" id="fLen" list="dlLen" placeholder="Todas" autocomplete="off">
+          <datalist id="dlLen"></datalist></div>
+        <div class="combo"><label for="fVertical">Vertical</label>
+          <input type="text" id="fVertical" list="dlVertical" placeholder="Todas" autocomplete="off">
+          <datalist id="dlVertical"></datalist></div>
+        <div class="combo"><label for="fProyecto">Iniciativa</label>
+          <input type="text" id="fProyecto" list="dlProyecto" placeholder="Todas" autocomplete="off">
+          <datalist id="dlProyecto"></datalist></div>
+        <div class="combo"><label for="fPlataforma">Plataforma</label>
+          <input type="text" id="fPlataforma" list="dlPlataforma" placeholder="Todas" autocomplete="off">
+          <datalist id="dlPlataforma"></datalist></div>
+        <div class="combo"><label for="fResponsable">Responsable</label>
+          <input type="text" id="fResponsable" list="dlResponsable" placeholder="Todos" autocomplete="off">
+          <datalist id="dlResponsable"></datalist></div>
+        <div class="combo"><label for="fTexto">Buscar</label>
+          <input type="search" id="fTexto" placeholder="C&oacute;digo o nombre&hellip;"></div>
+        <div class="combo"><label>&nbsp;</label>
+          <button class="btn-sec" id="btnLimpiarFiltros">Limpiar</button></div>
+        <div class="combo"><label>&nbsp;</label>
+          <button class="btn-primario" id="btnNueva">+ Nueva Actividad</button></div>
       </div>
     </div>
     <div class="kanban" id="kanban"></div>
-    <p class="nota">Arrastre una tarjeta a otra columna: el preview aplica la misma regla de <code>validarTransicion()</code> del backend según el rol seleccionado en la barra superior.</p>
+    <p class="nota">Arrastre una tarjeta a otra columna para cambiarla de fase. El sistema valida su rol antes de guardar: si la transición no le corresponde, la tarjeta regresa a su lugar y se explica el motivo. Los filtros se aplican al instante, sin recargar.</p>
 </section>

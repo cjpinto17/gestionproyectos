@@ -168,10 +168,20 @@
   .vacia{font-size:12px;color:var(--ink-faint);text-align:center;padding:14px 0}
 
   /* Matriz de iniciativas */
-  .matriz{display:grid;gap:10px;min-width:1040px}
-  .mz-cab{font-family:var(--display);font-weight:700;font-size:12px;color:#fff;background:var(--navy);border-radius:8px;padding:9px 11px;text-align:center}
-  .mz-cab.esquina{background:transparent;color:var(--ink-faint);text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:flex-end}
-  .mz-fila{font-family:var(--display);font-weight:700;font-size:12px;background:#E8EDF7;border-radius:8px;padding:11px;display:flex;align-items:center;color:var(--navy)}
+  .matriz-scroll{overflow:auto;max-height:calc(100vh - 230px);
+                 border-radius:var(--radio);padding-right:2px}
+  .matriz{display:grid;gap:10px;min-width:1040px;padding-bottom:4px}
+  .mz-cab{font-family:var(--display);font-weight:700;font-size:12px;color:#fff;background:var(--navy);
+          border-radius:8px;padding:9px 11px;text-align:center;
+          /* Se quedan fijos bajo la barra superior al desplazar la pagina */
+          position:sticky;top:0;z-index:6}
+  .mz-cab.esquina{background:var(--ground);color:var(--ink-faint);text-align:left;font-size:10.5px;
+                  text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:flex-end;
+                  left:0;z-index:7}
+  .mz-fila{font-family:var(--display);font-weight:700;font-size:12px;background:#E8EDF7;border-radius:8px;
+           padding:11px;display:flex;align-items:center;color:var(--navy);
+           /* Se quedan fijas a la izquierda al desplazar en horizontal */
+           position:sticky;left:0;z-index:5}
   .mz-celda{background:#EDF1F8;border-radius:8px;padding:7px;min-height:76px;max-height:430px;overflow-y:auto;display:flex;flex-direction:column;gap:7px}
   .mz-celda.vacia-celda{background:repeating-linear-gradient(45deg,#F2F5FA,#F2F5FA 7px,#EDF1F8 7px,#EDF1F8 14px)}
   .ini{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--navy);border-radius:7px;padding:9px 10px}
@@ -230,6 +240,19 @@
   .toast[hidden]{display:none!important}
   .toast.err{background:#8A1C1C}
 
+  /* Filtro con lista predictiva: se escribe y el navegador sugiere */
+  .combo{position:relative;display:inline-flex;flex-direction:column;gap:2px}
+  .combo>label{font-size:10px;font-family:var(--display);font-weight:600;text-transform:uppercase;
+               letter-spacing:.06em;color:var(--ink-faint);padding-left:2px}
+  .combo>input{font-family:var(--body);font-size:13.5px;padding:8px 10px;border:1px solid var(--line);
+               border-radius:8px;background:var(--surface);color:var(--ink);width:180px}
+  .combo>input:focus{outline:2px solid var(--esmeralda);outline-offset:-1px}
+  .combo>input.sin-coincidencia{border-color:var(--rojo);background:#FFF5F5}
+
+  /* Plataforma en la tarjeta del tablero */
+  .t-plat{background:#EDF1F8;color:#42557A;border-radius:4px;padding:1px 6px;font-size:10.5px;
+          font-family:var(--display);font-weight:600}
+
   .nota{font-size:12px;color:var(--ink-muted);margin-top:12px}
   .nota code{background:var(--line-soft);padding:1px 5px;border-radius:4px}
   .lista-simple{display:flex;flex-direction:column;gap:7px;max-height:220px;overflow-y:auto}
@@ -237,9 +260,54 @@
   .lista-simple .it b{font-family:var(--display);font-size:12px}
   .lista-simple .dias{margin-left:auto;font-weight:700;color:var(--alerta);font-variant-numeric:tabular-nums;white-space:nowrap}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
-  @media (max-width:640px){
+  @media (max-width:820px){
+    /* Barra superior: pestanas desplazables en lugar de apiladas */
+    .barra-in{gap:10px;padding:0 12px}
+    nav.tabs{order:3;width:100%;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+    nav.tabs::-webkit-scrollbar{display:none}
+    .tab{padding:10px 11px 9px;font-size:13px;white-space:nowrap}
+    .sesion{margin-left:auto;gap:8px}
+    .sesion .btn-sec{padding:6px 10px;font-size:12px}
+
+    main{padding-left:12px;padding-right:12px;padding-block:16px 40px}
+    .encabezado h1{font-size:20px}
+    .encabezado p{font-size:13px}
+
+    /* Filtros: una columna, a lo ancho */
+    .fila.ml-auto,.fila{width:100%}
+    .ml-auto{margin-left:0}
+    .combo,.combo>input,input[type=search],select.filtro,.btn-primario{width:100%}
+    .btn-primario{padding:11px 15px}
+
+    /* Tablero: una columna a la vez, con arrastre lateral */
+    .col{flex:0 0 86%}
+    .kanban{scroll-snap-type:x proximity}
+    .col{scroll-snap-align:start}
+
+    /* Matriz: celdas mas angostas para que quepan mas verticales */
+    .matriz-scroll{max-height:calc(100vh - 260px)}
+    .mz-celda{max-height:340px}
+    .mz-cab{font-size:11px;padding:7px 6px}
+    .mz-fila{font-size:11px;padding:8px}
+
+    /* Indicadores y paneles a una sola columna */
+    .kpis.k5,.kpis.k4{grid-template-columns:1fr 1fr}
+    .kpi .cifra{font-size:22px}
+    .paneles{grid-template-columns:1fr}
+    .columnas{height:150px}
+    .colum .torre,.colum .par{height:104px}
+    .barra-dato{grid-template-columns:96px 1fr 50px;font-size:11.5px}
+
+    .modal{max-width:100%;padding:18px;border-radius:12px}
+    .formulario{max-height:56vh}
     .rm-fila{grid-template-columns:1fr 1fr;gap:6px}
     .rm-fila.encab{display:none}
+    .cap{flex-wrap:wrap}
+  }
+
+  @media (max-width:420px){
+    .kpis.k5,.kpis.k4{grid-template-columns:1fr}
+    .col{flex:0 0 92%}
   }
 </style>
 <style>

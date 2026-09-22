@@ -9,7 +9,6 @@
 var CTX = null;          // usuario en sesion, rol y permisos
 var CAT = null;          // catalogos maestros
 var DATOS = {};          // cache por pagina
-var filtrosKanban = { idProyecto: '', plataforma: '', responsable: '', texto: '' };
 var tablaAdminActual = 'Usuarios';
 var arrastrada = null;
 var accionModal = null;
@@ -497,51 +496,123 @@ function tarjetaIniciativa(i) {
 
 /* ================= Gestion (Kanban) ================= */
 function cargarGestion(forzar) {
-  var clave = JSON.stringify(filtrosKanban);
-  // Volver a la pestana con los mismos filtros no necesita otra consulta.
-  if (!forzar && DATOS.kanban && DATOS.kanbanClave === clave) { pintarKanban(); return; }
+  // Se traen todas las actividades una sola vez y el filtrado ocurre en el
+  // navegador: asi la busqueda predictiva responde sin esperar al servidor.
+  if (!forzar && DATOS.kanban) { pintarKanban(); return; }
   cargando('kanban');
-  api('getDatosKanban', filtrosKanban).then(function (r) {
+  api('getDatosKanban', {}).then(function (r) {
     DATOS.kanban = r;
-    DATOS.kanbanClave = clave;
-    poblarFiltrosKanban(r);
+    prepararFiltrosKanban(r);
     pintarKanban();
   }).catch(fallo);
 }
-function poblarFiltrosKanban(r) {
-  if ($('fProyecto').options.length > 1) return;   // se llenan una sola vez
-  $('fProyecto').innerHTML = '<option value="">Todas las iniciativas</option>' +
-      r.proyectos.map(function (p) {
-        return '<option value="' + esc(p.ID_Proyecto) + '">' + esc(p.Nombre_Proyecto) + '</option>';
-      }).join('');
-  $('fPlataforma').innerHTML = '<option value="">Todas las plataformas</option>' +
-      r.plataformas.map(function (p) {
-        return '<option value="' + esc(p.id) + '">' + esc(p.nombre) + '</option>';
-      }).join('');
-  $('fResponsable').innerHTML = '<option value="">Todos los responsables</option>' +
-      r.usuarios.map(function (u) {
-        return '<option value="' + esc(u.ID_Usuario) + '">' + esc(u.Nombre_Completo) + '</option>';
-      }).join('');
-}
-['fProyecto', 'fPlataforma', 'fResponsable'].forEach(function (id) {
-  $(id).addEventListener('change', function () {
-    filtrosKanban.idProyecto = $('fProyecto').value;
-    filtrosKanban.plataforma = $('fPlataforma').value;
-    filtrosKanban.responsable = $('fResponsable').value;
-    cargarGestion();
+
+/** Catalogos de los filtros, en el orden pedido y alfabeticamente. */
+function prepararFiltrosKanban(r) {
+  if (DATOS.filtrosListos) return;
+
+  var proyectoPorId = {};
+  r.proyectos.forEach(function (p) { proyectoPorId[p.ID_Proyecto] = p; });
+  DATOS.proyectoPorId = proyectoPorId;
+
+  // Solo se ofrecen las LEN y verticales que realmente tienen iniciativas.
+  var lenUsadas = {}, verticalesUsadas = {};
+  r.proyectos.forEach(function (p) {
+    if (p.LEN_ID) lenUsadas[p.LEN_ID] = true;
+    if (p.Vertical_ID) verticalesUsadas[p.Vertical_ID] = true;
   });
+
+  llenarCombo('dlLen', CAT.lineasEstrategicas
+      .filter(function (l) { return lenUsadas[l.id]; })
+      .map(function (l) { return { id: l.id, texto: l.nombre }; }));
+  llenarCombo('dlVertical', CAT.verticales
+      .filter(function (v) { return verticalesUsadas[v.id]; })
+      .map(function (v) { return { id: v.id, texto: v.nombre }; }));
+  llenarCombo('dlProyecto', r.proyectos.map(function (p) {
+    return { id: p.ID_Proyecto, texto: p.Nombre_Proyecto };
+  }));
+  llenarCombo('dlPlataforma', r.plataformas.map(function (p) {
+    return { id: p.id, texto: p.nombre };
+  }));
+  llenarCombo('dlResponsable', r.usuarios.map(function (u) {
+    return { id: u.ID_Usuario, texto: u.Nombre_Completo };
+  }));
+
+  DATOS.filtrosListos = true;
+}
+
+/**
+ * Llena una lista predictiva y guarda la equivalencia texto -> identificador.
+ * Las opciones quedan ordenadas alfabeticamente.
+ */
+var EQUIVALENCIAS = {};
+function llenarCombo(idLista, opciones) {
+  var ordenadas = opciones.slice().sort(function (a, b) {
+    return String(a.texto).localeCompare(String(b.texto), 'es');
+  });
+  EQUIVALENCIAS[idLista] = {};
+  ordenadas.forEach(function (o) {
+    EQUIVALENCIAS[idLista][String(o.texto).toLowerCase()] = o.id;
+  });
+  $(idLista).innerHTML = ordenadas.map(function (o) {
+    return '<option value="' + esc(o.texto) + '"></option>';
+  }).join('');
+}
+
+/**
+ * Lee un combo: devuelve el identificador elegido, '' si esta vacio, o null si
+ * lo escrito no corresponde a ninguna opcion.
+ */
+function valorCombo(idCampo, idLista) {
+  var campo = $(idCampo);
+  var texto = campo.value.trim().toLowerCase();
+  if (!texto) { campo.classList.remove('sin-coincidencia'); return ''; }
+  var id = EQUIVALENCIAS[idLista] ? EQUIVALENCIAS[idLista][texto] : undefined;
+  campo.classList.toggle('sin-coincidencia', id === undefined);
+  return id === undefined ? null : id;
+}
+
+/** Aplica todos los filtros sobre las actividades ya cargadas. */
+function solicitudesFiltradas() {
+  var r = DATOS.kanban;
+  var len = valorCombo('fLen', 'dlLen');
+  var vertical = valorCombo('fVertical', 'dlVertical');
+  var proyecto = valorCombo('fProyecto', 'dlProyecto');
+  var plataforma = valorCombo('fPlataforma', 'dlPlataforma');
+  var responsable = valorCombo('fResponsable', 'dlResponsable');
+  var texto = $('fTexto').value.trim().toLowerCase();
+
+  return r.solicitudes.filter(function (s) {
+    var proy = DATOS.proyectoPorId[s.ID_Proyecto] || {};
+    if (len && proy.LEN_ID !== len) return false;
+    if (vertical && proy.Vertical_ID !== vertical) return false;
+    if (proyecto && s.ID_Proyecto !== proyecto) return false;
+    if (plataforma && s.Plataforma_ID !== plataforma) return false;
+    if (responsable && s.Responsable_ID !== responsable) return false;
+    if (texto) {
+      var pajar = (s.ID_Solicitud + ' ' + s.Nombre_Solicitud + ' ' + s.Nombre_Iniciativa).toLowerCase();
+      if (pajar.indexOf(texto) === -1) return false;
+    }
+    return true;
+  });
+}
+
+['fLen', 'fVertical', 'fProyecto', 'fPlataforma', 'fResponsable', 'fTexto'].forEach(function (id) {
+  $(id).addEventListener('input', function () { if (DATOS.kanban) pintarKanban(); });
 });
-var tBusqueda;
-$('fTexto').addEventListener('input', function () {
-  filtrosKanban.texto = this.value;
-  clearTimeout(tBusqueda);
-  tBusqueda = setTimeout(cargarGestion, 350);
+$('btnLimpiarFiltros').addEventListener('click', function () {
+  ['fLen', 'fVertical', 'fProyecto', 'fPlataforma', 'fResponsable', 'fTexto'].forEach(function (id) {
+    $(id).value = '';
+    $(id).classList.remove('sin-coincidencia');
+  });
+  pintarKanban();
 });
 
 function pintarKanban() {
   var r = DATOS.kanban;
+  var visibles = solicitudesFiltradas();
   $('kanban').innerHTML = r.fases.map(function (f) {
-    var enFase = r.solicitudes.filter(function (s) { return s.Fase_Actual === f.id; })
+    var enFase = visibles.filter(function (s) { return s.Fase_Actual === f.id; })
         .sort(function (a, b) {
           // Primero lo que el negocio numero dentro de su iniciativa; lo no
           // numerado va despues, ordenado por prioridad.
@@ -563,8 +634,9 @@ function pintarKanban() {
         : '<div class="vacia">Sin actividades</div>') + '</div>';
   }).join('');
 
-  $('subGestion').textContent = 'Tablero operativo del embudo de 8 fases · fases editables para ' +
-      'su rol: ' + (CTX.fasesEditables.length === CAT.fases.length
+  $('subGestion').textContent = visibles.length + ' de ' + r.solicitudes.length +
+      ' actividades · fases editables para su rol: ' +
+      (CTX.fasesEditables.length === CAT.fases.length
         ? 'todas'
         : (CTX.fasesEditables.map(nombreFase).join(', ') || 'ninguna'));
 }
@@ -586,6 +658,7 @@ function tarjetaActividad(s) {
     '<div class="t-nombre">' + esc(s.Nombre_Solicitud) + '</div>' +
     '<div class="t-pie">' +
       (s.Version_Semantica ? '<span class="t-ver num">' + esc(s.Version_Semantica) + '</span>' : '') +
+      (s.Nombre_Plataforma ? '<span class="t-plat">' + esc(s.Nombre_Plataforma) + '</span>' : '') +
       '<span>' + esc(s.Nombre_Responsable || '—') + '</span></div>' +
   '</article>';
 }
@@ -679,6 +752,7 @@ function verDetalle(id) {
     var bloq = String(s.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0;
     var filas = [
       ['Iniciativa', s.Nombre_Iniciativa],
+      ['Plataforma digital', s.Nombre_Plataforma || 'sin asignar'],
       ['Fase', nombreFase(s.Fase_Actual)],
       ['Estado', nombreEstado(s.Estado_Actual)],
       ['Tipo', nombreDeCatalogo(CAT.tipos, s.Tipo_Solicitud)],
@@ -1116,7 +1190,8 @@ function invalidarCacheCliente() {
   DATOS.reportes = null;
   DATOS.matriz = null;
   DATOS.roadmap = null;
-  DATOS.kanbanClave = null;
+  DATOS.kanban = null;
+  DATOS.filtrosListos = null;
 }
 
 /** Boton "Actualizar": relee las hojas, por si alguien las edito por fuera. */

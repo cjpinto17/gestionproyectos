@@ -231,6 +231,21 @@ nombre legible. No hace falta migrar la hoja: convive el dato viejo con el nuevo
 Las iniciativas de la matriz se ordenan dentro de cada celda por **Crítica → Alta → Media →
 Baja**, y alfabéticamente dentro del mismo nivel. Las que no tienen prioridad quedan al final.
 
+### D-25 · La matriz es su propia área de desplazamiento
+Los encabezados de vertical y las etiquetas de LEN quedan anclados al desplazar. Para que el
+anclaje funcione, la matriz tuvo que convertirse en un contenedor con desplazamiento propio
+(`.matriz-scroll`, alto máximo relativo a la pantalla): un elemento anclado se calcula contra
+su contenedor con *scroll*, y el envoltorio anterior —que solo tenía desplazamiento
+horizontal— anulaba el anclaje vertical sin dar ningún aviso.
+
+### D-26 · El tablero filtra en el navegador
+Los filtros de Gestión dejaron de consultar al servidor en cada cambio. Las actividades se
+traen una vez y el filtrado ocurre en el navegador, lo que permite que la búsqueda predictiva
+responda mientras se escribe. El orden de los filtros es LEN, vertical, iniciativa,
+plataforma, responsable y búsqueda libre; cada lista se ordena alfabéticamente en español y
+solo ofrece los valores que tienen iniciativas detrás. Si lo escrito no corresponde a ninguna
+opción, el campo se marca en rojo en lugar de devolver un tablero vacío sin explicación.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
