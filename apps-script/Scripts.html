@@ -330,13 +330,40 @@ function ordenPorPrioridad(a, b) {
   return String(a.nombre).localeCompare(String(b.nombre));
 }
 
+/**
+ * Orientacion de la matriz. Por defecto cada LEN es una fila horizontal y las
+ * verticales son las columnas; el boton "Intercambiar ejes" invierte los dos.
+ * La preferencia se recuerda en el navegador de cada persona.
+ */
+var lenEnFilas = true;
+try {
+  var guardadoEjes = localStorage.getItem('matrizLenEnFilas');
+  if (guardadoEjes !== null) lenEnFilas = (guardadoEjes === '1');
+} catch (e) { /* navegacion privada: se queda con el valor por defecto */ }
+
+$('btnIntercambiarEjes').addEventListener('click', function () {
+  lenEnFilas = !lenEnFilas;
+  try { localStorage.setItem('matrizLenEnFilas', lenEnFilas ? '1' : '0'); } catch (e) {}
+  pintarMatriz();
+});
+
 function pintarMatriz() {
   var r = DATOS.matriz;
   if (!r) return;
   var q = $('buscIni').value.toLowerCase();
   var estado = $('filtroEstadoIni').value;
   var cont = $('matriz');
-  cont.style.gridTemplateColumns = '140px repeat(' + r.lineas.length + ',1fr)';
+
+  // Las celdas siempre se indexan como "vertical|LEN": lo unico que cambia con
+  // la orientacion es quien dibuja las filas y quien las columnas.
+  var filas = lenEnFilas ? r.lineas : r.verticales;
+  var columnas = lenEnFilas ? r.verticales : r.lineas;
+  var titulo = lenEnFilas ? 'LEN \\ Vertical' : 'Vertical \\ LEN';
+  function claveCelda(fila, columna) {
+    return lenEnFilas ? (columna.id + '|' + fila.id) : (fila.id + '|' + columna.id);
+  }
+
+  cont.style.gridTemplateColumns = '150px repeat(' + columnas.length + ',1fr)';
 
   function filtrar(lista) {
     return (lista || []).filter(function (i) {
@@ -346,13 +373,13 @@ function pintarMatriz() {
     });
   }
 
-  var html = '<div class="mz-cab esquina">Vertical \\ LEN</div>';
-  r.lineas.forEach(function (l) { html += '<div class="mz-cab">' + esc(l.nombre) + '</div>'; });
+  var html = '<div class="mz-cab esquina">' + titulo + '</div>';
+  columnas.forEach(function (c) { html += '<div class="mz-cab">' + esc(c.nombre) + '</div>'; });
 
-  r.verticales.forEach(function (v) {
-    html += '<div class="mz-fila">' + esc(v.nombre) + '</div>';
-    r.lineas.forEach(function (l) {
-      var items = filtrar(r.celdas[v.id + '|' + l.id]).sort(ordenPorPrioridad);
+  filas.forEach(function (f) {
+    html += '<div class="mz-fila">' + esc(f.nombre) + '</div>';
+    columnas.forEach(function (c) {
+      var items = filtrar(r.celdas[claveCelda(f, c)]).sort(ordenPorPrioridad);
       html += '<div class="mz-celda' + (items.length ? '' : ' vacia-celda') + '">' +
               (items.length > 3 ? '<div class="mz-conteo">' + items.length + ' iniciativas · desplace</div>' : '') +
               items.map(tarjetaIniciativa).join('') + '</div>';

@@ -175,6 +175,12 @@ calendario**, porque es lo que percibe el negocio desde que pide hasta que recib
 cada transición. Si la compañía tiene días no laborables adicionales, se agregan en la hoja
 `Festivos` y el cálculo los toma.
 
+### D-21 · Orientación de la matriz de iniciativas
+Por defecto cada **LEN es una fila horizontal** y las **verticales son las columnas**. La
+página trae el botón *Intercambiar ejes*, que invierte la disposición y recuerda la
+preferencia en el navegador de cada persona. Las celdas se indexan siempre como
+`Vertical_ID|LEN_ID`: la orientación solo cambia el dibujo, nunca los datos.
+
 ### D-20 · Transversal al final de la matriz
 En los catálogos de LEN y verticales, *Transversal* queda con orden 5: se dibuja en la última
 columna y la última fila de la matriz, que es donde el negocio espera encontrar lo que no

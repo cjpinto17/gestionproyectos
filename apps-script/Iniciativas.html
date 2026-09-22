@@ -1,13 +1,15 @@
-<!-- Iniciativas.html | Pagina 2: Matriz Vertical x LEN, solo lectura -->
+<!-- Iniciativas.html | Pagina 2: Matriz LEN x Vertical, solo lectura -->
 <section class="pagina" id="pg-iniciativas" hidden>
     <div class="fila encabezado">
       <div>
         <h1>Iniciativas de Negocio</h1>
-        <p>Portafolio cruzado: verticales de producto en las filas, líneas estratégicas de negocio en las columnas. Vista de solo lectura alimentada por la hoja <code>Proyectos</code>.</p>
+        <p>Portafolio cruzado por línea estratégica de negocio y vertical de producto. Vista de solo lectura alimentada por la hoja <code>Proyectos</code>.</p>
       </div>
       <div class="fila ml-auto">
         <input type="search" id="buscIni" placeholder="Buscar iniciativa…" style="width:210px">
         <select class="filtro" id="filtroEstadoIni"></select>
+        <button class="btn-sec" id="btnIntercambiarEjes"
+                title="Cambia cuál campo va en las filas y cuál en las columnas">Intercambiar ejes</button>
       </div>
     </div>
     <div style="overflow-x:auto"><div id="matriz" class="matriz"></div></div>
