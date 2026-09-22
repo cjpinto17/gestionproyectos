@@ -186,6 +186,25 @@ En los catálogos de LEN y verticales, *Transversal* queda con orden 5: se dibuj
 columna y la última fila de la matriz, que es donde el negocio espera encontrar lo que no
 pertenece a una línea o vertical específica.
 
+### D-22 · Rendimiento: dos niveles de memoria
+Abrir un archivo de Sheets y leer un rango son las operaciones más lentas de Apps Script, y
+una sola pantalla puede necesitar la misma hoja cinco o seis veces. Se agregaron:
+
+| Nivel | Qué hace | Dónde |
+| --- | --- | --- |
+| Memoria de ejecución | Cada hoja y cada archivo se abren una vez por petición | `Cache.gs` |
+| Caché compartida | El resultado sirve a las siguientes peticiones y a los demás usuarios, 300 s | `Cache.gs`, `CONFIG.CACHE_SEGUNDOS` |
+| Arranque | `getArranque()` entrega sesión, catálogos e indicadores en un solo viaje, en vez de tres encadenados | `Codigo.gs` |
+| Navegador | Cada página recuerda lo que ya consultó; cambiar de pestaña no vuelve a pedir | `Scripts.html` |
+| Payload | La bitácora viaja acotada a las 200 transiciones más recientes, con el total aparte | `Metricas.gs` |
+
+**Toda escritura invalida la tabla afectada**, así que la caché nunca muestra datos viejos
+tras un cambio hecho desde la aplicación. El único caso de desfase es editar el Google Sheets
+a mano: para eso está el botón **Actualizar** de la barra superior, que fuerza la relectura.
+
+`medirRendimiento()` en `Cache.gs` cronometra las cuatro consultas principales con y sin
+caché, para comprobar el efecto sobre los datos reales.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

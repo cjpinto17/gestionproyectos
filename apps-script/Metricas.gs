@@ -662,14 +662,19 @@ function getReportes(meses) {
     return fila;
   });
 
+  // La bitacora completa puede tener miles de filas y la pagina solo muestra
+  // las ultimas: enviarla entera era el mayor costo de esta consulta.
+  var ordenada = datos.auditoria.slice().sort(function (a, b) {
+    return (aFecha_(b.Fecha_Hora_Cambio) || 0) - (aFecha_(a.Fecha_Hora_Cambio) || 0);
+  });
+
   return {
     ventanaMeses: n,
     meses: ventana,
     iniciativasPorMes: iniciativasPorMes,
     fasesPorMes: fasesPorMes,
-    auditoria: datos.auditoria.slice().sort(function (a, b) {
-      return (aFecha_(b.Fecha_Hora_Cambio) || 0) - (aFecha_(a.Fecha_Hora_Cambio) || 0);
-    })
+    auditoria: ordenada.slice(0, 200),
+    totalAuditoria: ordenada.length
   };
 }
 

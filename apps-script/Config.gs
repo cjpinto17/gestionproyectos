@@ -57,6 +57,13 @@ var CONFIG = {
   NOTIFICAR_CHAT: true,
   NOTIFICAR_CORREO: true,
 
+  /**
+   * Segundos que las lecturas de Sheets permanecen en memoria compartida.
+   * Toda escritura invalida la tabla afectada, asi que subirlo no produce
+   * datos viejos: solo evita releer lo mismo. En 0 se desactiva la cache.
+   */
+  CACHE_SEGUNDOS: 300,
+
   /** Modo diagnostico: escribe trazas en Logger ante cada transicion. */
   DEBUG: false
 };

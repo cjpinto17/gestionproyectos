@@ -139,7 +139,8 @@ function getHoja_(tabla) {
   var id = info.libro === 'PARAMETRIZACION'
       ? getIdLibroParametrizacion()
       : getIdLibroTransaccional();
-  var hoja = SpreadsheetApp.openById(id).getSheetByName(tabla);
+  // getLibro_ abre cada archivo una sola vez por ejecucion (ver Cache.gs).
+  var hoja = getLibro_(id).getSheetByName(tabla);
   if (!hoja) throw new Error('La hoja "' + tabla + '" no existe. Ejecute setupInicial().');
   return hoja;
 }
@@ -150,6 +151,14 @@ function getHoja_(tabla) {
  * @return {!Array<!Object>}
  */
 function leerTabla(tabla) {
+  if (MEMO_TABLAS[tabla]) return MEMO_TABLAS[tabla];
+
+  var enCache = leerDeCache_(tabla);
+  if (enCache) {
+    MEMO_TABLAS[tabla] = enCache;
+    return enCache;
+  }
+
   var hoja = getHoja_(tabla);
   var ultimaFila = hoja.getLastRow();
   var ultimaCol = hoja.getLastColumn();
@@ -170,6 +179,9 @@ function leerTabla(tabla) {
     obj._fila = i + 1;
     filas.push(obj);
   }
+
+  MEMO_TABLAS[tabla] = filas;
+  guardarEnCache_(tabla, filas);
   return filas;
 }
 
@@ -211,6 +223,7 @@ function escribirFila_(tabla, numeroFila, registro) {
     return (v === undefined || v === null) ? '' : v;
   });
   hoja.getRange(numeroFila, 1, 1, columnas.length).setValues([valores]);
+  invalidarTabla_(tabla);
 }
 
 /**
@@ -318,6 +331,38 @@ function getCatalogos() {
   };
 }
 
+/**
+ * Descarta la memoria compartida y obliga a releer las hojas.
+ * Lo usa el boton "Actualizar": hace falta cuando alguien edita el Google
+ * Sheets por fuera de la aplicacion.
+ * @return {!Object}
+ */
+function refrescarDatos() {
+  exigirSesion_();
+  limpiarCache();
+  return { ok: true };
+}
+
+/**
+ * Datos de arranque de la aplicacion en una sola llamada.
+ *
+ * Cada viaje al servidor de Apps Script cuesta cerca de un segundo solo en ida
+ * y vuelta. Pedir sesion, catalogos e indicadores por separado son tres esperas
+ * encadenadas antes de que aparezca la primera pantalla; juntos son una sola.
+ *
+ * @param {number=} meses Ventana de los indicadores del Home.
+ * @return {!Object} { contexto, catalogos, metricas }
+ */
+function getArranque(meses) {
+  var contexto = getContextoUsuario();
+  if (!contexto.autorizado) return { contexto: contexto };
+  return {
+    contexto: contexto,
+    catalogos: getCatalogos(),
+    metricas: getMetricasHome(meses || 12)
+  };
+}
+
 /* ================================================================== */
 /* 5. Solicitudes: lectura                                             */
 /* ================================================================== */
@@ -385,13 +430,13 @@ function getDetalleSolicitud(idSolicitud) {
   var s = buscarPorPk_('Solicitudes', idSolicitud);
   if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
 
-  var proyecto = buscarPorPk_('Proyectos', s.ID_Proyecto);
-  var responsable = s.Responsable_ID ? buscarPorPk_('Usuarios', s.Responsable_ID) : null;
-  var solicitante = s.Solicitante_ID ? buscarPorPk_('Usuarios', s.Solicitante_ID) : null;
+  var nombreProyecto = {}, nombreUsuario = {};
+  leerTabla('Proyectos').forEach(function (p) { nombreProyecto[p.ID_Proyecto] = p.Nombre_Proyecto; });
+  leerTabla('Usuarios').forEach(function (u) { nombreUsuario[u.ID_Usuario] = u.Nombre_Completo; });
 
-  s.Nombre_Iniciativa = proyecto ? proyecto.Nombre_Proyecto : s.ID_Proyecto;
-  s.Nombre_Responsable = responsable ? responsable.Nombre_Completo : '';
-  s.Nombre_Solicitante = solicitante ? solicitante.Nombre_Completo : '';
+  s.Nombre_Iniciativa = nombreProyecto[s.ID_Proyecto] || s.ID_Proyecto;
+  s.Nombre_Responsable = nombreUsuario[s.Responsable_ID] || '';
+  s.Nombre_Solicitante = nombreUsuario[s.Solicitante_ID] || '';
   s.Nombre_Plataforma = mapaPlataformas()[s.Plataforma_ID] || s.Plataforma_ID;
   s.Historial = leerTabla('Auditoria_Transiciones')
       .filter(function (a) { return a.ID_Solicitud === idSolicitud; })
@@ -1059,6 +1104,7 @@ function adminEliminarRegistro(tabla, valorPk) {
       throw new Error('No se puede eliminar: el registro esta en uso en ' + usos.join(', ') + '.');
     }
     getHoja_(tabla).deleteRow(actual._fila);
+    invalidarTabla_(tabla);
     return { ok: true, pk: valorPk };
   });
 }

@@ -194,8 +194,14 @@ $('tabs').addEventListener('click', function (e) {
 /* ================= Home ================= */
 function cargarHome() {
   var meses = Number($('ventanaMeses').value);
+  // Si ya se pidieron estos meses en esta sesion, se pinta de inmediato.
+  if (DATOS.home && DATOS.home[meses]) { pintarHome(DATOS.home[meses]); return; }
   cargando('kpisPortafolio');
-  api('getMetricasHome', meses).then(pintarHome).catch(fallo);
+  api('getMetricasHome', meses).then(function (m) {
+    DATOS.home = DATOS.home || {};
+    DATOS.home[meses] = m;
+    pintarHome(m);
+  }).catch(fallo);
 }
 $('ventanaMeses').addEventListener('change', cargarHome);
 
@@ -432,10 +438,14 @@ function tarjetaIniciativa(i) {
 }
 
 /* ================= Gestion (Kanban) ================= */
-function cargarGestion() {
+function cargarGestion(forzar) {
+  var clave = JSON.stringify(filtrosKanban);
+  // Volver a la pestana con los mismos filtros no necesita otra consulta.
+  if (!forzar && DATOS.kanban && DATOS.kanbanClave === clave) { pintarKanban(); return; }
   cargando('kanban');
   api('getDatosKanban', filtrosKanban).then(function (r) {
     DATOS.kanban = r;
+    DATOS.kanbanClave = clave;
     poblarFiltrosKanban(r);
     pintarKanban();
   }).catch(fallo);
@@ -555,8 +565,8 @@ document.addEventListener('drop', function (e) {
   api('cambiarFaseSolicitud', id, destino).then(function (r) {
     toast(id + ' pasó a ' + nombreFase(destino) + '.');
     (r.avisos || []).forEach(function (a) { toast(a, true); });
-    cargarGestion();
-    DATOS.matriz = null;
+    invalidarCacheCliente();
+    cargarGestion(true);
   }).catch(function (err) {
     s.Fase_Actual = faseOrigen;     // el backend rechazo: se revierte la tarjeta
     pintarKanban();
@@ -651,7 +661,8 @@ function verDetalle(id) {
         api('marcarBloqueo', s.ID_Solicitud, false, '').then(function () {
           toast('Bloqueo levantado.');
           cerrarModal();
-          cargarGestion();
+          invalidarCacheCliente();
+          cargarGestion(true);
         }).catch(fallo);
       });
     }
@@ -668,7 +679,8 @@ function formularioBloqueo(id) {
     function () {
       return api('marcarBloqueo', id, true, $('causalBloqueo').value).then(function () {
         toast('Actividad bloqueada.');
-        cargarGestion();
+        invalidarCacheCliente();
+        cargarGestion(true);
       });
     });
 }
@@ -714,8 +726,8 @@ $('btnNueva').addEventListener('click', function () {
       }).then(function (r) {
         toast('Actividad ' + r.idSolicitud + ' creada.');
         (r.avisos || []).forEach(function (a) { toast(a, true); });
-        cargarGestion();
-        DATOS.matriz = null;
+        invalidarCacheCliente();
+        cargarGestion(true);
       });
     });
 });
@@ -791,8 +803,13 @@ function pintarRoadmap() {
 /* ================= Reportes ================= */
 function cargarReportes() {
   var meses = Number($('ventanaReportes').value);
+  if (DATOS.reportes && DATOS.reportes[meses]) { pintarReportes(DATOS.reportes[meses]); return; }
   cargando('graficoIniMes');
-  api('getReportes', meses).then(pintarReportes).catch(fallo);
+  api('getReportes', meses).then(function (r) {
+    DATOS.reportes = DATOS.reportes || {};
+    DATOS.reportes[meses] = r;
+    pintarReportes(r);
+  }).catch(fallo);
 }
 $('ventanaReportes').addEventListener('change', cargarReportes);
 
@@ -836,7 +853,7 @@ function pintarReportes(r) {
           : 'sin movimiento') + '</td></tr>';
     }).join('') + '</tbody>';
 
-  $('totalAud').textContent = r.auditoria.length;
+  $('totalAud').textContent = r.totalAuditoria || r.auditoria.length;
   $('tablaAuditoria').innerHTML =
     '<thead><tr><th>ID Auditoría</th><th>Actividad</th><th>Fase origen</th><th>Fase destino</th>' +
     '<th>Estado destino</th><th>Fecha/hora</th><th>Responsable</th>' +
@@ -995,9 +1012,8 @@ function formularioRegistro(valorPk) {
           : [metodo, r.tabla, nuevo];
       return api.apply(null, args).then(function () {
         toast(valorPk ? 'Registro actualizado.' : 'Registro creado.');
+        invalidarCacheCliente();
         cargarTablaAdmin(r.tabla);
-        DATOS.matriz = null;
-        DATOS.roadmap = null;
       });
     });
 }
@@ -1017,21 +1033,49 @@ function confirmarEliminar(valorPk) {
 }
 
 /* ================= Arranque ================= */
-api('getContextoUsuario').then(function (ctx) {
-  CTX = ctx;
-  if (!ctx.autorizado) {
-    $('usuarioNombre').textContent = ctx.correo || 'Sin sesión';
-    $('avisoAccesoMotivo').textContent = ctx.motivo || '';
+
+/** Descarta lo que el navegador tiene guardado de las consultas anteriores. */
+function invalidarCacheCliente() {
+  DATOS.home = null;
+  DATOS.reportes = null;
+  DATOS.matriz = null;
+  DATOS.roadmap = null;
+  DATOS.kanbanClave = null;
+}
+
+/** Boton "Actualizar": relee las hojas, por si alguien las edito por fuera. */
+$('btnActualizar').addEventListener('click', function () {
+  var boton = this;
+  boton.disabled = true;
+  boton.textContent = 'Actualizando…';
+  api('refrescarDatos').then(function () {
+    invalidarCacheCliente();
+    var actual = PAGINAS.filter(function (p) { return !$('pg-' + p).hidden; })[0] || 'home';
+    navegar(actual);
+    toast('Datos actualizados desde las hojas.');
+  }).catch(fallo).then(function () {
+    boton.disabled = false;
+    boton.textContent = 'Actualizar';
+  });
+});
+
+// Un solo viaje al servidor para sesion, catalogos e indicadores del Home.
+api('getArranque', 12).then(function (r) {
+  CTX = r.contexto;
+  if (!CTX.autorizado) {
+    $('usuarioNombre').textContent = CTX.correo || 'Sin sesión';
+    $('avisoAccesoMotivo').textContent = CTX.motivo || '';
     $('avisoAcceso').hidden = false;
-    return null;
+    $('btnActualizar').hidden = true;
+    return;
   }
-  $('usuarioNombre').textContent = ctx.nombre;
-  $('usuarioRol').textContent = ctx.rolNombre;
-  if (!ctx.esAdmin) $('tabAdmin').hidden = true;
-  return api('getCatalogos');
-}).then(function (cat) {
-  if (!cat) return;
-  CAT = cat;
+  CAT = r.catalogos;
+  DATOS.home = {};
+  DATOS.home[12] = r.metricas;
+
+  $('usuarioNombre').textContent = CTX.nombre;
+  $('usuarioRol').textContent = CTX.rolNombre;
+  if (!CTX.esAdmin) $('tabAdmin').hidden = true;
   $('contenido').hidden = false;
   navegar(PAGINA_INICIAL || 'home');
 }).catch(function (err) {
