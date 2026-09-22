@@ -1,60 +1,35 @@
 <!-- Reportes.html | Pagina 5: Actividad mensual y auditoria -->
-<div class="flex flex-wrap items-center gap-3 mb-5">
-  <div>
-    <h1 class="text-2xl font-bold text-navy">Reportes y Auditor&iacute;a</h1>
-    <p class="text-sm text-slate-500">Temas trabajados mes a mes y bit&aacute;cora inmutable de transiciones. Los indicadores de gesti&oacute;n viven en el Home.</p>
-  </div>
-  <select id="ventanaMesesReportes" class="ml-auto border border-slate-300 rounded-lg px-3 py-2 text-sm">
-    <option value="6">&Uacute;ltimos 6 meses</option>
-    <option value="12" selected>&Uacute;ltimos 12 meses</option>
-  </select>
-</div>
+<section class="pagina" id="pg-reportes" hidden>
+    <div class="fila encabezado">
+      <div>
+        <h1>Reportes y Auditoría</h1>
+        <p>Temas trabajados mes a mes y bitácora inmutable de transiciones. Los indicadores de gestión están consolidados en el Home.</p>
+      </div>
+      <select class="filtro ml-auto" id="ventanaReportes">
+        <option value="6">Últimos 6 meses</option>
+        <option value="12" selected>Últimos 12 meses</option>
+      </select>
+    </div>
 
-<!-- Temas trabajados por mes, a nivel de iniciativa -->
-<div class="bg-white rounded-xl shadow-sm p-5 mb-4">
-  <h2 class="font-semibold text-navy mb-1 text-sm">Temas trabajados por mes &middot; iniciativas</h2>
-  <p class="text-xs text-slate-500 mb-4">
-    Un tema cuenta en el mes en que registr&oacute; al menos una transici&oacute;n en la bit&aacute;cora.
-  </p>
-  <div id="graficoIniciativasMes" class="h-64 grid place-items-center text-sm text-slate-400">Pendiente fase 2</div>
-  <div id="detalleIniciativasMes" class="mt-4 text-sm"></div>
-</div>
+    <div class="panel" style="margin-bottom:12px">
+      <h3>Temas trabajados por mes · iniciativas</h3>
+      <div class="sub">Una iniciativa cuenta en el mes en que alguna de sus actividades registró movimiento</div>
+      <div id="graficoIniMes"></div>
+    </div>
 
-<!-- Temas trabajados por fase, en cada mes -->
-<div class="bg-white rounded-xl shadow-sm p-5 mb-4">
-  <h2 class="font-semibold text-navy mb-1 text-sm">Temas trabajados por fase, en cada mes</h2>
-  <p class="text-xs text-slate-500 mb-4">
-    Distribuci&oacute;n mensual de las transiciones seg&uacute;n la fase de destino: muestra en qu&eacute; parte del embudo se concentr&oacute; el trabajo.
-  </p>
-  <div id="graficoFasesMes" class="overflow-x-auto text-sm text-slate-400">Pendiente fase 2</div>
-</div>
+    <div class="panel" style="margin-bottom:12px">
+      <h3>Temas trabajados por fase, en cada mes</h3>
+      <div class="sub">Transiciones según su fase de destino: muestra en qué parte del embudo se concentró el trabajo</div>
+      <div id="graficoFasesMes"></div>
+    </div>
 
-<!-- Bitacora -->
-<div class="bg-white rounded-xl shadow-sm overflow-hidden">
-  <h2 class="px-4 py-3 font-semibold text-navy border-b border-slate-100 text-sm">Bit&aacute;cora de transiciones</h2>
-  <div class="overflow-x-auto">
-    <table class="w-full text-sm">
-      <thead class="bg-slate-50 text-left text-slate-600">
-        <tr>
-          <th class="px-4 py-2 font-medium">ID Auditor&iacute;a</th>
-          <th class="px-4 py-2 font-medium">Actividad</th>
-          <th class="px-4 py-2 font-medium">Fase origen</th>
-          <th class="px-4 py-2 font-medium">Fase destino</th>
-          <th class="px-4 py-2 font-medium">Estado destino</th>
-          <th class="px-4 py-2 font-medium">Fecha/hora</th>
-          <th class="px-4 py-2 font-medium">Responsable</th>
-          <th class="px-4 py-2 font-medium text-right">Horas en fase</th>
-        </tr>
-      </thead>
-      <tbody id="tablaAuditoria" class="divide-y divide-slate-100">
-        <tr><td colspan="8" class="px-4 py-8 text-center text-slate-400">Pendiente fase 2</td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
+    <div class="tabla-caja" style="margin-bottom:12px">
+      <div class="cap">Detalle mensual por iniciativa</div>
+      <div class="tabla-scroll"><table id="tablaMensual"></table></div>
+    </div>
 
-<script>
-  // TODO(fase-2): google.script.run.withSuccessHandler(pintarReportes)
-  //                              .getReportes(Number(ventanaMesesReportes.value));
-  function inicializar_reportes() { /* carga de la actividad mensual */ }
-</script>
+    <div class="tabla-caja">
+      <div class="cap">Bitácora de transiciones <span style="font-weight:400;color:var(--ink-muted);font-family:var(--body);font-size:12.5px">· últimas 40 de <span id="totalAud" class="num"></span></span></div>
+      <div class="tabla-scroll"><table id="tablaAuditoria"></table></div>
+    </div>
+</section>

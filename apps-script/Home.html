@@ -1,80 +1,68 @@
-<!-- Home.html | Pagina 1: Dashboard Gerencial e indicadores de la fabrica -->
-<div class="flex flex-wrap items-center gap-3 mb-5">
-  <div>
-    <h1 class="text-2xl font-bold text-navy">Dashboard Gerencial</h1>
-    <p class="text-sm text-slate-500">Productividad y eficiencia de la f&aacute;brica de software. Todo calculado sobre la data registrada en las hojas.</p>
-  </div>
-  <select id="ventanaMeses" class="ml-auto border border-slate-300 rounded-lg px-3 py-2 text-sm">
-    <option value="3">&Uacute;ltimos 3 meses</option>
-    <option value="6">&Uacute;ltimos 6 meses</option>
-    <option value="12" selected>&Uacute;ltimos 12 meses</option>
-  </select>
-</div>
+<!-- Home.html | Pagina 1: Dashboard gerencial e indicadores de la fabrica -->
+<section class="pagina" id="pg-home">
+    <div class="fila encabezado">
+      <div>
+        <h1>Dashboard Gerencial</h1>
+        <p>Productividad y eficiencia de la fábrica de software. Cada indicador se calcula sobre lo registrado en las hojas: actividades, bitácora de transiciones, SLA por fase y roadmap de versiones.</p>
+      </div>
+      <select class="filtro ml-auto" id="ventanaMeses">
+        <option value="3">Últimos 3 meses</option>
+        <option value="6">Últimos 6 meses</option>
+        <option value="12" selected>Últimos 12 meses</option>
+      </select>
+    </div>
 
-<!-- Bloque 0: portafolio -->
-<div class="grid grid-cols-2 xl:grid-cols-5 gap-3 mb-6" id="kpisPortafolio">
-  <!-- Iniciativas activas, actividades totales, en vuelo, en produccion, bloqueos -->
-</div>
+    <div class="kpis k5" id="kpisPortafolio"></div>
 
-<!-- Bloque 1: velocidad de entrega -->
-<h2 class="text-sm font-semibold text-navy uppercase tracking-wide mb-2">Velocidad de entrega</h2>
-<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-4" id="kpisVelocidad">
-  <!-- Lead Time promedio / mediana / P85, throughput mensual, tiempo de construccion -->
-</div>
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-  <div class="bg-white rounded-xl shadow-sm p-5">
-    <h3 class="font-semibold text-navy mb-3 text-sm">Throughput mensual (entregas a producci&oacute;n)</h3>
-    <div id="graficoThroughput" class="h-56 grid place-items-center text-sm text-slate-400">Pendiente fase 2</div>
-  </div>
-  <div class="bg-white rounded-xl shadow-sm p-5">
-    <h3 class="font-semibold text-navy mb-3 text-sm">Cycle Time por fase contra SLA</h3>
-    <div id="graficoCycleTime" class="h-56 grid place-items-center text-sm text-slate-400">Pendiente fase 2</div>
-  </div>
-</div>
+    <div class="seccion">Velocidad de entrega</div>
+    <div class="kpis k5" id="kpisVelocidad"></div>
+    <div class="paneles" style="margin-top:10px">
+      <div class="panel">
+        <h3>Throughput mensual</h3>
+        <div class="sub">Actividades desplegadas a producción cada mes</div>
+        <div id="graficoThroughput"></div>
+      </div>
+      <div class="panel">
+        <h3>Cycle Time por fase contra SLA</h3>
+        <div class="sub">Días promedio dentro de cada fase · ámbar: excede el SLA</div>
+        <div id="graficoCycle"></div>
+      </div>
+    </div>
 
-<!-- Bloque 2: calidad y reproceso -->
-<h2 class="text-sm font-semibold text-navy uppercase tracking-wide mb-2">Calidad y reproceso</h2>
-<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-6" id="kpisCalidad">
-  <!-- First Pass Yield, tasa de reproceso, devoluciones QA, devoluciones UAT -->
-</div>
+    <div class="seccion">Calidad y reproceso</div>
+    <div class="kpis k4" id="kpisCalidad"></div>
 
-<!-- Bloque 3: predictibilidad -->
-<h2 class="text-sm font-semibold text-navy uppercase tracking-wide mb-2">Predictibilidad</h2>
-<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-4" id="kpisPredictibilidad">
-  <!-- Cumplimiento de fecha comprometida, desvio promedio, eficiencia de flujo, SLA global -->
-</div>
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-  <div class="bg-white rounded-xl shadow-sm p-5">
-    <h3 class="font-semibold text-navy mb-3 text-sm">Cumplimiento de SLA por fase</h3>
-    <div id="graficoSla" class="h-56 grid place-items-center text-sm text-slate-400">Pendiente fase 2</div>
-  </div>
-  <div class="bg-white rounded-xl shadow-sm p-5">
-    <h3 class="font-semibold text-navy mb-3 text-sm">Demanda recibida contra entregada</h3>
-    <div id="graficoDemanda" class="h-56 grid place-items-center text-sm text-slate-400">Pendiente fase 2</div>
-  </div>
-</div>
+    <div class="seccion">Predictibilidad</div>
+    <div class="kpis k4" id="kpisPredictibilidad"></div>
+    <div class="paneles" style="margin-top:10px">
+      <div class="panel">
+        <h3>Cumplimiento de SLA por fase</h3>
+        <div class="sub">% de transiciones que salieron de la fase dentro del objetivo</div>
+        <div id="graficoSla"></div>
+      </div>
+      <div class="panel">
+        <h3>Demanda recibida contra entregada</h3>
+        <div class="sub">Si la demanda supera la entrega de forma sostenida, el backlog crece</div>
+        <div id="graficoDemanda"></div>
+      </div>
+    </div>
 
-<!-- Bloque 4: carga de trabajo -->
-<h2 class="text-sm font-semibold text-navy uppercase tracking-wide mb-2">Carga de trabajo</h2>
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-  <div class="bg-white rounded-xl shadow-sm p-5">
-    <h3 class="font-semibold text-navy mb-3 text-sm">WIP por responsable</h3>
-    <div id="graficoWip" class="text-sm text-slate-400">Pendiente fase 2</div>
-  </div>
-  <div class="bg-white rounded-xl shadow-sm p-5">
-    <h3 class="font-semibold text-navy mb-3 text-sm">Distribuci&oacute;n por plataforma</h3>
-    <div id="graficoPlataformas" class="text-sm text-slate-400">Pendiente fase 2</div>
-  </div>
-  <div class="bg-white rounded-xl shadow-sm p-5">
-    <h3 class="font-semibold text-navy mb-3 text-sm">Actividades estancadas</h3>
-    <div id="listaEstancadas" class="text-sm text-slate-400">Pendiente fase 2</div>
-  </div>
-</div>
-
-<script>
-  // TODO(fase-2): google.script.run.withSuccessHandler(pintarHome)
-  //                              .getMetricasHome(Number(ventanaMeses.value));
-  // El backend ya devuelve todos los indicadores calculados (Metricas.gs);
-  // esta pagina solo los pinta.
-  function inicializar_home() { /* carga de indicadores */ }
-</script>
+    <div class="seccion">Carga de trabajo</div>
+    <div class="paneles">
+      <div class="panel">
+        <h3>WIP por responsable</h3>
+        <div class="sub">Actividades activas en fases 3 a 7</div>
+        <div id="graficoWip"></div>
+      </div>
+      <div class="panel">
+        <h3>Distribución por plataforma</h3>
+        <div class="sub">Actividades registradas históricamente</div>
+        <div id="graficoPlataformas"></div>
+      </div>
+      <div class="panel">
+        <h3>Actividades estancadas</h3>
+        <div class="sub">Llevan más días en su fase que el SLA definido</div>
+        <div id="listaEstancadas"></div>
+      </div>
+    </div>
+</section>

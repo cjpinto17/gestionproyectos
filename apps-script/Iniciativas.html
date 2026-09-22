@@ -1,44 +1,16 @@
-<!-- Iniciativas.html | Pagina 2: Matriz Vertical x LEN (solo lectura) -->
-<div class="flex flex-wrap items-center gap-3 mb-5">
-  <div>
-    <h1 class="text-2xl font-bold text-navy">Iniciativas de Negocio</h1>
-    <p class="text-sm text-slate-500">
-      Portafolio organizado por vertical de producto (filas) y l&iacute;nea estrat&eacute;gica de negocio (columnas). Vista de solo lectura.
-    </p>
-  </div>
-  <div class="ml-auto flex gap-2">
-    <input id="buscadorIniciativas" type="search" placeholder="Buscar iniciativa&hellip;"
-           class="border border-slate-300 rounded-lg px-3 py-2 text-sm w-60">
-    <select id="filtroEstadoIniciativa" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-      <option value="">Todos los estados</option>
-      <option value="Activo">Activo</option>
-      <option value="Pausado">Pausado</option>
-      <option value="Cerrado">Cerrado</option>
-    </select>
-  </div>
-</div>
-
-<!--
-  Matriz: una columna por LEN (Ingreso estable, Agro, Desarrollo empresarial,
-  Mi negocio independiente) y una fila por vertical (Credito, Ahorro e
-  inversion, Proteccion, Servicios de recaudo). Cada celda apila las tarjetas
-  de las iniciativas que cruzan esa vertical con esa LEN.
-
-  Tarjeta: nombre, responsable, estado, fecha de inicio, fecha fin planeada,
-  cantidad de actividades relacionadas y aplicacion.
--->
-<div class="overflow-x-auto">
-  <div id="matrizIniciativas" class="min-w-[900px]">
-    <div class="bg-white rounded-xl shadow-sm p-8 text-center text-sm text-slate-400">
-      Pendiente fase 2: se alimenta de getMatrizIniciativas().
+<!-- Iniciativas.html | Pagina 2: Matriz Vertical x LEN, solo lectura -->
+<section class="pagina" id="pg-iniciativas" hidden>
+    <div class="fila encabezado">
+      <div>
+        <h1>Iniciativas de Negocio</h1>
+        <p>Portafolio cruzado: verticales de producto en las filas, líneas estratégicas de negocio en las columnas. Vista de solo lectura alimentada por la hoja <code>Proyectos</code>.</p>
+      </div>
+      <div class="fila ml-auto">
+        <input type="search" id="buscIni" placeholder="Buscar iniciativa…" style="width:210px">
+        <select class="filtro" id="filtroEstadoIni"></select>
+      </div>
     </div>
-  </div>
-</div>
-
-<script>
-  // TODO(fase-2): google.script.run.withSuccessHandler(pintarMatriz).getMatrizIniciativas();
-  // La respuesta trae { lineas, verticales, celdas } donde la clave de cada
-  // celda es "<Vertical_ID>|<LEN_ID>". Las iniciativas sin clasificar caen en
-  // las claves SIN_VERTICAL / SIN_LEN y se muestran en una fila aparte.
-  function inicializar_iniciativas() { /* carga de la matriz */ }
-</script>
+    <div style="overflow-x:auto"><div id="matriz" class="matriz"></div></div>
+    <div id="sinClasificar" class="sin-clasificar" hidden></div>
+    <p class="nota">Cada tarjeta muestra estado, prioridad, tipo de iniciativa, Business Owner, fechas y número de actividades relacionadas. Las celdas rayadas no tienen iniciativas en ese cruce.</p>
+</section>

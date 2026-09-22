@@ -4,9 +4,9 @@ Plataforma custom de la **Gerencia de Desarrollo de Plataformas Digitales** para
 ciclo de vida completo de las solicitudes informáticas: 8 fases, RBAC por rol, trazabilidad
 inmutable e indicadores de Time to Market, Lead Time y Cycle Time.
 
-**Estado actual: esqueleto (fase 1).** El modelo de datos, el instalador, el motor de permisos
-y el armazón de la SPA están completos y desplegables. La lógica de escritura, Drive, Chat,
-correo y métricas está declarada con su contrato y marcada `TODO(fase-2)`.
+**Estado: funcional.** Modelo de datos, instalador, RBAC, indicadores, registro de
+actividades con carpeta en Drive, tablero con arrastre, auditoría, notificaciones de Chat y
+correo, y administración de catálogos.
 
 ---
 
@@ -31,9 +31,11 @@ apps-script/
 ├── Metricas.gs        Motor de indicadores de la fábrica, calculados desde Sheets
 ├── Setup.gs           Instalador idempotente: crea libros, hojas y catálogos
 ├── DatosIniciales.gs  Data real: 8 plataformas y las 39 iniciativas del portafolio
-├── Codigo.gs          API del backend: sesión, acceso a datos y endpoints
+├── Codigo.gs          API del backend: sesión, datos, escrituras, Drive y avisos
+├── Festivos.gs        Calendario laboral colombiano y días hábiles
 ├── Index.html         Contenedor SPA: navbar, router y arranque de sesión
 ├── Estilos.html       Hoja de estilos corporativa (sin CDN externos)
+├── Scripts.html       Lógica de la interfaz: render, arrastre y formularios
 ├── Home.html          Página 1 — Dashboard gerencial e indicadores
 ├── Iniciativas.html   Página 2 — Matriz Vertical × LEN (solo lectura)
 ├── Gestion.html       Página 3 — Tablero Kanban de 8 fases
@@ -50,6 +52,10 @@ docs/
 > división es organizativa y no altera la arquitectura modular acordada.
 
 ## 3. Despliegue
+
+> **¿Vas a implementarlo tú?** El paso a paso completo, sin tecnicismos y con la conexión
+> automática entre GitHub y Google, está en **[docs/IMPLEMENTACION.md](docs/IMPLEMENTACION.md)**.
+> Lo de abajo es el resumen técnico.
 
 ### 3.1 Requisitos
 
@@ -123,15 +129,27 @@ Las fórmulas y su origen exacto están en [`docs/MODELO_DATOS.md`](docs/MODELO_
 `getRoadmapVersiones()` agrupa las versiones por plataforma; `getMatrizIniciativas()`
 arma la matriz Vertical × LEN.
 
-## 6. Alcance pendiente (fase 2)
+## 6. Estado de las funcionalidades
 
-- `crearSolicitud`, `actualizarSolicitud`, `cambiarFaseSolicitud`, `marcarBloqueo`.
-- `registrarTransicionAudit` con cálculo de `Horas_En_Fase`.
-- `crearContenedorDrive_`: carpeta con nomenclatura oficial + clonación de la plantilla.
-- `notificarChat_` (tarjetas `cardsV2`) y `notificarCorreo_` (HTML corporativo).
-- CRUD de escritura en la página Admin.
-- Render de las 6 páginas: el backend ya devuelve los datos calculados; falta portar a los
-  parciales HTML el marcado del borrador aprobado (hoy conservan clases utilitarias de la
-  maqueta previa, que quedaron sin efecto al retirar el CDN).
-- Kanban: columnas, tarjetas, drag & drop y modal de detalle.
-- Guía de configuración de AppSheet sobre las mismas hojas (no es generable por código).
+| Módulo | Estado |
+| --- | --- |
+| Instalador, catálogos y carga de la data real | Completo |
+| RBAC por rol × fase, con validación en cliente y servidor | Completo |
+| Registro de actividades + carpeta en Drive + documento clonado | Completo |
+| Tablero Kanban con arrastre, bloqueos y detalle | Completo |
+| Auditoría inmutable con horas calendario y días hábiles | Completo |
+| Indicadores de la fábrica (4 bloques, 20 indicadores) | Completo |
+| Matriz de iniciativas, roadmap de versiones y reportes mensuales | Completo |
+| Notificaciones de Google Chat y correo HTML | Completo |
+| CRUD de parametrización con integridad referencial | Completo |
+| AppSheet sobre las mismas hojas | Pendiente: no es generable por código, requiere configuración manual |
+
+## 7. Automatización del despliegue
+
+`.github/workflows/desplegar-apps-script.yml` publica en Apps Script cada cambio que llegue a
+la rama. Requiere tres secretos del repositorio: `CLASP_CREDENTIALS`, `SCRIPT_ID` y,
+opcionalmente, `DEPLOYMENT_ID`. El procedimiento para obtenerlos está en
+[docs/IMPLEMENTACION.md](docs/IMPLEMENTACION.md), parte 2.
+
+El archivo `.clasp.json` del repositorio trae un `scriptId` de marcador: el flujo de GitHub lo
+reescribe con el valor del secreto antes de publicar.

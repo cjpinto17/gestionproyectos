@@ -1,11 +1,13 @@
 /**
  * Codigo.gs
- * Backend serverless: punto de entrada de la Web App, capa de acceso a datos
- * sobre Google Sheets y API expuesta al frontend via google.script.run.
+ * Backend de la aplicacion: entrada de la Web App, acceso a Google Sheets y
+ * API que consume el frontend por google.script.run.
  *
- * ESTADO: esqueleto. Las lecturas y utilidades estan implementadas; los flujos
- * de escritura, Drive, Chat y metricas estan declarados con su contrato final y
- * marcados con TODO(fase-2) para implementarse en la siguiente entrega.
+ * Reglas transversales de este archivo:
+ *   - Toda escritura pasa por LockService: dos personas moviendo tarjetas al
+ *     mismo tiempo no pueden corromper la hoja.
+ *   - Toda escritura valida permisos con Rbac.gs antes de tocar la hoja.
+ *   - Todo cambio de fase o de estado deja rastro en Auditoria_Transiciones.
  */
 
 /* ================================================================== */
@@ -13,7 +15,7 @@
 /* ================================================================== */
 
 /**
- * Sirve la SPA.
+ * Sirve la aplicacion.
  * @param {!Object} e Parametros de la peticion.
  * @return {!HtmlOutput}
  */
@@ -27,20 +29,25 @@ function doGet(e) {
 }
 
 /**
- * Receptor de webhooks entrantes (integraciones externas, ej. Taiga).
+ * Receptor de webhooks entrantes (integraciones externas).
  * @param {!Object} e
  * @return {!TextOutput}
  */
 function doPost(e) {
-  // TODO(fase-2): enrutar por e.parameter.accion y validar firma del emisor.
-  return ContentService
-      .createTextOutput(JSON.stringify({ ok: false, error: 'No implementado' }))
+  var respuesta = { ok: false, error: 'Accion no reconocida' };
+  try {
+    var accion = e && e.parameter ? e.parameter.accion : '';
+    if (accion === 'ping') respuesta = { ok: true, mensaje: 'activo' };
+  } catch (err) {
+    respuesta = { ok: false, error: err.message };
+  }
+  return ContentService.createTextOutput(JSON.stringify(respuesta))
       .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
  * Permite componer los HTML parciales desde Index.html.
- * @param {string} archivo Nombre del archivo sin extension.
+ * @param {string} archivo
  * @return {string}
  */
 function include(archivo) {
@@ -52,10 +59,8 @@ function include(archivo) {
 /* ================================================================== */
 
 /**
- * Identifica al usuario autenticado por SSO, resuelve su rol y devuelve el
- * contexto que el frontend usa para habilitar u ocultar acciones.
- * @return {!Object} { correo, nombre, cargo, area, rolId, rolNombre,
- *                     esAdmin, fasesEditables, autorizado }
+ * Identifica al usuario autenticado por SSO y resuelve su rol.
+ * @return {!Object}
  */
 function getContextoUsuario() {
   var correo = (Session.getActiveUser().getEmail() || '').toLowerCase();
@@ -68,22 +73,19 @@ function getContextoUsuario() {
     return { autorizado: false, correo: correo, motivo: 'Correo fuera del dominio corporativo.' };
   }
 
-  // El correo es opcional en la tabla Usuarios: un usuario puede existir y ser
+  // El correo es opcional en la tabla Usuarios: alguien puede existir y ser
   // asignable (por ejemplo como Business Owner) antes de tener cuenta
   // corporativa. Solo quien tenga correo registrado puede iniciar sesion.
   var usuarios = leerTabla('Usuarios');
   var usuario = null;
   for (var i = 0; i < usuarios.length; i++) {
     var registrado = String(usuarios[i].Correo_ID || '').toLowerCase();
-    if (registrado && registrado === correo) {
-      usuario = usuarios[i];
-      break;
-    }
+    if (registrado && registrado === correo) { usuario = usuarios[i]; break; }
   }
   if (!usuario) {
     return { autorizado: false, correo: correo,
              motivo: 'Su correo no esta asociado a ningun usuario del sistema. ' +
-                     'Solicite al administrador que lo registre en la tabla Usuarios.' };
+                     'Solicite al administrador que lo registre.' };
   }
   if (String(usuario.Activo).toUpperCase() === 'NO') {
     return { autorizado: false, correo: correo, motivo: 'Usuario inactivo.' };
@@ -107,10 +109,18 @@ function getContextoUsuario() {
 }
 
 /**
- * @param {string} rolId
- * @return {string}
+ * Igual que getContextoUsuario, pero lanza error si no esta autorizado.
+ * Lo usan todas las operaciones de escritura.
+ * @return {!Object}
  * @private
  */
+function exigirSesion_() {
+  var ctx = getContextoUsuario();
+  if (!ctx.autorizado) throw new Error(ctx.motivo || 'Sesion no autorizada.');
+  return ctx;
+}
+
+/** @private */
 function nombreDeRol_(rolId) {
   for (var i = 0; i < ROLES.length; i++) {
     if (ROLES[i].id === rolId) return ROLES[i].nombre;
@@ -119,15 +129,10 @@ function nombreDeRol_(rolId) {
 }
 
 /* ================================================================== */
-/* 3. Capa de acceso a datos (Google Sheets)                           */
+/* 3. Capa de acceso a datos                                           */
 /* ================================================================== */
 
-/**
- * Abre el libro correspondiente a una tabla.
- * @param {string} tabla
- * @return {!Sheet}
- * @private
- */
+/** @private */
 function getHoja_(tabla) {
   var info = getDefinicionTabla(tabla);
   if (!info) throw new Error('Tabla desconocida: ' + tabla);
@@ -140,7 +145,7 @@ function getHoja_(tabla) {
 }
 
 /**
- * Lee una tabla completa como arreglo de objetos, usando la fila 1 como llaves.
+ * Lee una tabla completa como arreglo de objetos.
  * @param {string} tabla
  * @return {!Array<!Object>}
  */
@@ -155,30 +160,144 @@ function leerTabla(tabla) {
   var filas = [];
   for (var i = 1; i < valores.length; i++) {
     var obj = {};
+    var vacia = true;
     for (var j = 0; j < encabezados.length; j++) {
       if (!encabezados[j]) continue;
       obj[encabezados[j]] = normalizarValor_(valores[i][j]);
+      if (obj[encabezados[j]] !== '' && obj[encabezados[j]] !== null) vacia = false;
     }
-    obj._fila = i + 1; // numero real de fila en la hoja, para editar/eliminar
+    if (vacia) continue;              // ignora filas en blanco al final de la hoja
+    obj._fila = i + 1;
     filas.push(obj);
   }
   return filas;
 }
 
-/**
- * Convierte fechas a ISO para que viajen correctamente a google.script.run.
- * @param {*} valor
- * @return {*}
- * @private
- */
+/** Las fechas viajan como ISO para no perderse al cruzar a google.script.run. */
 function normalizarValor_(valor) {
   if (valor instanceof Date) return valor.toISOString();
   return valor;
 }
 
 /**
- * Devuelve todos los catalogos maestros en una sola llamada (evita N round-trips
- * desde el frontend al construir filtros y formularios).
+ * Busca una fila por su llave primaria.
+ * @param {string} tabla
+ * @param {string} valorPk
+ * @return {?Object} La fila, con _fila indicando su numero en la hoja.
+ * @private
+ */
+function buscarPorPk_(tabla, valorPk) {
+  var info = getDefinicionTabla(tabla);
+  var pk = info.def.pk;
+  var filas = leerTabla(tabla);
+  for (var i = 0; i < filas.length; i++) {
+    if (String(filas[i][pk]) === String(valorPk)) return filas[i];
+  }
+  return null;
+}
+
+/**
+ * Escribe una fila completa respetando el orden de columnas del esquema.
+ * @param {string} tabla
+ * @param {number} numeroFila Fila real en la hoja.
+ * @param {!Object} registro
+ * @private
+ */
+function escribirFila_(tabla, numeroFila, registro) {
+  var columnas = getEncabezados(tabla);
+  var hoja = getHoja_(tabla);
+  var valores = columnas.map(function (c) {
+    var v = registro[c];
+    return (v === undefined || v === null) ? '' : v;
+  });
+  hoja.getRange(numeroFila, 1, 1, columnas.length).setValues([valores]);
+}
+
+/**
+ * Agrega una fila al final de la tabla.
+ * @param {string} tabla
+ * @param {!Object} registro
+ * @return {number} Numero de fila escrita.
+ * @private
+ */
+function agregarFila_(tabla, registro) {
+  var hoja = getHoja_(tabla);
+  var fila = Math.max(hoja.getLastRow() + 1, 2);
+  escribirFila_(tabla, fila, registro);
+  return fila;
+}
+
+/**
+ * Valida un registro contra el esquema: obligatorios y tipos basicos.
+ * @param {string} tabla
+ * @param {!Object} registro
+ * @param {boolean} esNuevo
+ * @private
+ */
+function validarRegistro_(tabla, registro, esNuevo) {
+  var info = getDefinicionTabla(tabla);
+  var errores = [];
+
+  info.def.columnas.forEach(function (col) {
+    var valor = registro[col.campo];
+    var vacio = (valor === undefined || valor === null || String(valor).trim() === '');
+
+    if (col.requerido && vacio) {
+      errores.push('"' + col.etiqueta + '" es obligatorio.');
+      return;
+    }
+    if (vacio) return;
+
+    if (col.tipo === 'number' || col.tipo === 'decimal') {
+      if (isNaN(Number(valor))) errores.push('"' + col.etiqueta + '" debe ser numerico.');
+    }
+    if (col.tipo === 'email' && String(valor).indexOf('@') === -1) {
+      errores.push('"' + col.etiqueta + '" debe ser un correo valido.');
+    }
+    if (col.tipo === 'boolSN') {
+      var v = String(valor).toUpperCase();
+      if (v !== 'SI' && v !== 'SÍ' && v !== 'NO') {
+        errores.push('"' + col.etiqueta + '" debe ser SI o NO.');
+      }
+    }
+    if (col.opciones && col.opciones.indexOf(valor) === -1) {
+      errores.push('"' + col.etiqueta + '" debe ser uno de: ' + col.opciones.join(', '));
+    }
+  });
+
+  if (esNuevo) {
+    var pk = info.def.pk;
+    if (registro[pk] && buscarPorPk_(tabla, registro[pk])) {
+      errores.push('Ya existe un registro con la llave ' + registro[pk] + '.');
+    }
+  }
+  if (errores.length) throw new Error(errores.join(' '));
+}
+
+/**
+ * Ejecuta una operacion tomando el bloqueo del script.
+ * @param {function(): *} operacion
+ * @return {*}
+ * @private
+ */
+function conBloqueo_(operacion) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) {
+    throw new Error('El sistema esta ocupado atendiendo otro cambio. Intente de nuevo.');
+  }
+  try {
+    return operacion();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/* ================================================================== */
+/* 4. Catalogos                                                        */
+/* ================================================================== */
+
+/**
+ * Devuelve todos los catalogos en una sola llamada.
  * @return {!Object}
  */
 function getCatalogos() {
@@ -200,28 +319,12 @@ function getCatalogos() {
 }
 
 /* ================================================================== */
-/* 4. API de Solicitudes                                               */
+/* 5. Solicitudes: lectura                                             */
 /* ================================================================== */
 
 /**
- * Genera el consecutivo SOL-YYYYMMDD-XXX del dia.
- * @return {string}
- * @private
- */
-function generarIdSolicitud_() {
-  var hoy = Utilities.formatDate(new Date(), CONFIG.ZONA_HORARIA, 'yyyyMMdd');
-  var prefijo = CONFIG.PREFIJO_SOLICITUD + '-' + hoy + '-';
-  var existentes = leerTabla('Solicitudes').filter(function (s) {
-    return String(s.ID_Solicitud).indexOf(prefijo) === 0;
-  });
-  var consecutivo = existentes.length + 1;
-  return prefijo + ('00' + consecutivo).slice(-3);
-}
-
-/**
- * Datos del tablero Kanban: solicitudes filtradas y ya enriquecidas con el
- * nombre de la iniciativa y del responsable, mas los catalogos que necesitan
- * los filtros. Una sola llamada por carga de pagina.
+ * Datos del tablero Kanban: solicitudes filtradas y enriquecidas con los
+ * nombres que muestra la tarjeta, mas los catalogos de los filtros.
  * @param {!Object=} filtros
  * @return {!Object}
  */
@@ -235,7 +338,7 @@ function getDatosKanban(filtros) {
 
   var solicitudes = getSolicitudes(filtros).map(function (s) {
     s.Nombre_Iniciativa = nombreProyecto[s.ID_Proyecto] || s.ID_Proyecto;
-    s.Nombre_Responsable = nombreUsuario[s.Responsable_ID] || s.Responsable_ID;
+    s.Nombre_Responsable = nombreUsuario[s.Responsable_ID] || '';
     s.Nombre_Plataforma = nombrePlataforma[s.Plataforma_ID] || s.Plataforma_ID;
     return s;
   });
@@ -247,12 +350,14 @@ function getDatosKanban(filtros) {
     plataformas: PLATAFORMAS,
     fases: FASES,
     estados: ESTADOS,
+    tipos: TIPOS_SOLICITUD,
+    prioridades: PRIORIDADES,
     causales: CAUSALES_BLOQUEO
   };
 }
 
 /**
- * Lista las solicitudes (actividades) aplicando filtros opcionales.
+ * Lista las solicitudes aplicando filtros opcionales.
  * @param {!Object=} filtros { idProyecto, plataforma, responsable, texto }
  * @return {!Array<!Object>}
  */
@@ -272,18 +377,121 @@ function getSolicitudes(filtros) {
 }
 
 /**
- * Registra una nueva solicitud: valida, asigna ID, crea la carpeta en Drive,
- * clona la plantilla, escribe la fila y notifica por Chat y correo.
- * @param {!Object} datos Campos del formulario de registro.
- * @return {!Object} { ok, idSolicitud, carpetaUrl, docUrl }
+ * Detalle completo de una solicitud, con nombres resueltos.
+ * @param {string} idSolicitud
+ * @return {!Object}
+ */
+function getDetalleSolicitud(idSolicitud) {
+  var s = buscarPorPk_('Solicitudes', idSolicitud);
+  if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+
+  var proyecto = buscarPorPk_('Proyectos', s.ID_Proyecto);
+  var responsable = s.Responsable_ID ? buscarPorPk_('Usuarios', s.Responsable_ID) : null;
+  var solicitante = s.Solicitante_ID ? buscarPorPk_('Usuarios', s.Solicitante_ID) : null;
+
+  s.Nombre_Iniciativa = proyecto ? proyecto.Nombre_Proyecto : s.ID_Proyecto;
+  s.Nombre_Responsable = responsable ? responsable.Nombre_Completo : '';
+  s.Nombre_Solicitante = solicitante ? solicitante.Nombre_Completo : '';
+  s.Nombre_Plataforma = mapaPlataformas()[s.Plataforma_ID] || s.Plataforma_ID;
+  s.Historial = leerTabla('Auditoria_Transiciones')
+      .filter(function (a) { return a.ID_Solicitud === idSolicitud; })
+      .sort(function (a, b) {
+        return String(b.Fecha_Hora_Cambio).localeCompare(String(a.Fecha_Hora_Cambio));
+      });
+  return s;
+}
+
+/* ================================================================== */
+/* 6. Solicitudes: escritura                                           */
+/* ================================================================== */
+
+/**
+ * Genera el consecutivo SOL-YYYYMMDD-XXX del dia.
+ * @return {string}
+ * @private
+ */
+function generarIdSolicitud_() {
+  var hoy = Utilities.formatDate(new Date(), CONFIG.ZONA_HORARIA, 'yyyyMMdd');
+  var prefijo = CONFIG.PREFIJO_SOLICITUD + '-' + hoy + '-';
+  var existentes = leerTabla('Solicitudes').filter(function (s) {
+    return String(s.ID_Solicitud).indexOf(prefijo) === 0;
+  });
+  return prefijo + ('00' + (existentes.length + 1)).slice(-3);
+}
+
+/**
+ * Registra una nueva solicitud: valida, asigna ID, crea la carpeta en Drive
+ * con el documento de requerimiento, escribe la fila, registra la auditoria
+ * inicial y notifica.
+ *
+ * @param {!Object} datos Campos del formulario.
+ * @return {!Object} { ok, idSolicitud, carpetaUrl, docUrl, avisos }
  */
 function crearSolicitud(datos) {
-  // TODO(fase-2): validar contra ESQUEMA_TRANSACCIONAL.Solicitudes, exigir
-  // ID_Proyecto (toda solicitud es hija de una iniciativa),
-  // generarIdSolicitud_(), crearContenedorDrive_(), escribir fila con
-  // Fase_Actual='FAS-01', Estado_Actual='EST-01', Tiene_Bloqueo='NO',
-  // registrarTransicionAudit() y notificar.
-  throw new Error('crearSolicitud: pendiente de implementacion (fase 2).');
+  var ctx = exigirSesion_();
+
+  return conBloqueo_(function () {
+    var ahora = new Date();
+    var id = generarIdSolicitud_();
+
+    var registro = {
+      ID_Solicitud: id,
+      Fecha_Registro: ahora,
+      Nombre_Solicitud: (datos.Nombre_Solicitud || '').trim(),
+      Objetivo: datos.Objetivo || '',
+      Entregable: datos.Entregable || '',
+      ID_Proyecto: datos.ID_Proyecto || '',
+      Plataforma_ID: datos.Plataforma_ID || '',
+      Solicitante_ID: datos.Solicitante_ID || ctx.idUsuario,
+      Tipo_Solicitud: datos.Tipo_Solicitud || '',
+      Prioridad: datos.Prioridad || '',
+      Proceso_Impactado: datos.Proceso_Impactado || '',
+      Doc_Requerimiento_URL: '',
+      Carpeta_Drive_URL: '',
+      Fase_Actual: 'FAS-01',
+      Estado_Actual: 'EST-01',
+      Tiene_Bloqueo: 'NO',
+      Causal_Bloqueo: '',
+      Link_Taiga: datos.Link_Taiga || '',
+      Version_Semantica: '',
+      Responsable_ID: datos.Responsable_ID || ctx.idUsuario,
+      Fecha_Ultimo_Cambio: ahora
+    };
+    validarRegistro_('Solicitudes', registro, true);
+
+    // La iniciativa debe existir: toda solicitud es hija de una iniciativa.
+    if (!buscarPorPk_('Proyectos', registro.ID_Proyecto)) {
+      throw new Error('La iniciativa ' + registro.ID_Proyecto + ' no existe.');
+    }
+
+    var avisos = [];
+    var contenedor = { carpetaUrl: '', docUrl: '' };
+    try {
+      contenedor = crearContenedorDrive_(id, registro.Plataforma_ID, registro.Nombre_Solicitud);
+      registro.Carpeta_Drive_URL = contenedor.carpetaUrl;
+      registro.Doc_Requerimiento_URL = contenedor.docUrl;
+    } catch (e) {
+      // La solicitud no se pierde por un problema de Drive: se avisa y sigue.
+      avisos.push('No se pudo crear la carpeta en Drive: ' + e.message);
+    }
+
+    agregarFila_('Solicitudes', registro);
+
+    registrarTransicionAudit({
+      idSolicitud: id,
+      faseOrigen: '',
+      faseDestino: 'FAS-01',
+      estadoOrigen: '',
+      estadoDestino: 'EST-01',
+      desde: ahora,
+      correoUsuario: ctx.correo
+    });
+
+    avisos = avisos.concat(notificar_(registro, 'creacion'));
+
+    return { ok: true, idSolicitud: id, carpetaUrl: contenedor.carpetaUrl,
+             docUrl: contenedor.docUrl, avisos: avisos };
+  });
 }
 
 /**
@@ -293,84 +501,281 @@ function crearSolicitud(datos) {
  * @return {!Object}
  */
 function actualizarSolicitud(idSolicitud, cambios) {
-  // TODO(fase-2): verificar puedeEditarCampo() por cada clave de "cambios".
-  throw new Error('actualizarSolicitud: pendiente de implementacion (fase 2).');
+  var ctx = exigirSesion_();
+
+  return conBloqueo_(function () {
+    var actual = buscarPorPk_('Solicitudes', idSolicitud);
+    if (!actual) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+
+    var negados = [];
+    Object.keys(cambios).forEach(function (campo) {
+      if (!puedeEditarCampo(ctx.rolId, campo)) negados.push(campo);
+    });
+    if (negados.length) {
+      throw new Error('Su rol no puede modificar: ' + negados.join(', ') + '.');
+    }
+
+    if (cambios.Version_Semantica &&
+        !CONFIG.REGEX_VERSION_SEMANTICA.test(cambios.Version_Semantica)) {
+      throw new Error('La version debe tener el formato vX.Y.Z, por ejemplo v2.4.0.');
+    }
+
+    var nuevo = {};
+    Object.keys(actual).forEach(function (k) { if (k !== '_fila') nuevo[k] = actual[k]; });
+    Object.keys(cambios).forEach(function (k) { nuevo[k] = cambios[k]; });
+
+    validarRegistro_('Solicitudes', nuevo, false);
+    escribirFila_('Solicitudes', actual._fila, nuevo);
+
+    if (cambios.Version_Semantica) sincronizarRoadmap_(nuevo);
+    return { ok: true, idSolicitud: idSolicitud };
+  });
 }
 
 /**
- * Mueve una solicitud de fase (drag & drop del Kanban).
- * Valida la transicion con validarTransicion(), sella las estampas de tiempo de
- * la fase destino y registra la auditoria inmutable.
+ * Mueve una solicitud de fase (arrastre en el Kanban o boton de avance).
+ * Valida la transicion, sella las estampas de tiempo de la fase destino y
+ * registra la auditoria inmutable.
+ *
  * @param {string} idSolicitud
  * @param {string} faseDestino
  * @param {string=} estadoDestino
  * @return {!Object}
  */
 function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino) {
-  // TODO(fase-2): implementar con LockService para evitar escrituras concurrentes.
-  throw new Error('cambiarFaseSolicitud: pendiente de implementacion (fase 2).');
+  var ctx = exigirSesion_();
+
+  return conBloqueo_(function () {
+    var s = buscarPorPk_('Solicitudes', idSolicitud);
+    if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+
+    var validacion = validarTransicion(ctx.rolId, s.Fase_Actual, faseDestino);
+    if (!validacion.permitido) throw new Error(validacion.motivo);
+
+    if (String(s.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0) {
+      throw new Error('La solicitud esta bloqueada. Levante el bloqueo antes de avanzarla.');
+    }
+
+    var ahora = new Date();
+    var faseOrigen = s.Fase_Actual;
+    var estadoOrigen = s.Estado_Actual;
+    var nuevoEstado = estadoDestino || estadoSugerido_(faseDestino, estadoOrigen);
+
+    var nuevo = {};
+    Object.keys(s).forEach(function (k) { if (k !== '_fila') nuevo[k] = s[k]; });
+    nuevo.Fase_Actual = faseDestino;
+    nuevo.Estado_Actual = nuevoEstado;
+    nuevo.Fecha_Ultimo_Cambio = ahora;
+    sellarEstampas_(nuevo, faseOrigen, faseDestino, ahora);
+
+    escribirFila_('Solicitudes', s._fila, nuevo);
+
+    registrarTransicionAudit({
+      idSolicitud: idSolicitud,
+      faseOrigen: faseOrigen,
+      faseDestino: faseDestino,
+      estadoOrigen: estadoOrigen,
+      estadoDestino: nuevoEstado,
+      desde: aFecha_(s.Fecha_Ultimo_Cambio) || aFecha_(s.Fecha_Registro),
+      correoUsuario: ctx.correo
+    });
+
+    if (faseDestino === 'FAS-08') sincronizarRoadmap_(nuevo);
+    var avisos = notificar_(nuevo, 'cambio_fase');
+
+    return { ok: true, idSolicitud: idSolicitud, faseActual: faseDestino,
+             estadoActual: nuevoEstado, avisos: avisos };
+  });
 }
 
 /**
- * Activa o desactiva el bloqueo de una solicitud.
+ * Estado por defecto al llegar a una fase, cuando el usuario no elige uno.
+ * @private
+ */
+function estadoSugerido_(faseDestino, estadoOrigen) {
+  if (faseDestino === 'FAS-08') return 'EST-06';   // Terminada
+  if (estadoOrigen === 'EST-01') return 'EST-02';  // arranca el trabajo
+  return estadoOrigen === 'EST-04' ? 'EST-02' : (estadoOrigen || 'EST-02');
+}
+
+/**
+ * Escribe la estampa de tiempo que corresponde a la fase que se cierra y a la
+ * que se abre.
+ * @private
+ */
+function sellarEstampas_(registro, faseOrigen, faseDestino, ahora) {
+  var inicio = {
+    'FAS-03': 'Fecha_Inicio_Analisis', 'FAS-04': 'Fecha_Inicio_Dev',
+    'FAS-05': 'Fecha_Inicio_QA', 'FAS-06': 'Fecha_Inicio_UAT',
+    'FAS-07': 'Fecha_Socializacion', 'FAS-08': 'Fecha_Despliegue'
+  };
+  var fin = {
+    'FAS-03': 'Fecha_Fin_Analisis', 'FAS-04': 'Fecha_Fin_Dev',
+    'FAS-05': 'Fecha_Fin_QA', 'FAS-06': 'Fecha_Fin_UAT'
+  };
+  if (fin[faseOrigen]) registro[fin[faseOrigen]] = ahora;
+  if (inicio[faseDestino]) registro[inicio[faseDestino]] = ahora;
+}
+
+/**
+ * Activa o levanta el bloqueo de una solicitud.
  * @param {string} idSolicitud
  * @param {boolean} bloqueada
  * @param {string=} idCausal Obligatorio cuando bloqueada es true.
  * @return {!Object}
  */
 function marcarBloqueo(idSolicitud, bloqueada, idCausal) {
-  // TODO(fase-2): Causal_Bloqueo obligatorio si bloqueada === true.
-  throw new Error('marcarBloqueo: pendiente de implementacion (fase 2).');
+  var ctx = exigirSesion_();
+
+  return conBloqueo_(function () {
+    var s = buscarPorPk_('Solicitudes', idSolicitud);
+    if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+    if (!puedeEditarFase(ctx.rolId, s.Fase_Actual)) {
+      throw new Error('Su rol no puede operar la fase ' + s.Fase_Actual + '.');
+    }
+    if (bloqueada && !idCausal) {
+      throw new Error('Debe indicar la causal del bloqueo.');
+    }
+
+    var ahora = new Date();
+    var estadoOrigen = s.Estado_Actual;
+    var nuevo = {};
+    Object.keys(s).forEach(function (k) { if (k !== '_fila') nuevo[k] = s[k]; });
+    nuevo.Tiene_Bloqueo = bloqueada ? 'SI' : 'NO';
+    nuevo.Causal_Bloqueo = bloqueada ? idCausal : '';
+    nuevo.Estado_Actual = bloqueada ? 'EST-04' : 'EST-02';
+    nuevo.Fecha_Ultimo_Cambio = ahora;
+
+    escribirFila_('Solicitudes', s._fila, nuevo);
+
+    // El bloqueo tambien se audita: de ahi sale el tiempo bloqueado que
+    // descuenta la eficiencia de flujo.
+    registrarTransicionAudit({
+      idSolicitud: idSolicitud,
+      faseOrigen: s.Fase_Actual,
+      faseDestino: s.Fase_Actual,
+      estadoOrigen: estadoOrigen,
+      estadoDestino: nuevo.Estado_Actual,
+      desde: aFecha_(s.Fecha_Ultimo_Cambio) || aFecha_(s.Fecha_Registro),
+      correoUsuario: ctx.correo
+    });
+
+    var avisos = bloqueada ? notificar_(nuevo, 'bloqueo') : [];
+    return { ok: true, idSolicitud: idSolicitud, bloqueada: bloqueada, avisos: avisos };
+  });
+}
+
+/**
+ * Mantiene el roadmap alineado: al asignar una version o desplegar, crea o
+ * actualiza la fila correspondiente en Roadmap_Versiones.
+ * @private
+ */
+function sincronizarRoadmap_(solicitud) {
+  var version = solicitud.Version_Semantica;
+  var plataforma = solicitud.Plataforma_ID;
+  if (!version || !plataforma) return;
+
+  var existente = null;
+  leerTabla('Roadmap_Versiones').forEach(function (v) {
+    if (v.Numero_Version === version && v.Plataforma_ID === plataforma) existente = v;
+  });
+
+  var desplegada = solicitud.Fase_Actual === 'FAS-08';
+  if (!existente) {
+    agregarFila_('Roadmap_Versiones', {
+      ID_Version: 'VER-' + new Date().getTime(),
+      Plataforma_ID: plataforma,
+      Numero_Version: version,
+      Estado_Release: desplegada ? 'En Produccion' : 'Planeada',
+      Fecha_Planeada: '',
+      Fecha_Despliegue_Real: desplegada ? new Date() : ''
+    });
+    return;
+  }
+  if (desplegada && !existente.Fecha_Despliegue_Real) {
+    var actualizado = {};
+    Object.keys(existente).forEach(function (k) {
+      if (k !== '_fila') actualizado[k] = existente[k];
+    });
+    actualizado.Estado_Release = 'En Produccion';
+    actualizado.Fecha_Despliegue_Real = new Date();
+    escribirFila_('Roadmap_Versiones', existente._fila, actualizado);
+  }
 }
 
 /* ================================================================== */
-/* 5. Auditoria y metricas                                             */
+/* 7. Auditoria                                                        */
 /* ================================================================== */
 
 /**
  * Inserta una fila inmutable en Auditoria_Transiciones.
- * Horas_En_Fase        = (ahora - Fecha_Ultimo_Cambio) / 3.600.000 ms.
- * Dias_Habiles_En_Fase = diasHabilesEntre(Fecha_Ultimo_Cambio, ahora), que es
- * la medida contra la que se evalua el SLA de la fase.
- * @param {!Object} solicitud Fila actual (antes del cambio).
- * @param {string} faseDestino
- * @param {string} estadoDestino
- * @param {string} correoUsuario
- * @return {string} ID_Auditoria generado.
+ *  Horas_En_Fase        = horas calendario desde el ultimo cambio.
+ *  Dias_Habiles_En_Fase = dias habiles desde el ultimo cambio, que es la
+ *                         medida contra la que se evalua el SLA de la fase.
+ *
+ * @param {!Object} datos { idSolicitud, faseOrigen, faseDestino, estadoOrigen,
+ *                          estadoDestino, desde, correoUsuario }
+ * @return {string} ID de auditoria generado.
  */
-function registrarTransicionAudit(solicitud, faseDestino, estadoDestino, correoUsuario) {
-  // TODO(fase-2): append a Auditoria_Transiciones con ID AUD-<timestamp>.
-  throw new Error('registrarTransicionAudit: pendiente de implementacion (fase 2).');
+function registrarTransicionAudit(datos) {
+  var ahora = new Date();
+  var desde = datos.desde ? aFecha_(datos.desde) : null;
+  var horas = desde ? (ahora.getTime() - desde.getTime()) / 3600000 : 0;
+
+  var id = 'AUD-' + ahora.getTime();
+  agregarFila_('Auditoria_Transiciones', {
+    ID_Auditoria: id,
+    ID_Solicitud: datos.idSolicitud,
+    Fase_Origen: datos.faseOrigen || '',
+    Fase_Destino: datos.faseDestino || '',
+    Estado_Origen: datos.estadoOrigen || '',
+    Estado_Destino: datos.estadoDestino || '',
+    Fecha_Hora_Cambio: ahora,
+    Usuario_Responsable: datos.correoUsuario || '',
+    Horas_En_Fase: Math.round(horas * 10) / 10,
+    Dias_Habiles_En_Fase: desde ? diasHabilesEntre(desde, ahora) : 0
+  });
+  return id;
 }
 
-/*
- * getMetricasHome(), getReportes(), getRoadmapVersiones() y getMatrizIniciativas()
- * estan implementados en Metricas.gs: calculan todos los indicadores a partir de
- * las hojas de Solicitudes, Auditoria_Transiciones, SLA_Fases y Roadmap_Versiones.
- */
-
 /* ================================================================== */
-/* 6. Drive, Chat y correo                                             */
+/* 8. Drive: carpeta y documento por solicitud                         */
 /* ================================================================== */
 
 /**
- * Crea la carpeta dedicada de la solicitud y clona la plantilla dentro.
+ * Crea la carpeta dedicada de la solicitud dentro de la Unidad Compartida y
+ * clona alli la plantilla del formato de requerimiento.
+ *
  * Nomenclatura: ID_Solicitud_YYYYMMDD_[Plataforma]_NombreLimpio
+ *
  * @param {string} idSolicitud
- * @param {string} plataforma
+ * @param {string} idPlataforma
  * @param {string} nombreSolicitud
  * @return {{carpetaUrl: string, docUrl: string}}
+ * @private
  */
-function crearContenedorDrive_(idSolicitud, plataforma, nombreSolicitud) {
-  // plataforma llega como nombre legible, no como ID: es parte del nombre de la carpeta.
-  // TODO(fase-2): DriveApp.getFolderById(CONFIG.DRIVE_UNIDAD_RAIZ_ID)
-  //               .createFolder(nombre) + makeCopy de la plantilla.
-  throw new Error('crearContenedorDrive_: pendiente de implementacion (fase 2).');
+function crearContenedorDrive_(idSolicitud, idPlataforma, nombreSolicitud) {
+  var raiz = DriveApp.getFolderById(CONFIG.DRIVE_UNIDAD_RAIZ_ID);
+  var hoy = Utilities.formatDate(new Date(), CONFIG.ZONA_HORARIA, 'yyyyMMdd');
+  var plataforma = mapaPlataformas()[idPlataforma] || idPlataforma || 'Sin plataforma';
+
+  var nombreCarpeta = idSolicitud + '_' + hoy + '_[' + plataforma + ']_' +
+                      limpiarNombre_(nombreSolicitud);
+  var carpeta = raiz.createFolder(nombreCarpeta);
+
+  var docUrl = '';
+  var idPlantilla = getProp(PROP_KEYS.PLANTILLA_REQUERIMIENTO, false);
+  if (idPlantilla) {
+    var copia = DriveApp.getFileById(idPlantilla)
+        .makeCopy('Requerimiento_' + idSolicitud, carpeta);
+    docUrl = copia.getUrl();
+  }
+  return { carpetaUrl: carpeta.getUrl(), docUrl: docUrl };
 }
 
 /**
- * Normaliza un texto para usarlo en el nombre de carpeta: sin tildes, sin
- * caracteres especiales y con guiones bajos en lugar de espacios.
+ * Normaliza un texto para el nombre de carpeta: sin tildes, sin caracteres
+ * especiales y con guiones bajos en lugar de espacios.
  * @param {string} texto
  * @return {string}
  */
@@ -383,42 +788,214 @@ function limpiarNombre_(texto) {
       .substring(0, 80);
 }
 
+/* ================================================================== */
+/* 9. Notificaciones                                                   */
+/* ================================================================== */
+
 /**
- * Publica una tarjeta interactiva en el espacio de Google Chat.
+ * Envia las notificaciones de un evento. Nunca interrumpe la operacion: si
+ * Chat o Gmail fallan, devuelve el aviso y la solicitud queda guardada igual.
+ *
  * @param {!Object} solicitud
  * @param {string} evento 'creacion' | 'cambio_fase' | 'bloqueo'
+ * @return {!Array<string>} Avisos para mostrar al usuario.
+ * @private
+ */
+function notificar_(solicitud, evento) {
+  var avisos = [];
+  if (CONFIG.NOTIFICAR_CHAT && getChatWebhookUrl()) {
+    try { notificarChat_(solicitud, evento); }
+    catch (e) { avisos.push('No se pudo publicar en Google Chat: ' + e.message); }
+  }
+  if (CONFIG.NOTIFICAR_CORREO) {
+    try { notificarCorreo_(solicitud, evento); }
+    catch (e) { avisos.push('No se pudo enviar el correo: ' + e.message); }
+  }
+  return avisos;
+}
+
+/**
+ * Publica una tarjeta en el espacio de Google Chat.
+ * @private
  */
 function notificarChat_(solicitud, evento) {
-  // TODO(fase-2): UrlFetchApp.fetch(getChatWebhookUrl(), {cardsV2}).
-  throw new Error('notificarChat_: pendiente de implementacion (fase 2).');
+  var titulos = {
+    creacion: 'Nueva solicitud registrada',
+    cambio_fase: 'Cambio de fase',
+    bloqueo: 'Solicitud bloqueada'
+  };
+  var plataforma = mapaPlataformas()[solicitud.Plataforma_ID] || '';
+  var fase = mapaFases()[solicitud.Fase_Actual] || solicitud.Fase_Actual;
+  var estado = mapaEstados()[solicitud.Estado_Actual] || solicitud.Estado_Actual;
+
+  var campos = [
+    { decoratedText: { topLabel: 'Solicitud', text: solicitud.ID_Solicitud } },
+    { decoratedText: { topLabel: 'Fase / Estado', text: fase + ' · ' + estado } }
+  ];
+  if (String(solicitud.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0) {
+    var causal = solicitud.Causal_Bloqueo;
+    CAUSALES_BLOQUEO.forEach(function (c) { if (c.id === causal) causal = c.nombre; });
+    campos.push({ decoratedText: { topLabel: 'Causal del bloqueo', text: causal } });
+  }
+
+  var botones = [];
+  if (solicitud.Carpeta_Drive_URL) {
+    botones.push({ text: 'Carpeta en Drive',
+                   onClick: { openLink: { url: solicitud.Carpeta_Drive_URL } } });
+  }
+  if (solicitud.Doc_Requerimiento_URL) {
+    botones.push({ text: 'Requerimiento',
+                   onClick: { openLink: { url: solicitud.Doc_Requerimiento_URL } } });
+  }
+  if (botones.length) campos.push({ buttonList: { buttons: botones } });
+
+  var payload = {
+    cardsV2: [{
+      cardId: solicitud.ID_Solicitud + '-' + evento,
+      card: {
+        header: { title: titulos[evento] || 'Actualizacion',
+                  subtitle: solicitud.Nombre_Solicitud + (plataforma ? ' · ' + plataforma : '') },
+        sections: [{ widgets: campos }]
+      }
+    }]
+  };
+
+  UrlFetchApp.fetch(getChatWebhookUrl(), {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
 }
 
 /**
- * Envia el correo HTML al solicitante o al nuevo responsable.
- * @param {string} destinatario
- * @param {!Object} solicitud
- * @param {string} evento
+ * Envia el correo al solicitante y al responsable.
+ * @private
  */
-function notificarCorreo_(destinatario, solicitud, evento) {
-  // TODO(fase-2): MailApp.sendEmail con plantilla HTML corporativa.
-  throw new Error('notificarCorreo_: pendiente de implementacion (fase 2).');
+function notificarCorreo_(solicitud, evento) {
+  var destinatarios = [];
+  [solicitud.Solicitante_ID, solicitud.Responsable_ID].forEach(function (idUsuario) {
+    if (!idUsuario) return;
+    var u = buscarPorPk_('Usuarios', idUsuario);
+    if (u && u.Correo_ID && destinatarios.indexOf(u.Correo_ID) === -1) {
+      destinatarios.push(u.Correo_ID);
+    }
+  });
+  if (!destinatarios.length) return;   // nadie tiene correo corporativo todavia
+
+  var asuntos = {
+    creacion: 'Solicitud registrada: ',
+    cambio_fase: 'Avance de solicitud: ',
+    bloqueo: 'Solicitud bloqueada: '
+  };
+  MailApp.sendEmail({
+    to: destinatarios.join(','),
+    subject: (asuntos[evento] || 'Actualizacion: ') + solicitud.ID_Solicitud,
+    htmlBody: cuerpoCorreo_(solicitud, evento)
+  });
+}
+
+/**
+ * Arma el HTML del correo con la identidad corporativa.
+ * @private
+ */
+function cuerpoCorreo_(solicitud, evento) {
+  var fase = mapaFases()[solicitud.Fase_Actual] || solicitud.Fase_Actual;
+  var estado = mapaEstados()[solicitud.Estado_Actual] || solicitud.Estado_Actual;
+  var plataforma = mapaPlataformas()[solicitud.Plataforma_ID] || '';
+  var mensajes = {
+    creacion: 'Su solicitud quedo registrada en el sistema.',
+    cambio_fase: 'La solicitud avanzo de fase.',
+    bloqueo: 'La solicitud fue marcada con un bloqueo.'
+  };
+
+  var filas = [
+    ['Solicitud', solicitud.ID_Solicitud],
+    ['Nombre', solicitud.Nombre_Solicitud],
+    ['Plataforma', plataforma],
+    ['Fase actual', fase],
+    ['Estado', estado]
+  ].map(function (f) {
+    return '<tr><td style="padding:6px 12px;color:#5A6B8C;font-size:13px">' + f[0] +
+           '</td><td style="padding:6px 12px;font-size:13px"><b>' + f[1] + '</b></td></tr>';
+  }).join('');
+
+  var botones = '';
+  if (solicitud.Carpeta_Drive_URL) {
+    botones += '<a href="' + solicitud.Carpeta_Drive_URL + '" style="background:#1DD982;' +
+               'color:#00306E;text-decoration:none;font-weight:bold;padding:10px 16px;' +
+               'border-radius:8px;display:inline-block;margin-right:8px">Carpeta en Drive</a>';
+  }
+  if (solicitud.Doc_Requerimiento_URL) {
+    botones += '<a href="' + solicitud.Doc_Requerimiento_URL + '" style="background:#FFFFFF;' +
+               'color:#00306E;border:1px solid #DFE6F2;text-decoration:none;padding:10px 16px;' +
+               'border-radius:8px;display:inline-block">Documento de requerimiento</a>';
+  }
+
+  return '<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;' +
+         'border:1px solid #EDF1F8;border-radius:12px;overflow:hidden">' +
+         '<div style="background:#00306E;color:#fff;padding:16px 20px">' +
+         '<div style="font-size:16px;font-weight:bold">' + CONFIG.APP_NOMBRE + '</div>' +
+         '<div style="font-size:12px;color:#AFC3E4">' + CONFIG.APP_SUBTITULO + '</div></div>' +
+         '<div style="padding:20px">' +
+         '<p style="font-size:14px;color:#0D1F3C">' + (mensajes[evento] || '') + '</p>' +
+         '<table style="width:100%;border-collapse:collapse">' + filas + '</table>' +
+         '<div style="margin-top:18px">' + botones + '</div></div></div>';
 }
 
 /* ================================================================== */
-/* 7. CRUD de parametrizacion (pagina Admin)                           */
+/* 10. CRUD de parametrizacion (pagina Admin)                          */
 /* ================================================================== */
 
 /**
- * Devuelve la definicion de una tabla maestra y sus filas, para construir la
- * grilla y el formulario modal dinamico.
+ * Devuelve la definicion de una tabla maestra y sus filas.
  * @param {string} tabla
- * @return {!Object} { columnas, filas }
+ * @return {!Object}
  */
 function adminCargarTabla(tabla) {
   exigirAdministrador_();
   var info = getDefinicionTabla(tabla);
   if (!info) throw new Error('Tabla desconocida: ' + tabla);
-  return { columnas: info.def.columnas, pk: info.def.pk, filas: leerTabla(tabla) };
+  return {
+    tabla: tabla,
+    etiqueta: info.def.etiqueta,
+    pk: info.def.pk,
+    columnas: info.def.columnas,
+    opciones: opcionesDeReferencia_(info.def.columnas),
+    filas: leerTabla(tabla)
+  };
+}
+
+/**
+ * Arma las listas desplegables de las columnas que referencian otra tabla.
+ * @private
+ */
+function opcionesDeReferencia_(columnas) {
+  var catalogos = {
+    Roles: ROLES, Fases: FASES, Estados: ESTADOS, Estados_Iniciativa: ESTADOS_INICIATIVA,
+    Tipos_Solicitud: TIPOS_SOLICITUD, Tipos_Iniciativa: TIPOS_INICIATIVA,
+    Prioridad: PRIORIDADES, Causales_Bloqueo: CAUSALES_BLOQUEO,
+    Plataforma_Digital: PLATAFORMAS, Lineas_Estrategicas: LINEAS_ESTRATEGICAS,
+    Verticales: VERTICALES
+  };
+  var opciones = {};
+  columnas.forEach(function (col) {
+    if (!col.fk) return;
+    if (catalogos[col.fk]) {
+      opciones[col.campo] = catalogos[col.fk].map(function (x) {
+        return { valor: x.id, texto: x.nombre };
+      });
+      return;
+    }
+    var info = getDefinicionTabla(col.fk);
+    if (!info) return;
+    var pk = info.def.pk;
+    var etiqueta = info.def.columnas[1] ? info.def.columnas[1].campo : pk;
+    opciones[col.campo] = leerTabla(col.fk).map(function (f) {
+      return { valor: f[pk], texto: f[etiqueta] || f[pk] };
+    });
+  });
+  return opciones;
 }
 
 /**
@@ -429,12 +1006,19 @@ function adminCargarTabla(tabla) {
  */
 function adminCrearRegistro(tabla, registro) {
   exigirAdministrador_();
-  // TODO(fase-2): validar unicidad de la PK y tipos antes de appendRow.
-  throw new Error('adminCrearRegistro: pendiente de implementacion (fase 2).');
+  return conBloqueo_(function () {
+    var info = getDefinicionTabla(tabla);
+    if (!registro[info.def.pk]) {
+      registro[info.def.pk] = siguienteId_(tabla, info.def.pk);
+    }
+    validarRegistro_(tabla, registro, true);
+    agregarFila_(tabla, registro);
+    return { ok: true, pk: registro[info.def.pk] };
+  });
 }
 
 /**
- * Actualiza un registro existente conservando su PK.
+ * Actualiza un registro existente conservando su llave primaria.
  * @param {string} tabla
  * @param {string} valorPk
  * @param {!Object} registro
@@ -442,8 +1026,16 @@ function adminCrearRegistro(tabla, registro) {
  */
 function adminActualizarRegistro(tabla, valorPk, registro) {
   exigirAdministrador_();
-  // TODO(fase-2).
-  throw new Error('adminActualizarRegistro: pendiente de implementacion (fase 2).');
+  return conBloqueo_(function () {
+    var info = getDefinicionTabla(tabla);
+    var actual = buscarPorPk_(tabla, valorPk);
+    if (!actual) throw new Error('No existe el registro ' + valorPk + '.');
+
+    registro[info.def.pk] = valorPk;          // la llave nunca cambia
+    validarRegistro_(tabla, registro, false);
+    escribirFila_(tabla, actual._fila, registro);
+    return { ok: true, pk: valorPk };
+  });
 }
 
 /**
@@ -454,17 +1046,64 @@ function adminActualizarRegistro(tabla, valorPk, registro) {
  */
 function adminEliminarRegistro(tabla, valorPk) {
   exigirAdministrador_();
-  // TODO(fase-2).
-  throw new Error('adminEliminarRegistro: pendiente de implementacion (fase 2).');
+  return conBloqueo_(function () {
+    var info = getDefinicionTabla(tabla);
+    if (info.def.inmutable) {
+      throw new Error('La tabla ' + tabla + ' es inmutable: no admite borrado.');
+    }
+    var actual = buscarPorPk_(tabla, valorPk);
+    if (!actual) throw new Error('No existe el registro ' + valorPk + '.');
+
+    var usos = referenciasA_(tabla, valorPk);
+    if (usos.length) {
+      throw new Error('No se puede eliminar: el registro esta en uso en ' + usos.join(', ') + '.');
+    }
+    getHoja_(tabla).deleteRow(actual._fila);
+    return { ok: true, pk: valorPk };
+  });
 }
 
 /**
- * Corta la ejecucion si el usuario en sesion no es Administrador.
+ * Busca si otras tablas apuntan a este registro, para no romper la
+ * integridad referencial al borrar.
  * @private
  */
+function referenciasA_(tabla, valorPk) {
+  var usos = [];
+  [ESQUEMA_PARAMETRIZACION, ESQUEMA_TRANSACCIONAL].forEach(function (esquema) {
+    Object.keys(esquema).forEach(function (otra) {
+      esquema[otra].columnas.forEach(function (col) {
+        if (col.fk !== tabla) return;
+        var enUso = leerTabla(otra).some(function (fila) {
+          return String(fila[col.campo]) === String(valorPk);
+        });
+        if (enUso && usos.indexOf(esquema[otra].etiqueta) === -1) {
+          usos.push(esquema[otra].etiqueta);
+        }
+      });
+    });
+  });
+  return usos;
+}
+
+/**
+ * Genera el siguiente identificador de una tabla, con su mismo prefijo.
+ * @private
+ */
+function siguienteId_(tabla, pk) {
+  var prefijos = { Usuarios: 'USR', Proyectos: 'INI', Plataforma_Digital: 'PL' };
+  var prefijo = prefijos[tabla] || tabla.substring(0, 3).toUpperCase();
+  var maximo = 0;
+  leerTabla(tabla).forEach(function (f) {
+    var m = String(f[pk] || '').match(/(\d+)$/);
+    if (m) maximo = Math.max(maximo, Number(m[1]));
+  });
+  return prefijo + '-' + ('00' + (maximo + 1)).slice(-3);
+}
+
+/** @private */
 function exigirAdministrador_() {
-  var ctx = getContextoUsuario();
-  if (!ctx.autorizado || !ctx.esAdmin) {
-    throw new Error('Acceso denegado: se requiere rol Administrador.');
-  }
+  var ctx = exigirSesion_();
+  if (!ctx.esAdmin) throw new Error('Acceso denegado: se requiere rol Administrador.');
+  return ctx;
 }

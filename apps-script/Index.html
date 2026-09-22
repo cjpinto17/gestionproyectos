@@ -3,96 +3,65 @@
 <head>
   <base target="_top">
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Plataformas Digitales</title>
   <?!= include('Estilos'); ?>
 </head>
-<body class="bg-slate-50 text-slate-800">
+<body>
 
-  <!-- ============ Barra de navegacion ============ -->
-  <header class="bg-navy text-white shadow-lg sticky top-0 z-40">
-    <div class="max-w-[1600px] mx-auto px-4 flex items-center gap-6 h-16">
-      <div class="flex items-center gap-3 shrink-0">
-        <span class="bg-esmeralda text-navy font-black rounded-lg px-2.5 py-1 text-sm">PD</span>
-        <span class="font-semibold tracking-tight">Plataformas Digitales</span>
-      </div>
-
-      <nav class="flex items-center gap-1 text-sm text-slate-300 h-full">
-        <button data-pagina="home"        class="nav-tab px-4 h-full hover:text-white transition">&#127968; Home</button>
-        <button data-pagina="iniciativas" class="nav-tab px-4 h-full hover:text-white transition">&#128640; Iniciativas</button>
-        <button data-pagina="gestion"     class="nav-tab px-4 h-full hover:text-white transition">&#128202; Gesti&oacute;n</button>
-        <button data-pagina="roadmap"     class="nav-tab px-4 h-full hover:text-white transition">&#128197; Roadmap</button>
-        <button data-pagina="reportes"    class="nav-tab px-4 h-full hover:text-white transition">&#128200; Reportes</button>
-        <button data-pagina="admin"       class="nav-tab px-4 h-full hover:text-white transition" id="tabAdmin">&#9881;&#65039; Admin</button>
+  <header class="barra">
+    <div class="barra-in">
+      <div class="marca"><span class="sello">PD</span> Plataformas Digitales</div>
+      <nav class="tabs" id="tabs">
+        <button class="tab" data-pagina="home" aria-current="page">Home</button>
+        <button class="tab" data-pagina="iniciativas">Iniciativas</button>
+        <button class="tab" data-pagina="gestion">Gesti&oacute;n</button>
+        <button class="tab" data-pagina="roadmap">Roadmap</button>
+        <button class="tab" data-pagina="reportes">Reportes</button>
+        <button class="tab" data-pagina="admin" id="tabAdmin">Admin</button>
       </nav>
-
-      <div class="ml-auto text-right leading-tight">
-        <div id="usuarioNombre" class="text-sm font-medium">Cargando&hellip;</div>
-        <div id="usuarioRol" class="text-xs text-menta"></div>
+      <div class="sesion">
+        <div style="text-align:right;line-height:1.25">
+          <div id="usuarioNombre" style="font-size:13px;font-weight:600">Cargando&hellip;</div>
+          <div id="usuarioRol" style="font-size:11px;color:#50EAA2"></div>
+        </div>
       </div>
     </div>
   </header>
 
-  <!-- ============ Aviso de acceso denegado ============ -->
-  <div id="avisoAcceso" class="hidden max-w-3xl mx-auto mt-10 bg-white border-l-4 border-amber-400 rounded-lg shadow p-6">
-    <h2 class="font-semibold text-navy mb-1">Acceso no autorizado</h2>
-    <p id="avisoAccesoMotivo" class="text-sm text-slate-600"></p>
+  <!-- Pantalla de acceso denegado: reemplaza la aplicacion, no la decora -->
+  <div id="avisoAcceso" class="sin-clasificar" hidden
+       style="max-width:620px;margin:40px auto;border-style:solid">
+    <h3>No fue posible abrir la aplicaci&oacute;n</h3>
+    <p id="avisoAccesoMotivo" class="nota" style="margin-top:6px"></p>
   </div>
 
-  <!-- ============ Contenedor de paginas ============ -->
-  <main id="contenido" class="max-w-[1600px] mx-auto px-4 py-6 hidden">
-    <section id="pagina-home"        class="pagina"><?!= include('Home'); ?></section>
-    <section id="pagina-iniciativas" class="pagina"><?!= include('Iniciativas'); ?></section>
-    <section id="pagina-gestion"     class="pagina"><?!= include('Gestion'); ?></section>
-    <section id="pagina-roadmap"     class="pagina"><?!= include('Roadmap'); ?></section>
-    <section id="pagina-reportes"    class="pagina"><?!= include('Reportes'); ?></section>
-    <section id="pagina-admin"       class="pagina"><?!= include('Admin'); ?></section>
+  <main id="contenido" hidden>
+    <?!= include('Home'); ?>
+    <?!= include('Iniciativas'); ?>
+    <?!= include('Gestion'); ?>
+    <?!= include('Roadmap'); ?>
+    <?!= include('Reportes'); ?>
+    <?!= include('Admin'); ?>
   </main>
 
-  <script>
-    /** Contexto del usuario autenticado; lo llena el backend al cargar. */
-    var CTX = null;
+  <!-- Modal generico: detalle de solicitud y formularios -->
+  <div class="velo" id="velo" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+      <h2 id="modalTitulo"></h2>
+      <div id="modalSub" style="color:var(--ink-muted);font-size:13px"></div>
+      <div id="modalCuerpo"></div>
+      <div class="fila" style="margin-top:16px">
+        <span id="modalError" style="color:var(--rojo);font-size:12.5px"></span>
+        <button class="btn-sec ml-auto" id="btnCerrarModal">Cerrar</button>
+        <button class="btn-primario" id="btnGuardarModal" hidden>Guardar</button>
+      </div>
+    </div>
+  </div>
 
-    /** Router SPA: muestra una pagina y marca su pestana. */
-    function navegar(pagina) {
-      document.querySelectorAll('.pagina').forEach(function (s) { s.classList.remove('activa'); });
-      var destino = document.getElementById('pagina-' + pagina);
-      if (destino) destino.classList.add('activa');
+  <div class="toast" id="toast" hidden></div>
 
-      document.querySelectorAll('.nav-tab').forEach(function (t) {
-        t.classList.toggle('activo', t.dataset.pagina === pagina);
-      });
-
-      // TODO(fase-2): invocar el inicializador de cada pagina (cargarHome(), etc.).
-      if (typeof window['inicializar_' + pagina] === 'function') {
-        window['inicializar_' + pagina]();
-      }
-    }
-
-    document.querySelectorAll('.nav-tab').forEach(function (tab) {
-      tab.addEventListener('click', function () { navegar(tab.dataset.pagina); });
-    });
-
-    /** Arranque: resuelve el usuario y su rol antes de mostrar nada. */
-    google.script.run
-      .withSuccessHandler(function (ctx) {
-        CTX = ctx;
-        if (!ctx.autorizado) {
-          document.getElementById('usuarioNombre').textContent = ctx.correo || 'Sin sesion';
-          document.getElementById('avisoAccesoMotivo').textContent = ctx.motivo || '';
-          document.getElementById('avisoAcceso').classList.remove('hidden');
-          return;
-        }
-        document.getElementById('usuarioNombre').textContent = ctx.nombre;
-        document.getElementById('usuarioRol').textContent = ctx.rolNombre;
-        if (!ctx.esAdmin) document.getElementById('tabAdmin').classList.add('hidden');
-        document.getElementById('contenido').classList.remove('hidden');
-        navegar('<?= paginaInicial ?>');
-      })
-      .withFailureHandler(function (err) {
-        document.getElementById('avisoAccesoMotivo').textContent = err.message;
-        document.getElementById('avisoAcceso').classList.remove('hidden');
-      })
-      .getContextoUsuario();
-  </script>
+  <script>var PAGINA_INICIAL = '<?= paginaInicial ?>';</script>
+  <?!= include('Scripts'); ?>
 </body>
 </html>

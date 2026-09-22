@@ -1,0 +1,63 @@
+# Publica automaticamente en Google Apps Script todo lo que se suba a la rama.
+#
+# Requiere tres secretos del repositorio (Settings > Secrets and variables > Actions):
+#   CLASP_CREDENTIALS  Contenido del archivo .clasprc.json que genera "clasp login"
+#   SCRIPT_ID          ID del proyecto de Apps Script
+#   DEPLOYMENT_ID      (opcional) ID de la implementacion web, para actualizarla
+#
+# El paso a paso para obtenerlos esta en docs/IMPLEMENTACION.md
+
+name: Desplegar en Google Apps Script
+
+on:
+  push:
+    branches:
+      - main
+      - claude/project-management-system-w58l3v
+    paths:
+      - 'apps-script/**'
+      - '.github/workflows/desplegar-apps-script.yml'
+  workflow_dispatch:        # permite lanzarlo a mano desde la pestana Actions
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el codigo
+        uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar clasp
+        run: npm install -g @google/clasp@2.4.2
+
+      - name: Autenticar con Google
+        run: echo '${{ secrets.CLASP_CREDENTIALS }}' > ~/.clasprc.json
+
+      - name: Apuntar al proyecto de Apps Script
+        run: |
+          cat > .clasp.json <<JSON
+          {
+            "scriptId": "${{ secrets.SCRIPT_ID }}",
+            "rootDir": "apps-script",
+            "fileExtension": "gs"
+          }
+          JSON
+
+      - name: Subir los archivos
+        run: clasp push --force
+
+      - name: Actualizar la aplicacion publicada
+        # Solo corre si se configuro DEPLOYMENT_ID. Sin el, los cambios quedan
+        # en el editor y se publican manualmente desde "Implementar".
+        if: ${{ secrets.DEPLOYMENT_ID != '' }}
+        run: |
+          clasp deploy \
+            --deploymentId "${{ secrets.DEPLOYMENT_ID }}" \
+            --description "Despliegue automatico ${{ github.sha }}"
+
+      - name: Resumen
+        run: echo "Codigo publicado en Apps Script desde el commit ${{ github.sha }}"

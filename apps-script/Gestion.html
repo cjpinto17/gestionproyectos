@@ -1,52 +1,18 @@
 <!-- Gestion.html | Pagina 3: Tablero Kanban de 8 fases -->
-<div class="flex flex-wrap items-center gap-3 mb-5">
-  <div>
-    <h1 class="text-2xl font-bold text-navy">Gesti&oacute;n de Solicitudes</h1>
-    <p class="text-sm text-slate-500">Tablero operativo del embudo de 8 fases.</p>
-  </div>
-  <div class="ml-auto flex flex-wrap gap-2">
-    <select id="filtroProyecto"   class="border border-slate-300 rounded-lg px-3 py-2 text-sm"><option value="">Todos los proyectos</option></select>
-    <select id="filtroPlataforma" class="border border-slate-300 rounded-lg px-3 py-2 text-sm"><option value="">Todas las plataformas</option></select>
-    <select id="filtroResponsable" class="border border-slate-300 rounded-lg px-3 py-2 text-sm"><option value="">Todos los responsables</option></select>
-    <input id="buscadorSolicitudes" type="search" placeholder="ID o nombre&hellip;"
-           class="border border-slate-300 rounded-lg px-3 py-2 text-sm w-56">
-    <button id="btnNuevaSolicitud"
-            class="bg-esmeralda hover:bg-verdeoscuro text-navy font-semibold rounded-lg px-4 py-2 text-sm transition">
-      + Nueva Solicitud
-    </button>
-  </div>
-</div>
-
-<!--
-  Kanban: 8 columnas con scroll horizontal.
-  Cada tarjeta muestra, en este orden:
-    1. Codigo de la actividad      -> ID_Solicitud
-    2. Nombre de la iniciativa     -> Nombre_Iniciativa (resuelto en getDatosKanban)
-    3. Nombre de la actividad      -> Nombre_Solicitud
-    4. Responsable                 -> Nombre_Responsable
-    5. Estado                      -> badge de Estado_Actual
-    6. Version estimada            -> Version_Semantica
-    7. Indicador de alerta         -> visible si Tiene_Bloqueo = "SI"
--->
-<div id="kanban" class="flex gap-4 overflow-x-auto pb-4">
-  <div class="shrink-0 w-72 bg-slate-100 rounded-xl p-3 text-center text-sm text-slate-400">
-    Columnas y tarjetas: pendiente fase 2
-  </div>
-</div>
-
-<!-- Modal de causal de bloqueo -->
-<div id="modalBloqueo" class="hidden fixed inset-0 bg-black/40 z-50 grid place-items-center p-4">
-  <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-    <h2 class="font-semibold text-navy mb-2">&#9888;&#65039; Solicitud bloqueada</h2>
-    <p id="modalBloqueoCausal" class="text-sm text-slate-600 mb-4"></p>
-    <button onclick="document.getElementById('modalBloqueo').classList.add('hidden')"
-            class="bg-navy text-white rounded-lg px-4 py-2 text-sm">Cerrar</button>
-  </div>
-</div>
-
-<script>
-  // TODO(fase-2): google.script.run.withSuccessHandler(pintarKanban).getDatosKanban(filtros);
-  // Luego: render de columnas desde FASES, drag & drop nativo
-  // (dragstart/dragover/drop) y llamada a cambiarFaseSolicitud().
-  function inicializar_gestion() { /* carga del tablero */ }
-</script>
+<section class="pagina" id="pg-gestion" hidden>
+    <div class="fila encabezado">
+      <div>
+        <h1>Gestión de Actividades</h1>
+        <p id="subGestion">Tablero operativo del embudo de 8 fases.</p>
+      </div>
+      <div class="fila ml-auto">
+        <select class="filtro" id="fProyecto"></select>
+        <select class="filtro" id="fPlataforma"></select>
+        <select class="filtro" id="fResponsable"></select>
+        <input type="search" id="fTexto" placeholder="Código o nombre…" style="width:170px">
+        <button class="btn-primario" id="btnNueva">+ Nueva Actividad</button>
+      </div>
+    </div>
+    <div class="kanban" id="kanban"></div>
+    <p class="nota">Arrastre una tarjeta a otra columna: el preview aplica la misma regla de <code>validarTransicion()</code> del backend según el rol seleccionado en la barra superior.</p>
+</section>

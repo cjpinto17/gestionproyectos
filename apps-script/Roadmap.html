@@ -1,50 +1,19 @@
 <!-- Roadmap.html | Pagina 4: Roadmap de versiones por plataforma -->
-<div class="flex flex-wrap items-center gap-3 mb-5">
-  <div>
-    <h1 class="text-2xl font-bold text-navy">Roadmap de Versiones</h1>
-    <p class="text-sm text-slate-500">Versiones comprometidas por plataforma digital: fecha planeada contra fecha real de producci&oacute;n.</p>
-  </div>
-  <div class="ml-auto flex gap-2">
-    <select id="filtroPlataformaRoadmap" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-      <option value="">Todas las plataformas</option>
-    </select>
-    <select id="filtroEstadoRelease" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-      <option value="">Todos los releases</option>
-      <option value="Planeada">Planeada</option>
-      <option value="En Produccion">En Producci&oacute;n</option>
-    </select>
-  </div>
-</div>
-
-<!-- Cumplimiento de la fecha comprometida -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-  <div class="bg-white rounded-xl shadow-sm p-5">
-    <div class="text-xs uppercase tracking-wide text-slate-500">Entregas en la fecha planeada</div>
-    <div id="kpiOnTime" class="text-3xl font-bold text-navy mt-1">&mdash;</div>
-  </div>
-  <div class="bg-white rounded-xl shadow-sm p-5">
-    <div class="text-xs uppercase tracking-wide text-slate-500">Desv&iacute;o promedio</div>
-    <div id="kpiDesvio" class="text-3xl font-bold text-navy mt-1">&mdash;</div>
-    <div class="text-xs text-slate-400 mt-1">D&iacute;as respecto a lo planeado</div>
-  </div>
-  <div class="bg-white rounded-xl shadow-sm p-5">
-    <div class="text-xs uppercase tracking-wide text-slate-500">Versiones planeadas</div>
-    <div id="kpiVersionesPlaneadas" class="text-3xl font-bold text-navy mt-1">&mdash;</div>
-  </div>
-</div>
-
-<!-- Un bloque por plataforma, con su linea de tiempo de versiones -->
-<div id="roadmapPlataformas" class="space-y-4">
-  <div class="bg-white rounded-xl shadow-sm p-8 text-center text-sm text-slate-400">
-    Pendiente fase 2: se alimenta de getRoadmapVersiones().
-  </div>
-</div>
-
-<script>
-  // TODO(fase-2): google.script.run.withSuccessHandler(pintarRoadmap).getRoadmapVersiones();
-  // Por cada plataforma se renderiza una linea de versiones ordenadas por
-  // Fecha_Planeada, marcando en verde las desplegadas dentro de la fecha y en
-  // ambar las que se corrieron. Cada version despliega las actividades que la
-  // componen (Solicitudes con esa Version_Semantica).
-  function inicializar_roadmap() { /* carga del roadmap */ }
-</script>
+<section class="pagina" id="pg-roadmap" hidden>
+    <div class="fila encabezado">
+      <div>
+        <h1>Roadmap de Versiones</h1>
+        <p>Versiones comprometidas por plataforma digital: número asignado, fecha planeada y fecha real de paso a producción.</p>
+      </div>
+      <div class="fila ml-auto">
+        <select class="filtro" id="fRmPlataforma"></select>
+        <select class="filtro" id="fRmEstado">
+          <option value="">Todos los releases</option>
+          <option value="Planeada">Planeada</option>
+          <option value="En Produccion">En Producción</option>
+        </select>
+      </div>
+    </div>
+    <div class="kpis k4" id="kpisRoadmap" style="margin-bottom:16px"></div>
+    <div id="roadmap"></div>
+</section>

@@ -1,44 +1,14 @@
-<!-- Admin.html | Pagina 5: CRUD de parametrizacion -->
-<h1 class="text-2xl font-bold text-navy mb-1">Administraci&oacute;n</h1>
-<p class="text-sm text-slate-500 mb-6">Gesti&oacute;n de los cat&aacute;logos maestros del sistema.</p>
-
-<div id="botoneraTablas" class="flex flex-wrap gap-2 mb-5">
-  <button data-tabla="Usuarios"           class="btn-tabla">Usuarios</button>
-  <button data-tabla="Proyectos"          class="btn-tabla">Proyectos</button>
-  <button data-tabla="Aplicaciones"       class="btn-tabla">Aplicaciones</button>
-  <button data-tabla="Roles"              class="btn-tabla">Roles</button>
-  <button data-tabla="Plataforma_Digital" class="btn-tabla">Plataformas</button>
-  <button data-tabla="Fases"              class="btn-tabla">Fases</button>
-  <button data-tabla="Estados"            class="btn-tabla">Estados</button>
-  <button data-tabla="Causales_Bloqueo"   class="btn-tabla">Causales de bloqueo</button>
-  <button data-tabla="Lineas_Estrategicas" class="btn-tabla">L&iacute;neas estrat&eacute;gicas (LEN)</button>
-  <button data-tabla="Verticales"         class="btn-tabla">Verticales</button>
-  <button data-tabla="Roadmap_Versiones"  class="btn-tabla">Roadmap de versiones</button>
-  <button data-tabla="SLA_Fases"          class="btn-tabla">SLA por fase</button>
-</div>
-
-<div class="bg-white rounded-xl shadow-sm p-5">
-  <div class="flex items-center mb-4">
-    <h2 id="tituloTablaAdmin" class="font-semibold text-navy">Seleccione una tabla</h2>
-    <button id="btnNuevoRegistro"
-            class="ml-auto hidden bg-esmeralda hover:bg-verdeoscuro text-navy font-semibold rounded-lg px-4 py-2 text-sm transition">
-      + Nuevo registro
-    </button>
-  </div>
-  <div id="contenedorTablaAdmin" class="overflow-x-auto text-sm text-slate-400">
-    Pendiente fase 2
-  </div>
-</div>
-
-<style>
-  .btn-tabla { border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.5rem 0.9rem;
-               font-size: 0.875rem; background: #fff; transition: all .15s; }
-  .btn-tabla:hover { border-color: #1DD982; color: #00306E; }
-  .btn-tabla.activa { background: #00306E; color: #fff; border-color: #00306E; }
-</style>
-
-<script>
-  // TODO(fase-2): adminCargarTabla() para la grilla y formulario modal dinamico
-  // generado a partir de la definicion de columnas del esquema.
-  function inicializar_admin() { /* carga de catalogos */ }
-</script>
+<!-- Admin.html | Pagina 6: CRUD de parametrizacion -->
+<section class="pagina" id="pg-admin" hidden>
+    <div class="encabezado">
+      <h1>Administración</h1>
+      <p>Catálogos maestros. Las columnas se derivan del esquema declarado en <code>Esquema.gs</code>.</p>
+    </div>
+    <div class="fila" id="botoneraTablas" style="margin-bottom:14px"></div>
+    <div class="tabla-caja">
+      <div class="cap"><span id="tituloTabla"></span>
+        <button class="btn-primario ml-auto" id="btnNuevoReg" style="font-size:12.5px;padding:7px 12px">+ Nuevo registro</button>
+      </div>
+      <div class="tabla-scroll"><table id="tablaAdmin"></table></div>
+    </div>
+</section>
