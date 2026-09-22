@@ -375,7 +375,8 @@ function pintarMatriz() {
   var filas = r.lineas;
   var columnas = r.verticales;
 
-  cont.style.gridTemplateColumns = '150px repeat(' + columnas.length + ',1fr)';
+  // Una columna extra a la derecha y una fila extra abajo para los totales.
+  cont.style.gridTemplateColumns = '150px repeat(' + columnas.length + ',1fr) 96px';
 
   function filtrar(lista) {
     return (lista || []).filter(function (i) {
@@ -392,18 +393,50 @@ function pintarMatriz() {
     });
   }
 
+  // Se resuelve cada celda una sola vez y de ahi salen los totales: asi las
+  // sumas siempre corresponden a lo que se esta viendo con los filtros puestos.
+  var porCelda = {};
+  var totalFila = {}, totalColumna = {}, granTotal = 0;
+  filas.forEach(function (f) {
+    totalFila[f.id] = 0;
+    columnas.forEach(function (c) {
+      if (totalColumna[c.id] === undefined) totalColumna[c.id] = 0;
+      var items = filtrar(r.celdas[c.id + '|' + f.id]).sort(ordenPorPrioridad);
+      porCelda[f.id + '>' + c.id] = items;
+      totalFila[f.id] += items.length;
+      totalColumna[c.id] += items.length;
+      granTotal += items.length;
+    });
+  });
+
+  function celdaTotal(valor, etiqueta, clase) {
+    return '<div class="mz-total' + (clase ? ' ' + clase : '') +
+           (valor === 0 ? ' cero' : '') + '">' + valor +
+           '<small>' + esc(etiqueta) + '</small></div>';
+  }
+
   var html = '<div class="mz-cab esquina">LEN \\ Vertical</div>';
   columnas.forEach(function (c) { html += '<div class="mz-cab">' + esc(c.nombre) + '</div>'; });
+  html += '<div class="mz-cab">Total</div>';
 
   filas.forEach(function (f) {
     html += '<div class="mz-fila">' + esc(f.nombre) + '</div>';
     columnas.forEach(function (c) {
-      var items = filtrar(r.celdas[c.id + '|' + f.id]).sort(ordenPorPrioridad);
+      var items = porCelda[f.id + '>' + c.id];
       html += '<div class="mz-celda' + (items.length ? '' : ' vacia-celda') + '">' +
               (items.length > 3 ? '<div class="mz-conteo">' + items.length + ' iniciativas · desplace</div>' : '') +
               items.map(tarjetaIniciativa).join('') + '</div>';
     });
+    html += celdaTotal(totalFila[f.id], 'en la LEN', '');
   });
+
+  // Fila de cierre: total por vertical y total general.
+  html += '<div class="mz-fila">Total</div>';
+  columnas.forEach(function (c) {
+    html += celdaTotal(totalColumna[c.id], 'en la vertical', '');
+  });
+  html += celdaTotal(granTotal, 'clasificadas', 'general');
+
   cont.innerHTML = html;
 
   var sueltas = [];
