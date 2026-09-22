@@ -1097,22 +1097,28 @@ $('tablaAdmin').addEventListener('click', function (e) {
 });
 $('btnNuevoReg').addEventListener('click', function () { formularioRegistro(null); });
 
-function formularioRegistro(valorPk) {
-  var r = DATOS.admin;
-  var registro = valorPk
-      ? r.filas.filter(function (f) { return String(f[r.pk]) === String(valorPk); })[0]
-      : {};
-
-  var campos = r.columnas.map(function (c) {
-    var valor = registro[c.campo] === undefined ? '' : registro[c.campo];
-    var bloqueado = (c.campo === r.pk && valorPk) ? ' disabled' : '';
+/**
+ * Arma los campos de un formulario a partir de la definicion de columnas del
+ * esquema. Lo usan el CRUD de administracion y la migracion de solicitudes, de
+ * modo que ambos respetan los mismos tipos, obligatorios y listas.
+ *
+ * @param {!Array<!Object>} columnas
+ * @param {!Object} opciones Listas desplegables por campo.
+ * @param {!Object} registro Valores actuales.
+ * @param {string=} campoBloqueado Campo que no se puede editar.
+ * @return {string} HTML de los campos.
+ */
+function construirCampos(columnas, opciones, registro, campoBloqueado) {
+  return columnas.map(function (c) {
+    var valor = registro[c.campo] === undefined || registro[c.campo] === null ? '' : registro[c.campo];
+    var bloqueado = (campoBloqueado && c.campo === campoBloqueado) ? ' disabled' : '';
+    var lista = opciones[c.campo];
     var control;
-    var opciones = r.opciones[c.campo];
 
-    if (opciones) {
+    if (lista) {
       control = '<select id="campo_' + c.campo + '"' + bloqueado + '>' +
         (c.requerido ? '' : '<option value="">(sin asignar)</option>') +
-        opciones.map(function (o) {
+        lista.map(function (o) {
           return '<option value="' + esc(o.valor) + '"' +
                  (String(o.valor) === String(valor) ? ' selected' : '') + '>' +
                  esc(o.texto) + '</option>';
@@ -1127,14 +1133,16 @@ function formularioRegistro(valorPk) {
       control = '<select id="campo_' + c.campo + '"' + bloqueado + '>' +
         ['SI', 'NO'].map(function (o) {
           return '<option value="' + o + '"' +
-                 (String(valor).toUpperCase().indexOf(o) === 0 ? ' selected' : '') + '>' +
-                 o + '</option>';
+                 (String(valor).toUpperCase().indexOf(o) === 0 ? ' selected' : '') + '>' + o + '</option>';
         }).join('') + '</select>';
     } else if (c.tipo === 'longtext') {
-      control = '<textarea id="campo_' + c.campo + '" rows="3"' + bloqueado + '>' +
-                esc(valor) + '</textarea>';
-    } else if (c.tipo === 'date') {
-      var iso = valor ? new Date(valor).toISOString().slice(0, 10) : '';
+      control = '<textarea id="campo_' + c.campo + '" rows="3"' + bloqueado + '>' + esc(valor) + '</textarea>';
+    } else if (c.tipo === 'date' || c.tipo === 'datetime') {
+      var iso = '';
+      if (valor) {
+        var d = new Date(valor);
+        if (!isNaN(d.getTime())) iso = d.toISOString().slice(0, 10);
+      }
       control = '<input type="date" id="campo_' + c.campo + '" value="' + iso + '"' + bloqueado + '>';
     } else {
       var tipoInput = (c.tipo === 'number' || c.tipo === 'decimal') ? 'number'
@@ -1142,24 +1150,39 @@ function formularioRegistro(valorPk) {
       control = '<input type="' + tipoInput + '" id="campo_' + c.campo + '" value="' +
                 esc(valor) + '"' + bloqueado + '>';
     }
-    var pista = (c.campo === r.pk && !valorPk)
-        ? '<small style="color:var(--ink-faint)">Déjelo vacío y el sistema lo genera</small>' : '';
-    return '<label class="campo"><span>' + esc(c.etiqueta) +
-           (c.requerido ? ' *' : '') + '</span>' + control + pista + '</label>';
+    return '<label class="campo"><span>' + esc(c.etiqueta) + (c.requerido ? ' *' : '') +
+           '</span>' + control + '</label>';
   }).join('');
+}
+
+/** Lee de vuelta los campos construidos por construirCampos(). */
+function leerCampos(columnas) {
+  var datos = {};
+  columnas.forEach(function (c) {
+    var el = $('campo_' + c.campo);
+    datos[c.campo] = el ? el.value : '';
+  });
+  return datos;
+}
+
+function formularioRegistro(valorPk) {
+  var r = DATOS.admin;
+  var registro = valorPk
+      ? r.filas.filter(function (f) { return String(f[r.pk]) === String(valorPk); })[0]
+      : {};
+
+  var campos = construirCampos(r.columnas, r.opciones, registro, valorPk ? r.pk : null);
+  if (!valorPk) {
+    campos = campos.replace('</label>',
+        '<small style="color:var(--ink-faint)">Déjelo vacío y el sistema lo genera</small></label>');
+  }
 
   abrirModal(valorPk ? 'Editar registro' : 'Nuevo registro',
     r.etiqueta, '<div class="formulario">' + campos + '</div>',
     function () {
-      var nuevo = {};
-      r.columnas.forEach(function (c) {
-        var el = $('campo_' + c.campo);
-        nuevo[c.campo] = el ? el.value : '';
-      });
+      var nuevo = leerCampos(r.columnas);
       var metodo = valorPk ? 'adminActualizarRegistro' : 'adminCrearRegistro';
-      var args = valorPk
-          ? [metodo, r.tabla, valorPk, nuevo]
-          : [metodo, r.tabla, nuevo];
+      var args = valorPk ? [metodo, r.tabla, valorPk, nuevo] : [metodo, r.tabla, nuevo];
       return api.apply(null, args).then(function () {
         toast(valorPk ? 'Registro actualizado.' : 'Registro creado.');
         invalidarCacheCliente();
@@ -1167,6 +1190,46 @@ function formularioRegistro(valorPk) {
       });
     });
 }
+
+/* --- Migracion de solicitudes (solo Administrador) --- */
+$('btnMigrar').addEventListener('click', function () {
+  abrirModal('Migrar solicitud', 'Cargando formulario…', '<p class="nota">Un momento…</p>', null);
+  api('getFormularioMigracion').then(function (f) {
+    var campos = construirCampos(f.columnas, f.opciones, f.valoresPorDefecto, null);
+
+    abrirModal('Migrar solicitud',
+      'Se registra con la fase, el estado y las fechas que usted indique',
+      '<div class="formulario">' +
+        '<p class="nota" style="margin:0">El código es opcional: si lo deja vacío se genera uno. ' +
+        'La fecha de registro debe ser la de la fuente original, porque de ella dependen el Lead ' +
+        'Time y la antigüedad.</p>' +
+        campos +
+        '<label class="campo" style="flex-direction:row;align-items:center;gap:8px">' +
+          '<input type="checkbox" id="migCarpeta" style="width:auto">' +
+          '<span style="text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--ink)">' +
+          'Crear carpeta y documento en Drive</span></label>' +
+        '<label class="campo" style="flex-direction:row;align-items:center;gap:8px">' +
+          '<input type="checkbox" id="migNotificar" style="width:auto">' +
+          '<span style="text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--ink)">' +
+          'Enviar notificación de Chat y correo</span></label>' +
+      '</div>',
+      function () {
+        var datos = leerCampos(f.columnas);
+        if (!String(datos.Nombre_Solicitud || '').trim()) {
+          throw new Error('Escriba el nombre de la solicitud.');
+        }
+        if (!datos.ID_Proyecto) throw new Error('Elija la iniciativa a la que pertenece.');
+        return api('migrarSolicitud', datos, {
+          crearCarpeta: $('migCarpeta').checked,
+          notificar: $('migNotificar').checked
+        }).then(function (r) {
+          toast('Solicitud ' + r.idSolicitud + ' migrada.');
+          (r.avisos || []).forEach(function (a) { toast(a, true); });
+          invalidarCacheCliente();
+        });
+      });
+  }).catch(function (err) { cerrarModal(); fallo(err); });
+});
 
 function confirmarEliminar(valorPk) {
   var r = DATOS.admin;

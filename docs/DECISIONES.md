@@ -270,6 +270,35 @@ validaciones junto con ella y las filas existentes quedan alineadas solas.
 La reparación nunca adivina: si el enderezado no produce una fila coherente, la deja intacta
 y la marca. Es preferible una fila señalada que una fila "reparada" a ciegas.
 
+### D-28 · Migración de solicitudes, solo para el Administrador
+El formulario normal registra demanda nueva: siempre entra en la fase 1, con fecha de hoy y
+sin historia. Migrar es lo contrario —fijar fase, estado, las estampas de cada etapa y la
+fecha de registro original— y eso es justamente lo que **no** debe poder hacer cualquier
+usuario, porque permite escribir historia hacia atrás y mover los indicadores.
+
+Por eso vive en la página de Administración, exige rol `RO-08` y el backend lo vuelve a
+validar: no basta con ocultar el botón.
+
+Detalles de la implementación:
+
+- **El código es opcional.** Si se deja vacío se genera uno; si se escribe, se respeta, para
+  conservar el identificador que ya usaba la fuente original.
+- **La fecha de registro es la original**, no la de la migración: de ella dependen el Lead
+  Time y toda la antigüedad.
+- **`Fecha_Ultimo_Cambio` toma la estampa más reciente informada**, no el momento de la carga.
+  Si tomara la carga, todo el histórico aparecería como recién tocado y el indicador de
+  actividades estancadas quedaría en cero el primer día.
+- **Drive y las notificaciones son opcionales** y vienen apagadas: migrar cien solicitudes no
+  debería crear cien carpetas ni disparar cien avisos.
+- Queda una línea de auditoría marcada como `(migracion)`.
+
+### D-29 · Las fechas del formulario se leen en horario local
+Un `<input type="date">` entrega `aaaa-mm-dd`, que JavaScript interpreta como medianoche
+**UTC**. En Colombia (UTC−5) eso son las 7 de la noche del día anterior: sin tratamiento,
+cada fecha capturada se guardaría **corrida un día hacia atrás**. `aFechaDeFormulario_()`
+la reconstruye en horario local, y se aplica tanto en la migración como en el CRUD de
+administración.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

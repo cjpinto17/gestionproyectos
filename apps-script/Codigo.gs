@@ -284,6 +284,46 @@ function agregarFila_(tabla, registro) {
 }
 
 /**
+ * Convierte el texto de un campo de fecha del formulario en una fecha real.
+ *
+ * Los campos <input type="date"> entregan "aaaa-mm-dd", que JavaScript
+ * interpreta como medianoche UTC. En Colombia (UTC-5) eso equivale a las 7 de
+ * la noche del dia ANTERIOR: sin este tratamiento, toda fecha capturada se
+ * guardaria corrida un dia hacia atras.
+ *
+ * @param {*} valor
+ * @return {Date|string} La fecha en horario local, o '' si venia vacia.
+ * @private
+ */
+function aFechaDeFormulario_(valor) {
+  if (!valor) return '';
+  if (valor instanceof Date) return valor;
+  var texto = String(valor).trim();
+  var soloFecha = texto.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (soloFecha) {
+    return new Date(Number(soloFecha[1]), Number(soloFecha[2]) - 1, Number(soloFecha[3]));
+  }
+  var d = aFecha_(texto);
+  return d || '';
+}
+
+/**
+ * Normaliza las fechas de un registro segun el esquema de su tabla.
+ * @param {string} tabla
+ * @param {!Object} registro
+ * @return {!Object} El mismo registro, con las fechas convertidas.
+ * @private
+ */
+function normalizarFechas_(tabla, registro) {
+  getDefinicionTabla(tabla).def.columnas.forEach(function (c) {
+    if (c.tipo !== 'date' && c.tipo !== 'datetime') return;
+    if (registro[c.campo] === undefined) return;
+    registro[c.campo] = aFechaDeFormulario_(registro[c.campo]);
+  });
+  return registro;
+}
+
+/**
  * Valida un registro contra el esquema: obligatorios y tipos basicos.
  * @param {string} tabla
  * @param {!Object} registro
@@ -1100,6 +1140,7 @@ function adminCrearRegistro(tabla, registro) {
     if (!registro[info.def.pk]) {
       registro[info.def.pk] = siguienteId_(tabla, info.def.pk);
     }
+    normalizarFechas_(tabla, registro);
     validarRegistro_(tabla, registro, true);
     agregarFila_(tabla, registro);
     return { ok: true, pk: registro[info.def.pk] };
@@ -1121,6 +1162,7 @@ function adminActualizarRegistro(tabla, valorPk, registro) {
     if (!actual) throw new Error('No existe el registro ' + valorPk + '.');
 
     registro[info.def.pk] = valorPk;          // la llave nunca cambia
+    normalizarFechas_(tabla, registro);
     validarRegistro_(tabla, registro, false);
     escribirFila_(tabla, actual._fila, registro);
     return { ok: true, pk: valorPk };

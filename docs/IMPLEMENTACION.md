@@ -254,6 +254,7 @@ les asignas rol y administras todos los catálogos.
 | --- | --- |
 | Crear una actividad | Pestaña **Gestión** → botón **+ Nueva Actividad** |
 | Cargar muchas actividades de una vez | Editor → `CargaMasiva.gs` → `prepararCargaMasiva`, llenar la hoja, luego `procesarCargaMasiva` |
+| Migrar una actividad con toda su historia | Pestaña **Admin** → **+ Migrar solicitud** |
 | Mover una actividad de fase | Arrastrar la tarjeta a otra columna |
 | Marcar o levantar un bloqueo | Clic en la tarjeta → botón **Marcar bloqueo** |
 | Ver la carpeta o el documento | Clic en la tarjeta → botones de Drive |
