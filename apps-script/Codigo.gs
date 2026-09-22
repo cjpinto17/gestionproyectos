@@ -68,17 +68,22 @@ function getContextoUsuario() {
     return { autorizado: false, correo: correo, motivo: 'Correo fuera del dominio corporativo.' };
   }
 
+  // El correo es opcional en la tabla Usuarios: un usuario puede existir y ser
+  // asignable (por ejemplo como Business Owner) antes de tener cuenta
+  // corporativa. Solo quien tenga correo registrado puede iniciar sesion.
   var usuarios = leerTabla('Usuarios');
   var usuario = null;
   for (var i = 0; i < usuarios.length; i++) {
-    if (String(usuarios[i].Correo_ID).toLowerCase() === correo) {
+    var registrado = String(usuarios[i].Correo_ID || '').toLowerCase();
+    if (registrado && registrado === correo) {
       usuario = usuarios[i];
       break;
     }
   }
   if (!usuario) {
     return { autorizado: false, correo: correo,
-             motivo: 'El usuario no esta registrado en la tabla Usuarios.' };
+             motivo: 'Su correo no esta asociado a ningun usuario del sistema. ' +
+                     'Solicite al administrador que lo registre en la tabla Usuarios.' };
   }
   if (String(usuario.Activo).toUpperCase() === 'NO') {
     return { autorizado: false, correo: correo, motivo: 'Usuario inactivo.' };
@@ -88,6 +93,7 @@ function getContextoUsuario() {
   return {
     autorizado: true,
     correo: correo,
+    idUsuario: usuario.ID_Usuario,
     nombre: usuario.Nombre_Completo,
     cargo: usuario.Cargo,
     area: usuario.Area,
@@ -178,12 +184,13 @@ function normalizarValor_(valor) {
 function getCatalogos() {
   return {
     proyectos: leerTabla('Proyectos'),
-    aplicaciones: leerTabla('Aplicaciones'),
-    plataformas: leerTabla('Plataforma_Digital'),
+    plataformas: PLATAFORMAS,
     usuarios: leerTabla('Usuarios'),
     fases: FASES,
     estados: ESTADOS,
+    estadosIniciativa: ESTADOS_INICIATIVA,
     tipos: TIPOS_SOLICITUD,
+    tiposIniciativa: TIPOS_INICIATIVA,
     prioridades: PRIORIDADES,
     causales: CAUSALES_BLOQUEO,
     roles: ROLES,
@@ -221,13 +228,15 @@ function generarIdSolicitud_() {
 function getDatosKanban(filtros) {
   var proyectos = leerTabla('Proyectos');
   var usuarios = leerTabla('Usuarios');
+  var nombrePlataforma = mapaPlataformas();
   var nombreProyecto = {}, nombreUsuario = {};
   proyectos.forEach(function (p) { nombreProyecto[p.ID_Proyecto] = p.Nombre_Proyecto; });
-  usuarios.forEach(function (u) { nombreUsuario[u.Correo_ID] = u.Nombre_Completo; });
+  usuarios.forEach(function (u) { nombreUsuario[u.ID_Usuario] = u.Nombre_Completo; });
 
   var solicitudes = getSolicitudes(filtros).map(function (s) {
     s.Nombre_Iniciativa = nombreProyecto[s.ID_Proyecto] || s.ID_Proyecto;
-    s.Nombre_Responsable = nombreUsuario[s.Responsable_Actual] || s.Responsable_Actual;
+    s.Nombre_Responsable = nombreUsuario[s.Responsable_ID] || s.Responsable_ID;
+    s.Nombre_Plataforma = nombrePlataforma[s.Plataforma_ID] || s.Plataforma_ID;
     return s;
   });
 
@@ -235,7 +244,7 @@ function getDatosKanban(filtros) {
     solicitudes: solicitudes,
     proyectos: proyectos,
     usuarios: usuarios,
-    plataformas: leerTabla('Plataforma_Digital'),
+    plataformas: PLATAFORMAS,
     fases: FASES,
     estados: ESTADOS,
     causales: CAUSALES_BLOQUEO
@@ -251,8 +260,8 @@ function getSolicitudes(filtros) {
   var f = filtros || {};
   return leerTabla('Solicitudes').filter(function (s) {
     if (f.idProyecto && s.ID_Proyecto !== f.idProyecto) return false;
-    if (f.plataforma && s.Plataforma !== f.plataforma) return false;
-    if (f.responsable && s.Responsable_Actual !== f.responsable) return false;
+    if (f.plataforma && s.Plataforma_ID !== f.plataforma) return false;
+    if (f.responsable && s.Responsable_ID !== f.responsable) return false;
     if (f.texto) {
       var aguja = String(f.texto).toLowerCase();
       var pajar = (String(s.ID_Solicitud) + ' ' + String(s.Nombre_Solicitud)).toLowerCase();
@@ -269,7 +278,8 @@ function getSolicitudes(filtros) {
  * @return {!Object} { ok, idSolicitud, carpetaUrl, docUrl }
  */
 function crearSolicitud(datos) {
-  // TODO(fase-2): validar contra ESQUEMA_TRANSACCIONAL.Solicitudes,
+  // TODO(fase-2): validar contra ESQUEMA_TRANSACCIONAL.Solicitudes, exigir
+  // ID_Proyecto (toda solicitud es hija de una iniciativa),
   // generarIdSolicitud_(), crearContenedorDrive_(), escribir fila con
   // Fase_Actual='FAS-01', Estado_Actual='EST-01', Tiene_Bloqueo='NO',
   // registrarTransicionAudit() y notificar.
@@ -319,7 +329,9 @@ function marcarBloqueo(idSolicitud, bloqueada, idCausal) {
 
 /**
  * Inserta una fila inmutable en Auditoria_Transiciones.
- * Horas_En_Fase = (ahora - Fecha_Ultimo_Cambio) / 3.600.000 ms.
+ * Horas_En_Fase        = (ahora - Fecha_Ultimo_Cambio) / 3.600.000 ms.
+ * Dias_Habiles_En_Fase = diasHabilesEntre(Fecha_Ultimo_Cambio, ahora), que es
+ * la medida contra la que se evalua el SLA de la fase.
  * @param {!Object} solicitud Fila actual (antes del cambio).
  * @param {string} faseDestino
  * @param {string} estadoDestino
@@ -350,6 +362,7 @@ function registrarTransicionAudit(solicitud, faseDestino, estadoDestino, correoU
  * @return {{carpetaUrl: string, docUrl: string}}
  */
 function crearContenedorDrive_(idSolicitud, plataforma, nombreSolicitud) {
+  // plataforma llega como nombre legible, no como ID: es parte del nombre de la carpeta.
   // TODO(fase-2): DriveApp.getFolderById(CONFIG.DRIVE_UNIDAD_RAIZ_ID)
   //               .createFolder(nombre) + makeCopy de la plantilla.
   throw new Error('crearContenedorDrive_: pendiente de implementacion (fase 2).');

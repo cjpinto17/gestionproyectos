@@ -117,7 +117,7 @@ function cargarDatos_() {
     solicitudes: leerTabla('Solicitudes'),
     auditoria: leerTabla('Auditoria_Transiciones'),
     proyectos: leerTabla('Proyectos'),
-    aplicaciones: leerTabla('Aplicaciones'),
+    usuarios: leerTabla('Usuarios'),
     roadmap: leerTabla('Roadmap_Versiones'),
     sla: leerTabla('SLA_Fases')
   };
@@ -129,6 +129,44 @@ function mapaSla_(filasSla) {
     acc[f.ID_Fase] = Number(f.SLA_Dias) || 0;
     return acc;
   }, {});
+}
+
+/**
+ * Anota cada transicion con los dias habiles consumidos en su fase de origen.
+ * Prefiere la columna Dias_Habiles_En_Fase que escribe el backend al registrar
+ * la transicion; si no existe (registros antiguos), la recalcula con la marca
+ * de tiempo de la transicion anterior de esa misma solicitud.
+ *
+ * @param {!Array<!Object>} auditoria
+ * @param {!Array<!Object>} solicitudes
+ * @return {!Array<!Object>} Las mismas filas, con _diasHabiles.
+ * @private
+ */
+function anotarDiasHabiles_(auditoria, solicitudes) {
+  var registroDe = {};
+  solicitudes.forEach(function (s) { registroDe[s.ID_Solicitud] = aFecha_(s.Fecha_Registro); });
+
+  var porSolicitud = {};
+  auditoria.forEach(function (a) {
+    (porSolicitud[a.ID_Solicitud] = porSolicitud[a.ID_Solicitud] || []).push(a);
+  });
+
+  Object.keys(porSolicitud).forEach(function (id) {
+    var filas = porSolicitud[id].sort(function (a, b) {
+      return (aFecha_(a.Fecha_Hora_Cambio) || 0) - (aFecha_(b.Fecha_Hora_Cambio) || 0);
+    });
+    var anterior = registroDe[id] || null;
+    filas.forEach(function (a) {
+      var guardado = Number(a.Dias_Habiles_En_Fase);
+      if (!isNaN(guardado) && a.Dias_Habiles_En_Fase !== '' && a.Dias_Habiles_En_Fase !== null) {
+        a._diasHabiles = guardado;
+      } else {
+        a._diasHabiles = diasHabilesEntre(anterior, aFecha_(a.Fecha_Hora_Cambio));
+      }
+      anterior = aFecha_(a.Fecha_Hora_Cambio) || anterior;
+    });
+  });
+  return auditoria;
 }
 
 /* ================================================================== */
@@ -190,10 +228,10 @@ function calcularCycleTimePorFase_(auditoria, sla) {
   var acumulado = {};
   auditoria.forEach(function (a) {
     var fase = a.Fase_Origen;
-    var horas = Number(a.Horas_En_Fase);
-    if (!fase || isNaN(horas) || horas <= 0) return;
+    var dias = a._diasHabiles;
+    if (!fase || dias === null || dias === undefined || dias <= 0) return;
     if (!acumulado[fase]) acumulado[fase] = [];
-    acumulado[fase].push(horas / 24);
+    acumulado[fase].push(dias);
   });
   return FASES.map(function (f) {
     var muestras = acumulado[f.id] || [];
@@ -202,8 +240,8 @@ function calcularCycleTimePorFase_(auditoria, sla) {
     return {
       idFase: f.id,
       fase: f.nombre,
-      diasPromedio: red_(prom),
-      diasMediana: red_(mediana_(muestras)),
+      diasHabilesPromedio: red_(prom),
+      diasHabilesMediana: red_(mediana_(muestras)),
       slaDias: objetivo,
       cumple: (prom === null || !objetivo) ? null : prom <= objetivo,
       muestra: muestras.length
@@ -239,7 +277,7 @@ function calcularWip_(solicitudes) {
   return {
     total: enFabrica.length,
     porFase: contarPor_(enFabrica, function (s) { return s.Fase_Actual; }),
-    porResponsable: contarPor_(enFabrica, function (s) { return s.Responsable_Actual; }),
+    porResponsable: contarPor_(enFabrica, function (s) { return s.Responsable_ID; }),
     backlog: solicitudes.filter(function (s) { return s.Fase_Actual === 'FAS-02'; }).length,
     demanda: solicitudes.filter(function (s) { return s.Fase_Actual === 'FAS-01'; }).length
   };
@@ -261,7 +299,8 @@ function calcularEnvejecimiento_(solicitudes, sla) {
     if (FASES_EN_VUELO.indexOf(s.Fase_Actual) === -1) return;
     var desde = aFecha_(s.Fecha_Ultimo_Cambio) || aFecha_(s.Fecha_Registro);
     if (!desde) return;
-    var dias = (ahora - desde.getTime()) / MS_DIA;
+    var dias = diasHabilesEntre(desde, new Date(ahora));
+    if (dias === null) return;
     edades.push(dias);
     var objetivo = sla[s.Fase_Actual];
     if (objetivo && dias > objetivo) {
@@ -269,16 +308,16 @@ function calcularEnvejecimiento_(solicitudes, sla) {
         id: s.ID_Solicitud,
         nombre: s.Nombre_Solicitud,
         fase: s.Fase_Actual,
-        diasEnFase: red_(dias),
+        diasHabilesEnFase: red_(dias),
         slaDias: objetivo,
-        responsable: s.Responsable_Actual
+        responsable: s.Responsable_ID
       });
     }
   });
 
-  estancadas.sort(function (a, b) { return b.diasEnFase - a.diasEnFase; });
+  estancadas.sort(function (a, b) { return b.diasHabilesEnFase - a.diasHabilesEnFase; });
   return {
-    edadPromedioDias: red_(promedio_(edades)),
+    edadPromedioDiasHabiles: red_(promedio_(edades)),
     estancadas: estancadas,
     totalEstancadas: estancadas.length
   };
@@ -343,10 +382,10 @@ function calcularCumplimientoSla_(auditoria, sla) {
   var dentro = {}, total = {};
   auditoria.forEach(function (a) {
     var objetivo = sla[a.Fase_Origen];
-    var horas = Number(a.Horas_En_Fase);
-    if (!objetivo || isNaN(horas) || horas <= 0) return;
+    var dias = a._diasHabiles;
+    if (!objetivo || dias === null || dias === undefined || dias <= 0) return;
     total[a.Fase_Origen] = (total[a.Fase_Origen] || 0) + 1;
-    if (horas / 24 <= objetivo) dentro[a.Fase_Origen] = (dentro[a.Fase_Origen] || 0) + 1;
+    if (dias <= objetivo) dentro[a.Fase_Origen] = (dentro[a.Fase_Origen] || 0) + 1;
   });
   return FASES.map(function (f) {
     var t = total[f.id] || 0;
@@ -484,6 +523,7 @@ function getMetricasHome(meses) {
   var datos = cargarDatos_();
   var sla = mapaSla_(datos.sla);
 
+  anotarDiasHabiles_(datos.auditoria, datos.solicitudes);
   var leadTime = calcularLeadTime_(datos.solicitudes);
   var wip = calcularWip_(datos.solicitudes);
   var throughput = calcularThroughput_(datos.solicitudes, n);
@@ -495,11 +535,11 @@ function getMetricasHome(meses) {
 
     portafolio: {
       iniciativasTotales: datos.proyectos.length,
-      iniciativasActivas: datos.proyectos.filter(function (p) {
-        return p.Estado_Proyecto === 'EST-02';   // En progreso
+      iniciativasEnProgreso: datos.proyectos.filter(function (p) {
+        return p.Estado_Iniciativa === 'EIN-02';
       }).length,
       iniciativasPorIniciar: datos.proyectos.filter(function (p) {
-        return p.Estado_Proyecto === 'EST-01';
+        return p.Estado_Iniciativa === 'EIN-01';
       }).length,
       solicitudesTotales: datos.solicitudes.length,
       solicitudesEnVuelo: datos.solicitudes.filter(function (s) {
@@ -546,7 +586,7 @@ function getMetricasHome(meses) {
     envejecimiento: calcularEnvejecimiento_(datos.solicitudes, sla),
 
     distribucion: {
-      porPlataforma: contarPor_(datos.solicitudes, function (s) { return s.Plataforma; }),
+      porPlataforma: contarPor_(datos.solicitudes, function (s) { return s.Plataforma_ID; }),
       porTipo: contarPor_(datos.solicitudes, function (s) { return s.Tipo_Solicitud; }),
       porPrioridad: contarPor_(datos.solicitudes, function (s) { return s.Prioridad; }),
       porFase: contarPor_(datos.solicitudes, function (s) { return s.Fase_Actual; })
@@ -640,27 +680,24 @@ function getReportes(meses) {
  */
 function getRoadmapVersiones() {
   var datos = cargarDatos_();
-  var appPorId = {};
-  datos.aplicaciones.forEach(function (a) { appPorId[a.ID_Aplicacion] = a; });
+  var nombrePlataforma = mapaPlataformas();
 
   var porPlataforma = {};
   datos.roadmap.forEach(function (v) {
-    var app = appPorId[v.ID_Aplicacion];
-    var plataforma = v.Plataforma || (app ? app.Plataforma_ID : '') || 'Sin plataforma';
+    var idPlat = v.Plataforma_ID || 'SIN_PLATAFORMA';
     var plan = aFecha_(v.Fecha_Planeada), real = aFecha_(v.Fecha_Despliegue_Real);
 
-    porPlataforma[plataforma] = porPlataforma[plataforma] || [];
-    porPlataforma[plataforma].push({
+    porPlataforma[idPlat] = porPlataforma[idPlat] || [];
+    porPlataforma[idPlat].push({
       idVersion: v.ID_Version,
       numeroVersion: v.Numero_Version,
-      aplicacion: app ? app.Nombre_Aplicacion : v.ID_Aplicacion,
-      idAplicacion: v.ID_Aplicacion,
+      plataforma: nombrePlataforma[idPlat] || idPlat,
       estadoRelease: v.Estado_Release,
       fechaPlaneada: v.Fecha_Planeada || null,
       fechaReal: v.Fecha_Despliegue_Real || null,
       desvioDias: (plan && real) ? red_((real.getTime() - plan.getTime()) / MS_DIA) : null,
       actividades: datos.solicitudes.filter(function (s) {
-        return s.Version_Semantica === v.Numero_Version && s.ID_Aplicacion === v.ID_Aplicacion;
+        return s.Version_Semantica === v.Numero_Version && s.Plataforma_ID === idPlat;
       }).map(function (s) {
         return { id: s.ID_Solicitud, nombre: s.Nombre_Solicitud, fase: s.Fase_Actual };
       })
@@ -674,6 +711,7 @@ function getRoadmapVersiones() {
   });
 
   return {
+    plataformas: PLATAFORMAS,
     porPlataforma: porPlataforma,
     cumplimiento: calcularCumplimientoFecha_(datos.roadmap)
   };
@@ -681,13 +719,15 @@ function getRoadmapVersiones() {
 
 /**
  * Pagina Iniciativas: matriz de solo lectura Vertical (filas) x LEN (columnas).
- * Cada celda trae las iniciativas con los datos que pide la tarjeta.
+ * Las iniciativas sin clasificar caen en las claves SIN_VERTICAL / SIN_LEN y la
+ * pagina las muestra aparte, nunca las oculta.
  * @return {!Object}
  */
 function getMatrizIniciativas() {
   var datos = cargarDatos_();
-  var appPorId = {};
-  datos.aplicaciones.forEach(function (a) { appPorId[a.ID_Aplicacion] = a; });
+  var nombrePlataforma = mapaPlataformas();
+  var nombreUsuario = {};
+  datos.usuarios.forEach(function (u) { nombreUsuario[u.ID_Usuario] = u.Nombre_Completo; });
 
   var actividadesPorProyecto = {};
   var abiertasPorProyecto = {};
@@ -705,16 +745,16 @@ function getMatrizIniciativas() {
     celdas[clave].push({
       idProyecto: p.ID_Proyecto,
       nombre: p.Nombre_Proyecto,
-      bo: p.BO_Correo || null,
-      po: p.PO_Correo || null,
       prioridad: p.Prioridad || null,
       tipo: p.Tipo_Iniciativa || null,
-      estado: p.Estado_Proyecto,
+      bo: nombreUsuario[p.BO_Usuario] || null,
+      po: nombreUsuario[p.PO_Usuario] || null,
+      estado: p.Estado_Iniciativa || null,
       fechaInicio: p.Fecha_Inicio || null,
       fechaFinPlaneada: p.Fecha_Fin_Estimada || null,
+      plataforma: nombrePlataforma[p.Plataforma_ID] || null,
       actividades: actividadesPorProyecto[p.ID_Proyecto] || 0,
       actividadesAbiertas: abiertasPorProyecto[p.ID_Proyecto] || 0,
-      aplicacion: appPorId[p.ID_Aplicacion] ? appPorId[p.ID_Aplicacion].Nombre_Aplicacion : null,
       lenId: p.LEN_ID || null,
       verticalId: p.Vertical_ID || null
     });
@@ -724,6 +764,7 @@ function getMatrizIniciativas() {
     lineas: LINEAS_ESTRATEGICAS,
     verticales: VERTICALES,
     tipos: TIPOS_INICIATIVA,
+    estados: ESTADOS_INICIATIVA,
     celdas: celdas,
     totalIniciativas: datos.proyectos.length
   };

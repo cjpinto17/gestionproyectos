@@ -23,8 +23,7 @@ var MATRIZ_PERMISOS = {
   'RO-01': { // Solicitante
     fases: ['FAS-01'],
     campos: ['Nombre_Solicitud', 'Objetivo', 'Entregable', 'ID_Proyecto',
-             'ID_Aplicacion', 'Tipo_Solicitud', 'Prioridad', 'Plataforma',
-             'Proceso_Impactado'],
+             'Plataforma_ID', 'Tipo_Solicitud', 'Prioridad', 'Proceso_Impactado'],
     override: false
   },
   'RO-02': { // Product Owner - aprobador unico de los pasos clave
@@ -34,7 +33,7 @@ var MATRIZ_PERMISOS = {
   },
   'RO-03': { // Analista Fabrica
     fases: ['FAS-02', 'FAS-03'],
-    campos: ['Fecha_Inicio_Analisis', 'Fecha_Fin_Analisis', 'Responsable_Actual',
+    campos: ['Fecha_Inicio_Analisis', 'Fecha_Fin_Analisis', 'Responsable_ID',
              'Tiene_Bloqueo', 'Causal_Bloqueo'],
     override: false
   },
@@ -63,6 +62,13 @@ var MATRIZ_PERMISOS = {
     fases: TODAS,
     campos: TODAS,
     override: true
+  },
+  'RO-09': { // Business Owner: duena de la iniciativa en el negocio.
+             // Registra demanda y consulta todo, pero no opera el embudo.
+    fases: ['FAS-01'],
+    campos: ['Nombre_Solicitud', 'Objetivo', 'Entregable', 'ID_Proyecto',
+             'Plataforma_ID', 'Tipo_Solicitud', 'Prioridad', 'Proceso_Impactado'],
+    override: false
   }
 };
 

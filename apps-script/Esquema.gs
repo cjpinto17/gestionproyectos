@@ -1,15 +1,19 @@
 /**
  * Esquema.gs
- * Definicion declarativa del modelo de datos. Es la unica fuente de verdad sobre
- * hojas, columnas, tipos y llaves: Setup.gs la usa para crear los libros, el CRUD
- * de Administracion la usa para generar formularios dinamicos y las validaciones
- * la usan para tipar los valores antes de escribir en Sheets.
+ * Definicion declarativa del modelo de datos. Es la unica fuente de verdad
+ * sobre hojas, columnas, tipos y llaves: Setup.gs la usa para crear los libros,
+ * el CRUD de Administracion genera sus formularios desde aqui y las
+ * validaciones tipan los valores antes de escribir en Sheets.
  *
  * Tipos soportados: 'text' | 'longtext' | 'number' | 'decimal' | 'date' |
  *                   'datetime' | 'enum' | 'boolSN' | 'url' | 'email'
  */
 
-/** Codigos de fase del embudo (8 fases secuenciales). */
+/* ================================================================== */
+/* Catalogos operativos                                                */
+/* ================================================================== */
+
+/** Las 8 fases del embudo de atencion de solicitudes. */
 var FASES = [
   { id: 'FAS-01', nombre: 'Gestion de la demanda', orden: 1 },
   { id: 'FAS-02', nombre: 'Backlog', orden: 2 },
@@ -22,8 +26,8 @@ var FASES = [
 ];
 
 /**
- * Estados operacionales. DECISION: se unificaron en 6 (el documento fuente
- * listaba 7 con 'En proceso' y 'En progreso' como duplicado semantico).
+ * Estados de las SOLICITUDES (actividades). Son distintos de los estados de
+ * la iniciativa: una solicitud vive dentro del embudo de 8 fases.
  */
 var ESTADOS = [
   { id: 'EST-01', nombre: 'Por iniciar' },
@@ -34,7 +38,23 @@ var ESTADOS = [
   { id: 'EST-06', nombre: 'Terminada' }
 ];
 
-/** Catalogo de plataformas digitales (data real del negocio). */
+/**
+ * Estados de las INICIATIVAS. Una iniciativa es el contenedor de negocio y su
+ * ciclo de vida no depende del embudo: puede estar en curso con solicitudes en
+ * cualquier fase, o cerrada aunque no haya tenido ninguna.
+ */
+var ESTADOS_INICIATIVA = [
+  { id: 'EIN-01', nombre: 'Por iniciar' },
+  { id: 'EIN-02', nombre: 'En progreso' },
+  { id: 'EIN-03', nombre: 'En pausa' },
+  { id: 'EIN-04', nombre: 'Cancelada' },
+  { id: 'EIN-05', nombre: 'Finalizada' }
+];
+
+/**
+ * Catalogo de plataformas digitales. En este modelo plataforma y aplicacion
+ * son el mismo concepto: no existe una tabla Aplicaciones aparte.
+ */
 var PLATAFORMAS = [
   { id: 'PL-01', nombre: 'Analizamos' },
   { id: 'PL-02', nombre: 'Aseguramos' },
@@ -46,10 +66,21 @@ var PLATAFORMAS = [
   { id: 'PL-08', nombre: 'Portal Empresarial' }
 ];
 
+/** Tipos de solicitud (actividad). */
 var TIPOS_SOLICITUD = [
-  { id: 'TIP-01', nombre: 'Nueva funcionalidad' },
-  { id: 'TIP-02', nombre: 'Mejora en una funcionalidad' },
-  { id: 'TIP-03', nombre: 'Ajuste' }
+  { id: 'TIP-01', nombre: 'Ajuste' },
+  { id: 'TIP-02', nombre: 'Mejora' },
+  { id: 'TIP-03', nombre: 'Nuevo' },
+  { id: 'TIP-04', nombre: 'Tarea' }
+];
+
+/** Tipo de iniciativa: naturaleza de la inversion. */
+var TIPOS_INICIATIVA = [
+  { id: 'TIN-01', nombre: 'Negocio' },
+  { id: 'TIN-02', nombre: 'Normativo' },
+  { id: 'TIN-03', nombre: 'Habilitador Tecnico' },
+  { id: 'TIN-04', nombre: 'Experiencia de cliente' },
+  { id: 'TIN-05', nombre: 'Innovacion con proposito' }
 ];
 
 var PRIORIDADES = [
@@ -65,33 +96,10 @@ var CAUSALES_BLOQUEO = [
   { id: 'CAU-03', nombre: 'Dependencia' }
 ];
 
-/** Lineas Estrategicas de Negocio (LEN): eje horizontal de la matriz de iniciativas. */
-var LINEAS_ESTRATEGICAS = [
-  { id: 'LEN-00', nombre: 'Transversal', orden: 0 },
-  { id: 'LEN-01', nombre: 'Ingreso estable', orden: 1 },
-  { id: 'LEN-02', nombre: 'Agro', orden: 2 },
-  { id: 'LEN-03', nombre: 'Desarrollo empresarial', orden: 3 },
-  { id: 'LEN-04', nombre: 'Mi negocio independiente', orden: 4 }
-];
-
-/** Verticales de producto: eje vertical de la matriz de iniciativas. */
-var VERTICALES = [
-  { id: 'VER-00', nombre: 'Transversal', orden: 0 },
-  { id: 'VER-01', nombre: 'Credito', orden: 1 },
-  { id: 'VER-02', nombre: 'Ahorro e Inversion', orden: 2 },
-  { id: 'VER-03', nombre: 'Proteccion', orden: 3 },
-  { id: 'VER-04', nombre: 'Servicio de Recaudo', orden: 4 }
-];
-
-/** Tipo de iniciativa: naturaleza de la inversion (data real del negocio). */
-var TIPOS_INICIATIVA = [
-  { id: 'TIN-01', nombre: 'Negocio' },
-  { id: 'TIN-02', nombre: 'Normativo' },
-  { id: 'TIN-03', nombre: 'Habilitador Tecnico' },
-  { id: 'TIN-04', nombre: 'Experiencia de cliente' },
-  { id: 'TIN-05', nombre: 'Innovacion con proposito' }
-];
-
+/**
+ * Roles del sistema. Business Owner y Product Owner son roles asignables a
+ * cualquier usuario: las iniciativas apuntan a usuarios con esos roles.
+ */
 var ROLES = [
   { id: 'RO-01', nombre: 'Solicitante' },
   { id: 'RO-02', nombre: 'Product Owner' },
@@ -100,20 +108,46 @@ var ROLES = [
   { id: 'RO-05', nombre: 'Analista QA' },
   { id: 'RO-06', nombre: 'Equipo UAT' },
   { id: 'RO-07', nombre: 'Comite CAB' },
-  { id: 'RO-08', nombre: 'Administrador' }
+  { id: 'RO-08', nombre: 'Administrador' },
+  { id: 'RO-09', nombre: 'Business Owner' }
 ];
 
-/* ------------------------------------------------------------------ */
-/* Esquema del Libro 1: Parametrizacion (maestros)                     */
-/* ------------------------------------------------------------------ */
+/**
+ * Lineas Estrategicas de Negocio: eje horizontal de la matriz de iniciativas.
+ * "Transversal" va de ultima porque no es una linea de negocio, sino la
+ * ausencia de una: se muestra en la ultima columna.
+ */
+var LINEAS_ESTRATEGICAS = [
+  { id: 'LEN-01', nombre: 'Ingreso estable', orden: 1 },
+  { id: 'LEN-02', nombre: 'Agro', orden: 2 },
+  { id: 'LEN-03', nombre: 'Desarrollo empresarial', orden: 3 },
+  { id: 'LEN-04', nombre: 'Mi negocio independiente', orden: 4 },
+  { id: 'LEN-00', nombre: 'Transversal', orden: 5 }
+];
+
+/** Verticales de producto: eje vertical de la matriz. Transversal va al final. */
+var VERTICALES = [
+  { id: 'VER-01', nombre: 'Credito', orden: 1 },
+  { id: 'VER-02', nombre: 'Ahorro e Inversion', orden: 2 },
+  { id: 'VER-03', nombre: 'Proteccion', orden: 3 },
+  { id: 'VER-04', nombre: 'Servicio de Recaudo', orden: 4 },
+  { id: 'VER-00', nombre: 'Transversal', orden: 5 }
+];
+
+/* ================================================================== */
+/* Libro 1: Parametrizacion (maestros)                                 */
+/* ================================================================== */
 
 var ESQUEMA_PARAMETRIZACION = {
   Usuarios: {
     etiqueta: 'Usuarios',
-    pk: 'Correo_ID',
+    pk: 'ID_Usuario',
     columnas: [
-      { campo: 'Correo_ID', etiqueta: 'Correo corporativo', tipo: 'email', requerido: true },
+      { campo: 'ID_Usuario', etiqueta: 'ID Usuario', tipo: 'text', requerido: true },
       { campo: 'Nombre_Completo', etiqueta: 'Nombre completo', tipo: 'text', requerido: true },
+      // El correo habilita el inicio de sesion por SSO. Puede quedar vacio:
+      // el usuario existe en el sistema y es asignable, pero aun no entra.
+      { campo: 'Correo_ID', etiqueta: 'Correo corporativo', tipo: 'email' },
       { campo: 'Cargo', etiqueta: 'Cargo', tipo: 'text' },
       { campo: 'Area', etiqueta: 'Area', tipo: 'text' },
       { campo: 'Rol_ID', etiqueta: 'Rol', tipo: 'enum', fk: 'Roles', requerido: true },
@@ -139,15 +173,15 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'Descripcion', etiqueta: 'Descripcion', tipo: 'longtext' },
       { campo: 'Prioridad', etiqueta: 'Prioridad', tipo: 'enum', fk: 'Prioridad' },
       { campo: 'Tipo_Iniciativa', etiqueta: 'Tipo de iniciativa', tipo: 'enum', fk: 'Tipos_Iniciativa' },
-      { campo: 'BO_Correo', etiqueta: 'Business Owner', tipo: 'email', fk: 'Usuarios' },
-      { campo: 'PO_Correo', etiqueta: 'Product Owner', tipo: 'email', fk: 'Usuarios' },
+      { campo: 'BO_Usuario', etiqueta: 'Business Owner', tipo: 'enum', fk: 'Usuarios' },
+      { campo: 'PO_Usuario', etiqueta: 'Product Owner', tipo: 'enum', fk: 'Usuarios' },
       { campo: 'LEN_ID', etiqueta: 'Linea estrategica de negocio', tipo: 'enum', fk: 'Lineas_Estrategicas' },
       { campo: 'Vertical_ID', etiqueta: 'Vertical', tipo: 'enum', fk: 'Verticales' },
+      { campo: 'Plataforma_ID', etiqueta: 'Plataforma digital', tipo: 'enum', fk: 'Plataforma_Digital' },
       { campo: 'Fecha_Estimada', etiqueta: 'Fecha estimada', tipo: 'date' },
       { campo: 'Fecha_Inicio', etiqueta: 'Fecha de inicio', tipo: 'date' },
       { campo: 'Fecha_Fin_Estimada', etiqueta: 'Fecha fin estimada', tipo: 'date' },
-      { campo: 'Estado_Proyecto', etiqueta: 'Estado', tipo: 'enum', fk: 'Estados' },
-      { campo: 'ID_Aplicacion', etiqueta: 'Aplicacion principal', tipo: 'enum', fk: 'Aplicaciones' }
+      { campo: 'Estado_Iniciativa', etiqueta: 'Estado', tipo: 'enum', fk: 'Estados_Iniciativa' }
     ]
   },
   Plataforma_Digital: {
@@ -155,16 +189,7 @@ var ESQUEMA_PARAMETRIZACION = {
     pk: 'ID_Plataforma',
     columnas: [
       { campo: 'ID_Plataforma', etiqueta: 'ID Plataforma', tipo: 'text', requerido: true },
-      { campo: 'Nombre_Plataforma', etiqueta: 'Nombre', tipo: 'text', requerido: true }
-    ]
-  },
-  Aplicaciones: {
-    etiqueta: 'Aplicaciones',
-    pk: 'ID_Aplicacion',
-    columnas: [
-      { campo: 'ID_Aplicacion', etiqueta: 'ID Aplicacion', tipo: 'text', requerido: true },
-      { campo: 'Nombre_Aplicacion', etiqueta: 'Nombre de la aplicacion', tipo: 'text', requerido: true },
-      { campo: 'Plataforma_ID', etiqueta: 'Plataforma', tipo: 'enum', fk: 'Plataforma_Digital', requerido: true }
+      { campo: 'Nombre_Plataforma', etiqueta: 'Plataforma digital', tipo: 'text', requerido: true }
     ]
   },
   Fases: {
@@ -177,11 +202,19 @@ var ESQUEMA_PARAMETRIZACION = {
     ]
   },
   Estados: {
-    etiqueta: 'Estados',
+    etiqueta: 'Estados de Solicitud',
     pk: 'ID_Estado',
     columnas: [
       { campo: 'ID_Estado', etiqueta: 'ID Estado', tipo: 'text', requerido: true },
-      { campo: 'Nombre_Estado', etiqueta: 'Nombre del estado', tipo: 'text', requerido: true }
+      { campo: 'Nombre_Estado', etiqueta: 'Estado de la solicitud', tipo: 'text', requerido: true }
+    ]
+  },
+  Estados_Iniciativa: {
+    etiqueta: 'Estados de Iniciativa',
+    pk: 'ID_Estado_Iniciativa',
+    columnas: [
+      { campo: 'ID_Estado_Iniciativa', etiqueta: 'ID Estado', tipo: 'text', requerido: true },
+      { campo: 'Nombre_Estado_Iniciativa', etiqueta: 'Estado de la iniciativa', tipo: 'text', requerido: true }
     ]
   },
   Tipos_Solicitud: {
@@ -189,7 +222,15 @@ var ESQUEMA_PARAMETRIZACION = {
     pk: 'ID_Tipo',
     columnas: [
       { campo: 'ID_Tipo', etiqueta: 'ID Tipo', tipo: 'text', requerido: true },
-      { campo: 'Nombre_Tipo', etiqueta: 'Nombre del tipo', tipo: 'text', requerido: true }
+      { campo: 'Nombre_Tipo', etiqueta: 'Tipo de solicitud', tipo: 'text', requerido: true }
+    ]
+  },
+  Tipos_Iniciativa: {
+    etiqueta: 'Tipos de Iniciativa',
+    pk: 'ID_Tipo_Iniciativa',
+    columnas: [
+      { campo: 'ID_Tipo_Iniciativa', etiqueta: 'ID Tipo', tipo: 'text', requerido: true },
+      { campo: 'Nombre_Tipo_Iniciativa', etiqueta: 'Tipo de iniciativa', tipo: 'text', requerido: true }
     ]
   },
   Prioridad: {
@@ -217,14 +258,6 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'Orden_LEN', etiqueta: 'Orden en la matriz', tipo: 'number' }
     ]
   },
-  Tipos_Iniciativa: {
-    etiqueta: 'Tipos de Iniciativa',
-    pk: 'ID_Tipo_Iniciativa',
-    columnas: [
-      { campo: 'ID_Tipo_Iniciativa', etiqueta: 'ID Tipo', tipo: 'text', requerido: true },
-      { campo: 'Nombre_Tipo_Iniciativa', etiqueta: 'Tipo de iniciativa', tipo: 'text', requerido: true }
-    ]
-  },
   Verticales: {
     etiqueta: 'Verticales',
     pk: 'ID_Vertical',
@@ -242,12 +275,20 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'Nombre_Fase', etiqueta: 'Nombre de la fase', tipo: 'text' },
       { campo: 'SLA_Dias', etiqueta: 'SLA objetivo (dias habiles)', tipo: 'number', requerido: true }
     ]
+  },
+  Festivos: {
+    etiqueta: 'Dias no laborables adicionales',
+    pk: 'Fecha',
+    columnas: [
+      { campo: 'Fecha', etiqueta: 'Fecha', tipo: 'date', requerido: true },
+      { campo: 'Descripcion', etiqueta: 'Motivo', tipo: 'text' }
+    ]
   }
 };
 
-/* ------------------------------------------------------------------ */
-/* Esquema del Libro 2: Transaccional                                  */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/* Libro 2: Transaccional                                              */
+/* ================================================================== */
 
 var ESQUEMA_TRANSACCIONAL = {
   Solicitudes: {
@@ -257,14 +298,14 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'ID_Solicitud', etiqueta: 'ID Solicitud', tipo: 'text', requerido: true },
       { campo: 'Fecha_Registro', etiqueta: 'Fecha de registro', tipo: 'datetime', requerido: true },
       { campo: 'Nombre_Solicitud', etiqueta: 'Nombre de la solicitud', tipo: 'text', requerido: true },
-      { campo: 'Objetivo', etiqueta: 'Objetivo', tipo: 'longtext', requerido: true },
+      { campo: 'Objetivo', etiqueta: 'Objetivo', tipo: 'longtext' },
       { campo: 'Entregable', etiqueta: 'Entregable', tipo: 'text' },
-      { campo: 'ID_Proyecto', etiqueta: 'Proyecto', tipo: 'enum', fk: 'Proyectos', requerido: true },
-      { campo: 'ID_Aplicacion', etiqueta: 'Aplicacion', tipo: 'enum', fk: 'Aplicaciones' },
-      { campo: 'Solicitante_Correo', etiqueta: 'Solicitante', tipo: 'email', fk: 'Usuarios', requerido: true },
+      // Toda solicitud es hija de una iniciativa.
+      { campo: 'ID_Proyecto', etiqueta: 'Iniciativa', tipo: 'enum', fk: 'Proyectos', requerido: true },
+      { campo: 'Plataforma_ID', etiqueta: 'Plataforma digital', tipo: 'enum', fk: 'Plataforma_Digital', requerido: true },
+      { campo: 'Solicitante_ID', etiqueta: 'Solicitante', tipo: 'enum', fk: 'Usuarios', requerido: true },
       { campo: 'Tipo_Solicitud', etiqueta: 'Tipo de solicitud', tipo: 'enum', fk: 'Tipos_Solicitud', requerido: true },
       { campo: 'Prioridad', etiqueta: 'Prioridad', tipo: 'enum', fk: 'Prioridad', requerido: true },
-      { campo: 'Plataforma', etiqueta: 'Plataforma digital', tipo: 'enum', fk: 'Plataforma_Digital', requerido: true },
       { campo: 'Proceso_Impactado', etiqueta: 'Proceso impactado', tipo: 'text' },
       { campo: 'Doc_Requerimiento_URL', etiqueta: 'Documento de requerimiento', tipo: 'url' },
       { campo: 'Carpeta_Drive_URL', etiqueta: 'Carpeta en Drive', tipo: 'url' },
@@ -273,8 +314,8 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Tiene_Bloqueo', etiqueta: 'Tiene bloqueo', tipo: 'boolSN', requerido: true },
       { campo: 'Causal_Bloqueo', etiqueta: 'Causal de bloqueo', tipo: 'enum', fk: 'Causales_Bloqueo' },
       { campo: 'Link_Taiga', etiqueta: 'Issue en Taiga', tipo: 'url' },
-      { campo: 'Version_Semantica', etiqueta: 'Version semantica', tipo: 'text' },
-      { campo: 'Responsable_Actual', etiqueta: 'Responsable actual', tipo: 'email', fk: 'Usuarios' },
+      { campo: 'Version_Semantica', etiqueta: 'Version estimada', tipo: 'text' },
+      { campo: 'Responsable_ID', etiqueta: 'Responsable actual', tipo: 'enum', fk: 'Usuarios' },
       { campo: 'Fecha_Inicio_Analisis', etiqueta: 'Inicio analisis', tipo: 'datetime' },
       { campo: 'Fecha_Fin_Analisis', etiqueta: 'Fin analisis', tipo: 'datetime' },
       { campo: 'Fecha_Inicio_Dev', etiqueta: 'Inicio desarrollo', tipo: 'datetime' },
@@ -300,8 +341,9 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Estado_Origen', etiqueta: 'Estado origen', tipo: 'text' },
       { campo: 'Estado_Destino', etiqueta: 'Estado destino', tipo: 'text' },
       { campo: 'Fecha_Hora_Cambio', etiqueta: 'Fecha/hora del cambio', tipo: 'datetime', requerido: true },
-      { campo: 'Usuario_Responsable', etiqueta: 'Usuario responsable', tipo: 'email', requerido: true },
-      { campo: 'Horas_En_Fase', etiqueta: 'Horas en fase origen', tipo: 'decimal' }
+      { campo: 'Usuario_Responsable', etiqueta: 'Usuario responsable', tipo: 'text', requerido: true },
+      { campo: 'Horas_En_Fase', etiqueta: 'Horas calendario en fase origen', tipo: 'decimal' },
+      { campo: 'Dias_Habiles_En_Fase', etiqueta: 'Dias habiles en fase origen', tipo: 'decimal' }
     ]
   },
   Roadmap_Versiones: {
@@ -309,8 +351,7 @@ var ESQUEMA_TRANSACCIONAL = {
     pk: 'ID_Version',
     columnas: [
       { campo: 'ID_Version', etiqueta: 'ID Version', tipo: 'text', requerido: true },
-      { campo: 'ID_Aplicacion', etiqueta: 'Aplicacion', tipo: 'enum', fk: 'Aplicaciones', requerido: true },
-      { campo: 'Plataforma', etiqueta: 'Plataforma digital', tipo: 'enum', fk: 'Plataforma_Digital', requerido: true },
+      { campo: 'Plataforma_ID', etiqueta: 'Plataforma digital', tipo: 'enum', fk: 'Plataforma_Digital', requerido: true },
       { campo: 'Numero_Version', etiqueta: 'Numero de version', tipo: 'text', requerido: true },
       { campo: 'Estado_Release', etiqueta: 'Estado del release', tipo: 'enum', opciones: ['Planeada', 'En Produccion'] },
       { campo: 'Fecha_Planeada', etiqueta: 'Fecha planeada', tipo: 'date' },
@@ -319,13 +360,12 @@ var ESQUEMA_TRANSACCIONAL = {
   }
 };
 
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
 /* Utilidades de esquema                                               */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
 
 /**
- * Resuelve la definicion de una tabla por nombre, en cualquiera de los libros.
- * @param {string} tabla Nombre de la hoja.
+ * @param {string} tabla
  * @return {?{libro: string, def: !Object}}
  */
 function getDefinicionTabla(tabla) {
@@ -339,7 +379,7 @@ function getDefinicionTabla(tabla) {
 }
 
 /**
- * @param {string} tabla Nombre de la hoja.
+ * @param {string} tabla
  * @return {!Array<string>} Encabezados en el orden exacto de la hoja.
  */
 function getEncabezados(tabla) {
@@ -348,22 +388,28 @@ function getEncabezados(tabla) {
   return info.def.columnas.map(function (c) { return c.campo; });
 }
 
-/** @return {!Object<string,string>} Mapa ID_Fase -> Nombre_Fase. */
-function mapaFases() {
-  return FASES.reduce(function (acc, f) { acc[f.id] = f.nombre; return acc; }, {});
+/** Convierte un catalogo en mapa id -> nombre. */
+function mapaCatalogo_(lista, claveNombre) {
+  return lista.reduce(function (acc, item) {
+    acc[item.id] = claveNombre ? item[claveNombre] : item.nombre;
+    return acc;
+  }, {});
 }
+
+/** @return {!Object<string,string>} Mapa ID_Fase -> Nombre_Fase. */
+function mapaFases() { return mapaCatalogo_(FASES); }
 
 /** @return {!Object<string,string>} Mapa ID_Estado -> Nombre_Estado. */
-function mapaEstados() {
-  return ESTADOS.reduce(function (acc, e) { acc[e.id] = e.nombre; return acc; }, {});
-}
+function mapaEstados() { return mapaCatalogo_(ESTADOS); }
+
+/** @return {!Object<string,string>} Mapa ID_Estado_Iniciativa -> nombre. */
+function mapaEstadosIniciativa() { return mapaCatalogo_(ESTADOS_INICIATIVA); }
+
+/** @return {!Object<string,string>} Mapa ID_Plataforma -> nombre. */
+function mapaPlataformas() { return mapaCatalogo_(PLATAFORMAS); }
 
 /** @return {!Object<string,string>} Mapa ID_LEN -> Nombre_LEN. */
-function mapaLineasEstrategicas() {
-  return LINEAS_ESTRATEGICAS.reduce(function (acc, l) { acc[l.id] = l.nombre; return acc; }, {});
-}
+function mapaLineasEstrategicas() { return mapaCatalogo_(LINEAS_ESTRATEGICAS); }
 
 /** @return {!Object<string,string>} Mapa ID_Vertical -> Nombre_Vertical. */
-function mapaVerticales() {
-  return VERTICALES.reduce(function (acc, v) { acc[v.id] = v.nombre; return acc; }, {});
-}
+function mapaVerticales() { return mapaCatalogo_(VERTICALES); }

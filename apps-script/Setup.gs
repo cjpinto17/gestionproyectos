@@ -10,8 +10,9 @@
  *   4. Crea la plantilla de requerimiento en la Unidad Compartida si no existe.
  *   5. Guarda todos los IDs en PropertiesService.
  *
- * Los datos de negocio (Usuarios, Proyectos, Aplicaciones) NO se siembran:
- * se cargan desde la pagina de Administracion o directamente en la hoja.
+ * Los datos de negocio (Usuarios, Iniciativas) no se siembran aqui: los carga
+ * cargarDatosIniciales() en DatosIniciales.gs, o se capturan desde la pagina
+ * de Administracion.
  */
 
 /**
@@ -129,11 +130,19 @@ function sembrarCatalogos_(libro) {
     return [e.id, e.nombre];
   }));
 
+  sembrarSiVacio_(libro, 'Estados_Iniciativa', ESTADOS_INICIATIVA.map(function (e) {
+    return [e.id, e.nombre];
+  }));
+
   sembrarSiVacio_(libro, 'Plataforma_Digital', PLATAFORMAS.map(function (p) {
     return [p.id, p.nombre];
   }));
 
   sembrarSiVacio_(libro, 'Tipos_Solicitud', TIPOS_SOLICITUD.map(function (t) {
+    return [t.id, t.nombre];
+  }));
+
+  sembrarSiVacio_(libro, 'Tipos_Iniciativa', TIPOS_INICIATIVA.map(function (t) {
     return [t.id, t.nombre];
   }));
 
@@ -143,6 +152,14 @@ function sembrarCatalogos_(libro) {
 
   sembrarSiVacio_(libro, 'Causales_Bloqueo', CAUSALES_BLOQUEO.map(function (c) {
     return [c.id, c.nombre];
+  }));
+
+  sembrarSiVacio_(libro, 'Lineas_Estrategicas', LINEAS_ESTRATEGICAS.map(function (l) {
+    return [l.id, l.nombre, l.orden];
+  }));
+
+  sembrarSiVacio_(libro, 'Verticales', VERTICALES.map(function (v) {
+    return [v.id, v.nombre, v.orden];
   }));
 
   sembrarSiVacio_(libro, 'Roles', ROLES.map(function (r) {
@@ -155,19 +172,8 @@ function sembrarCatalogos_(libro) {
     ];
   }));
 
-  sembrarSiVacio_(libro, 'Lineas_Estrategicas', LINEAS_ESTRATEGICAS.map(function (l) {
-    return [l.id, l.nombre, l.orden];
-  }));
-
-  sembrarSiVacio_(libro, 'Verticales', VERTICALES.map(function (v) {
-    return [v.id, v.nombre, v.orden];
-  }));
-
-  sembrarSiVacio_(libro, 'Tipos_Iniciativa', TIPOS_INICIATIVA.map(function (t) {
-    return [t.id, t.nombre];
-  }));
-
-  // SLA por fase: valores iniciales sugeridos, ajustables desde Administracion.
+  // SLA por fase, en DIAS HABILES. Valores iniciales sugeridos, ajustables
+  // desde la pagina de Administracion.
   var slaSugerido = { 'FAS-01': 5, 'FAS-02': 10, 'FAS-03': 10, 'FAS-04': 15,
                       'FAS-05': 5, 'FAS-06': 5, 'FAS-07': 3, 'FAS-08': 1 };
   sembrarSiVacio_(libro, 'SLA_Fases', FASES.map(function (f) {

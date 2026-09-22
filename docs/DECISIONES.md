@@ -126,15 +126,71 @@ Se retiró el CDN de Tailwind (`cdn.tailwindcss.com`). El CSS corporativo vive e
 Google Fonts, que es infraestructura de Google; si se requiere cero tráfico externo, basta
 con borrar el `<link>` y el navegador usa la pila de respaldo declarada en los tokens.
 
+### D-15 · Usuarios sin correo corporativo
+`Usuarios` pasa a tener **`ID_Usuario`** (`USR-001`) como llave primaria y el correo queda
+**opcional**. Motivo: el negocio necesita asignar personas —como Business Owner— antes de que
+tengan cuenta corporativa. Un usuario sin correo existe, es asignable y aparece en los
+reportes; simplemente no puede iniciar sesión hasta que se le registre el correo desde
+Administración. `getContextoUsuario()` ignora las filas sin correo al resolver la sesión.
+
+### D-16 · Business Owner y Product Owner son roles
+Se agregó **`RO-09 Business Owner`** al catálogo de Roles. El formulario de creación de
+usuarios asigna rol, y las iniciativas apuntan a usuarios por `ID_Usuario` mediante
+`BO_Usuario` y `PO_Usuario`. Permisos del BO: registra demanda en la fase 1 y consulta todo;
+no opera el embudo.
+
+### D-17 · Plataforma digital = aplicación
+Se **eliminó la tabla `Aplicaciones`**. La plataforma digital es la unidad única, con ocho
+registros. Impacto: `Solicitudes.Plataforma_ID` y `Roadmap_Versiones.Plataforma_ID` apuntan
+directo a `Plataforma_Digital`, y el roadmap agrupa versiones por plataforma.
+
+### D-18 · Estados de iniciativa ≠ estados de solicitud
+Son dos catálogos independientes, porque son dos ciclos de vida distintos: la iniciativa es
+el contenedor de negocio y la solicitud recorre el embudo de 8 fases.
+
+| Catálogo | Valores |
+| --- | --- |
+| `Estados_Iniciativa` | Por iniciar · En progreso · En pausa · Cancelada · Finalizada |
+| `Estados` (solicitudes) | Por iniciar · En progreso · Aprobada · Bloqueada · Cancelada · Terminada |
+
+Los cinco estados de iniciativa son una propuesta a partir de los dos que trae la data
+(*Por iniciar*, *En progreso*): confirmar si faltan o sobran.
+
+Toda solicitud es **hija de una iniciativa**: `Solicitudes.ID_Proyecto` es obligatorio.
+Los tipos de solicitud quedan en cuatro: **Ajuste, Mejora, Nuevo, Tarea**.
+
+### D-19 · SLA en días hábiles
+`Festivos.gs` calcula el calendario laboral colombiano: fines de semana más los 18 festivos
+de ley, derivados de la fecha de Pascua (algoritmo de Meeus) y del traslado al lunes de la
+Ley Emiliani. No hay fechas escritas a mano, así que el calendario es correcto para cualquier
+año. Verificado contra 2025 y 2026 (en 2026: 12 de enero, 23 de marzo, 2 y 3 de abril,
+18 de mayo, 8 y 15 de junio…).
+
+`diasHabilesEntre()` prorratea los extremos sobre la jornada, de modo que una fase que duró
+medio día hábil no cuenta como un día completo. El SLA, el Cycle Time por fase y la
+antigüedad de las actividades estancadas se miden así. El **Lead Time sigue en días
+calendario**, porque es lo que percibe el negocio desde que pide hasta que recibe.
+
+`Auditoria_Transiciones` gana la columna `Dias_Habiles_En_Fase`, que se calcula al registrar
+cada transición. Si la compañía tiene días no laborables adicionales, se agregan en la hoja
+`Festivos` y el cálculo los toma.
+
+### D-20 · Transversal al final de la matriz
+En los catálogos de LEN y verticales, *Transversal* queda con orden 5: se dibuja en la última
+columna y la última fila de la matriz, que es donde el negocio espera encontrar lo que no
+pertenece a una línea o vertical específica.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
 | --- | --- | --- |
 | S-01 | Catálogos de negocio | Falta la lista de `Aplicaciones` por plataforma y el resto de `Usuarios` con su rol. Plataformas e iniciativas ya están cargadas |
-| S-12 | Correos de los BO/PO | Claudia Gómez, Mauricio Osorio y los PO pendientes: se necesitan los correos corporativos para que el RBAC funcione |
+| S-12 | Correos corporativos | Ya no bloquean el modelo (ver D-15), pero sin ellos nadie puede iniciar sesión en la aplicación |
+| S-16 | Estados de iniciativa | Confirmar los cinco propuestos en D-18 |
+| S-17 | PO de cada iniciativa | La columna llegó vacía en las 39 |
 | S-13 | Iniciativa `INI-011` | *Gestión comercial (Matrix Fase 5)* llegó solo con nombre: sin prioridad, tipo, LEN, vertical ni estado |
-| S-14 | Fechas del portafolio | Solo `INI-029` e `INI-031` traen fecha (14/09/2026, cargada como fecha de inicio). ¿Las demás no tienen, o están en otra fuente? |
-| S-15 | Plataforma por iniciativa | Las iniciativas no traen plataforma ni aplicación asociada; hoy esa relación solo existe a nivel de actividad |
+| S-14 | Fechas del portafolio | Confirmado: no existen todavía. Se capturan editando el archivo fuente o desde Administración |
+| S-15 | Plataforma por iniciativa | El campo `Plataforma_ID` existe en la iniciativa y está vacío: falta asignarlo |
 | S-02 | Google Chat | URL del webhook del espacio destino |
 | S-03 | Dominio | Dominio corporativo para restringir el SSO |
 | S-04 | Correo | ¿`MailApp` simple o Gmail API con alias/remitente específico? |
