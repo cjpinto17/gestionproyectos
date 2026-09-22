@@ -121,13 +121,36 @@ function getDominioCorporativo() {
  */
 function diagnosticoConfiguracion() {
   var props = PropertiesService.getScriptProperties().getProperties();
-  return {
-    libroParametrizacion: props[PROP_KEYS.LIBRO_PARAMETRIZACION] || null,
-    libroTransaccional: props[PROP_KEYS.LIBRO_TRANSACCIONAL] || null,
-    plantillaRequerimiento: props[PROP_KEYS.PLANTILLA_REQUERIMIENTO] || null,
+  var idParam = props[PROP_KEYS.LIBRO_PARAMETRIZACION] || null;
+  var idTrans = props[PROP_KEYS.LIBRO_TRANSACCIONAL] || null;
+  var idPlantilla = props[PROP_KEYS.PLANTILLA_REQUERIMIENTO] || null;
+
+  var diagnostico = {
+    libroParametrizacion: idParam,
+    libroTransaccional: idTrans,
+    plantillaRequerimiento: idPlantilla,
     chatWebhookConfigurado: !!props[PROP_KEYS.CHAT_WEBHOOK_URL],
     dominioCorporativo: props[PROP_KEYS.DOMINIO_CORPORATIVO] || null,
     unidadCompartidaRaiz: CONFIG.DRIVE_UNIDAD_RAIZ_ID,
-    zonaHoraria: CONFIG.ZONA_HORARIA
+    zonaHoraria: CONFIG.ZONA_HORARIA,
+    // Enlaces directos, para no tener que buscar los archivos en Drive.
+    urlLibroParametrizacion: idParam ? 'https://docs.google.com/spreadsheets/d/' + idParam : null,
+    urlLibroTransaccional: idTrans ? 'https://docs.google.com/spreadsheets/d/' + idTrans : null,
+    urlPlantilla: idPlantilla ? 'https://docs.google.com/document/d/' + idPlantilla : null,
+    pendientes: []
   };
+
+  if (!idParam || !idTrans) diagnostico.pendientes.push('Ejecutar setupInicial().');
+  if (!idPlantilla) diagnostico.pendientes.push('No existe la plantilla de requerimiento.');
+  if (!props[PROP_KEYS.CHAT_WEBHOOK_URL]) {
+    diagnostico.pendientes.push('Falta la URL del webhook de Google Chat.');
+  }
+  if (!props[PROP_KEYS.DOMINIO_CORPORATIVO]) {
+    diagnostico.pendientes.push('Falta el dominio corporativo: el acceso no esta restringido.');
+  }
+  if (!diagnostico.pendientes.length) diagnostico.pendientes.push('Nada pendiente.');
+
+  // Sin esta traza, ejecutar la funcion desde el editor no muestra nada.
+  Logger.log(JSON.stringify(diagnostico, null, 2));
+  return diagnostico;
 }
