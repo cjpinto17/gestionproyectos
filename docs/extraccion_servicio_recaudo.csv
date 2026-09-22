@@ -1,0 +1,11 @@
+ID_Proyecto,Orden_Iniciativa,Nombre_Solicitud,Objetivo,Entregable,Plataforma_ID,Tipo_Solicitud,Prioridad,Fase_Actual,Estado_Actual,Tiene_Bloqueo,Causal_Bloqueo,Solicitante_ID,Responsable_ID,Version_Semantica,Proceso_Impactado,Link_Taiga
+INI-008,1,Onboarding banca movil (Sin integraciones),,,,,,FAS-05,EST-04,SI,,,,,,
+INI-008,2,Configuraciones y administracion de Servicio de Recaudo,,,,,,FAS-05,EST-04,SI,,,,,,
+INI-008,3,Visacion y aprobacion (Matrix),,,,,,FAS-03,EST-02,NO,,,,,,
+INI-008,4,Generacion de Link de pagos (Sin integraciones),,,,,,FAS-04,EST-04,SI,,,,,,
+INI-008,5,Mejoras al administrador centralizado de servicio de recaudo,,,,,,FAS-03,EST-02,NO,,,,,,
+INI-008,6,Mantenimiento del negocio (App),,,,,,FAS-03,EST-02,NO,,,,,,
+INI-008,7,"Onboarding apk, web y plataforma digital",,,,,,FAS-03,EST-02,NO,,,,,,
+INI-008,,Integraciones intercom - Creacion del comercio,,,,,,FAS-02,EST-04,SI,,,,,,
+INI-008,,Integraciones intercom - Creacion del link de pagos,,,,,,FAS-02,EST-04,SI,,,,,,
+INI-008,,Integraciones Shivam - Tarifas,,,,,,FAS-02,EST-04,SI,,,,,,

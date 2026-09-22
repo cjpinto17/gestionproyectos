@@ -490,6 +490,7 @@ function crearSolicitud(datos) {
       Solicitante_ID: datos.Solicitante_ID || ctx.idUsuario,
       Tipo_Solicitud: datos.Tipo_Solicitud || '',
       Prioridad: datos.Prioridad || '',
+      Orden_Iniciativa: datos.Orden_Iniciativa || '',
       Proceso_Impactado: datos.Proceso_Impactado || '',
       Doc_Requerimiento_URL: '',
       Carpeta_Drive_URL: '',

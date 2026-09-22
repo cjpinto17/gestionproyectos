@@ -253,6 +253,7 @@ les asignas rol y administras todos los catálogos.
 | Quiero… | Dónde |
 | --- | --- |
 | Crear una actividad | Pestaña **Gestión** → botón **+ Nueva Actividad** |
+| Cargar muchas actividades de una vez | Editor → `CargaMasiva.gs` → `prepararCargaMasiva`, llenar la hoja, luego `procesarCargaMasiva` |
 | Mover una actividad de fase | Arrastrar la tarjeta a otra columna |
 | Marcar o levantar un bloqueo | Clic en la tarjeta → botón **Marcar bloqueo** |
 | Ver la carpeta o el documento | Clic en la tarjeta → botones de Drive |
@@ -262,6 +263,24 @@ les asignas rol y administras todos los catálogos.
 | Ver los indicadores | Pestaña **Home** |
 
 ---
+
+## Parte 7.1 · Carga masiva de actividades
+
+Cuando haya que registrar de golpe el trabajo que ya venía en curso:
+
+1. En el editor, abre **`CargaMasiva.gs`**, elige **`prepararCargaMasiva`** y ejecuta. Se crea
+   la hoja **Carga_Solicitudes** en el libro transaccional, con listas desplegables en cada
+   columna para que no haya que escribir códigos de memoria.
+2. Llena la hoja con calma. Solo el nombre y la iniciativa son obligatorios; lo demás se puede
+   completar después desde la aplicación.
+3. Vuelve al editor, elige **`procesarCargaMasiva`** y ejecuta. Por cada fila se crea la
+   actividad con su carpeta en Drive y su registro de auditoría, y en la columna **Resultado**
+   queda el ID generado (`SOL-…`) o el motivo del rechazo.
+4. Corrige las filas que hayan quedado con `ERROR:` y vuelve a ejecutar. Las que ya tienen ID
+   no se repiten.
+
+Procesa 25 filas por ejecución, para no agotar el tiempo máximo que Google le da a un script.
+Si quedan pendientes, el registro te lo dice y basta con ejecutarla de nuevo.
 
 ## Parte 8 · Cuando actualicemos el código
 

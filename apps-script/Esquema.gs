@@ -306,6 +306,10 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Solicitante_ID', etiqueta: 'Solicitante', tipo: 'enum', fk: 'Usuarios', requerido: true },
       { campo: 'Tipo_Solicitud', etiqueta: 'Tipo de solicitud', tipo: 'enum', fk: 'Tipos_Solicitud', requerido: true },
       { campo: 'Prioridad', etiqueta: 'Prioridad', tipo: 'enum', fk: 'Prioridad', requerido: true },
+      // Orden de atencion dentro de la iniciativa: 1 es lo primero que se
+      // trabaja. Es independiente de la prioridad, que compara todo el
+      // portafolio entre si.
+      { campo: 'Orden_Iniciativa', etiqueta: 'Orden en la iniciativa', tipo: 'number' },
       { campo: 'Proceso_Impactado', etiqueta: 'Proceso impactado', tipo: 'text' },
       { campo: 'Doc_Requerimiento_URL', etiqueta: 'Documento de requerimiento', tipo: 'url' },
       { campo: 'Carpeta_Drive_URL', etiqueta: 'Carpeta en Drive', tipo: 'url' },
@@ -344,6 +348,31 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Usuario_Responsable', etiqueta: 'Usuario responsable', tipo: 'text', requerido: true },
       { campo: 'Horas_En_Fase', etiqueta: 'Horas calendario en fase origen', tipo: 'decimal' },
       { campo: 'Dias_Habiles_En_Fase', etiqueta: 'Dias habiles en fase origen', tipo: 'decimal' }
+    ]
+  },
+  Carga_Solicitudes: {
+    etiqueta: 'Carga masiva de solicitudes',
+    pk: 'Fila',
+    columnas: [
+      { campo: 'ID_Proyecto', etiqueta: 'Iniciativa', tipo: 'enum', fk: 'Proyectos', requerido: true },
+      { campo: 'Orden_Iniciativa', etiqueta: 'Orden en la iniciativa', tipo: 'number' },
+      { campo: 'Nombre_Solicitud', etiqueta: 'Nombre de la solicitud', tipo: 'text', requerido: true },
+      { campo: 'Objetivo', etiqueta: 'Objetivo', tipo: 'longtext' },
+      { campo: 'Entregable', etiqueta: 'Entregable', tipo: 'text' },
+      { campo: 'Plataforma_ID', etiqueta: 'Plataforma digital', tipo: 'enum', fk: 'Plataforma_Digital' },
+      { campo: 'Tipo_Solicitud', etiqueta: 'Tipo', tipo: 'enum', fk: 'Tipos_Solicitud' },
+      { campo: 'Prioridad', etiqueta: 'Prioridad', tipo: 'enum', fk: 'Prioridad' },
+      { campo: 'Fase_Actual', etiqueta: 'Fase', tipo: 'enum', fk: 'Fases' },
+      { campo: 'Estado_Actual', etiqueta: 'Estado', tipo: 'enum', fk: 'Estados' },
+      { campo: 'Tiene_Bloqueo', etiqueta: 'Tiene bloqueo', tipo: 'boolSN' },
+      { campo: 'Causal_Bloqueo', etiqueta: 'Causal del bloqueo', tipo: 'enum', fk: 'Causales_Bloqueo' },
+      { campo: 'Solicitante_ID', etiqueta: 'Solicitante', tipo: 'enum', fk: 'Usuarios' },
+      { campo: 'Responsable_ID', etiqueta: 'Responsable', tipo: 'enum', fk: 'Usuarios' },
+      { campo: 'Version_Semantica', etiqueta: 'Version estimada', tipo: 'text' },
+      { campo: 'Proceso_Impactado', etiqueta: 'Proceso impactado', tipo: 'text' },
+      { campo: 'Link_Taiga', etiqueta: 'Issue en Taiga', tipo: 'url' },
+      // Lo escribe el proceso: queda el ID creado o el motivo del rechazo.
+      { campo: 'Resultado', etiqueta: 'Resultado', tipo: 'text' }
     ]
   },
   Roadmap_Versiones: {
