@@ -330,11 +330,16 @@ function cargarIniciativas() {
         r.estados.map(function (e) {
           return '<option value="' + e.id + '">' + esc(e.nombre) + '</option>';
         }).join('');
+    $('filtroTipoIni').innerHTML = '<option value="">Todos los tipos</option>' +
+        r.tipos.map(function (t) {
+          return '<option value="' + t.id + '">' + esc(t.nombre) + '</option>';
+        }).join('');
     pintarMatriz();
   }).catch(fallo);
 }
 $('buscIni').addEventListener('input', pintarMatriz);
 $('filtroEstadoIni').addEventListener('change', pintarMatriz);
+$('filtroTipoIni').addEventListener('change', pintarMatriz);
 
 function ordenPorPrioridad(a, b) {
   var pa = PESO_PRIORIDAD[a.prioridad], pb = PESO_PRIORIDAD[b.prioridad];
@@ -349,6 +354,7 @@ function pintarMatriz() {
   if (!r) return;
   var q = $('buscIni').value.toLowerCase();
   var estado = $('filtroEstadoIni').value;
+  var tipo = $('filtroTipoIni').value;
   var cont = $('matriz');
 
   // Filas: lineas estrategicas de negocio. Columnas: verticales de producto.
@@ -362,6 +368,7 @@ function pintarMatriz() {
   function filtrar(lista) {
     return (lista || []).filter(function (i) {
       if (estado && i.estado !== estado) return false;
+      if (tipo && i.tipo !== tipo) return false;
       if (q && String(i.nombre).toLowerCase().indexOf(q) === -1) return false;
       return true;
     });
