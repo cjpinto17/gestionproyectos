@@ -302,3 +302,76 @@ function validarInstalacion() {
   Logger.log(JSON.stringify(reporte, null, 2));
   return reporte;
 }
+
+/**
+ * Registra a quien ejecuta esta funcion como Administrador del sistema.
+ *
+ * Resuelve el arranque en frio: recien instalado, la tabla Usuarios esta vacia
+ * y nadie puede entrar a la aplicacion para crear el primer usuario. Solo puede
+ * ejecutarse desde el editor de Apps Script, es decir, por alguien que ya tiene
+ * control del proyecto.
+ *
+ * Es segura de repetir: si el correo ya esta registrado, no duplica la fila.
+ *
+ * @return {!Object} Resultado legible de lo que hizo.
+ */
+function registrarmeComoAdministrador() {
+  var correo = (Session.getActiveUser().getEmail() || '').toLowerCase();
+  if (!correo) {
+    throw new Error('No se pudo leer el correo de la sesion. Ejecute la funcion ' +
+                    'desde el editor, con su cuenta corporativa.');
+  }
+
+  var usuarios = leerTabla('Usuarios');
+  var existente = null;
+  usuarios.forEach(function (u) {
+    if (String(u.Correo_ID || '').toLowerCase() === correo) existente = u;
+  });
+
+  var resultado;
+  if (existente) {
+    var actualizado = {};
+    Object.keys(existente).forEach(function (k) {
+      if (k !== '_fila') actualizado[k] = existente[k];
+    });
+    actualizado.Rol_ID = 'RO-08';
+    actualizado.Activo = 'SI';
+    escribirFila_('Usuarios', existente._fila, actualizado);
+    resultado = {
+      accion: 'actualizado',
+      idUsuario: existente.ID_Usuario,
+      correo: correo,
+      mensaje: 'El usuario ya existia: se le asigno el rol Administrador y quedo activo.'
+    };
+  } else {
+    // El nombre se deduce del correo y se puede corregir despues desde la
+    // pagina de Administracion.
+    var alias = correo.split('@')[0].replace(/[._-]+/g, ' ');
+    var nombre = alias.split(' ').map(function (p) {
+      return p ? p.charAt(0).toUpperCase() + p.slice(1) : '';
+    }).join(' ').trim();
+
+    var id = siguienteId_('Usuarios', 'ID_Usuario');
+    agregarFila_('Usuarios', {
+      ID_Usuario: id,
+      Nombre_Completo: nombre || correo,
+      Correo_ID: correo,
+      Cargo: 'Administrador del sistema',
+      Area: 'Plataformas Digitales',
+      Rol_ID: 'RO-08',
+      Activo: 'SI'
+    });
+    resultado = {
+      accion: 'creado',
+      idUsuario: id,
+      correo: correo,
+      nombre: nombre,
+      mensaje: 'Usuario creado con rol Administrador. Recargue la aplicacion web.'
+    };
+  }
+
+  resultado.siguientePaso = 'Abra la aplicacion web y use la pestana Admin para ' +
+                            'registrar al resto del equipo y corregir su nombre o cargo.';
+  Logger.log(JSON.stringify(resultado, null, 2));
+  return resultado;
+}

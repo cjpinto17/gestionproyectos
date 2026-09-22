@@ -215,21 +215,32 @@ Todo esto se hace desde el editor de Apps Script, con el código ya cargado.
 
 ## Parte 6 · Dar de alta a las personas (5 min)
 
-Al entrar por primera vez verás el mensaje *"Su correo no está asociado a ningún usuario"*.
-Es correcto: hay que registrarte.
+Al entrar por primera vez verás el mensaje *"Su correo no está asociado a ningún usuario del
+sistema"*. Es la señal de que **la aplicación quedó bien publicada**: te reconoció, leyó la
+hoja de Usuarios y no te encontró. Falta registrarte.
 
-1. Abre el Google Sheets **Parametrizacion_Plataformas_Completo** (el enlace salió en la
-   Parte 3, paso 6).
-2. Ve a la hoja **Usuarios** y agrega tu fila:
+**Forma rápida (recomendada):**
 
-   | ID_Usuario | Nombre_Completo | Correo_ID | Cargo | Area | Rol_ID | Activo |
-   | --- | --- | --- | --- | --- | --- | --- |
-   | USR-003 | Tu nombre | tu.correo@empresa.com | Gerente | Plataformas Digitales | RO-08 | SI |
+1. Vuelve al editor de Apps Script.
+2. Abre el archivo **`Setup.gs`**.
+3. En el desplegable de funciones elige **`registrarmeComoAdministrador`** y presiona
+   **Ejecutar**.
+4. Recarga la aplicación web. Ya entras, y verás la pestaña **Admin**.
 
-   `RO-08` es **Administrador**. Los demás roles están en la hoja `Roles`.
-3. Recarga la aplicación web: ya entras y ves la pestaña **Admin**.
-4. **De aquí en adelante no vuelvas a tocar el Sheets**: desde la pestaña Admin puedes crear
-   usuarios, asignarles rol y administrar todos los catálogos.
+Esa función te crea con rol **Administrador** usando el correo de tu sesión. Se puede repetir
+sin problema: si ya existes, solo se asegura de que estés activo y con ese rol.
+
+**Forma manual**, si prefieres verlo en la hoja: abre el Google Sheets
+**Parametrizacion_Plataformas_Completo**, ve a la pestaña **Usuarios** y agrega tu fila:
+
+| ID_Usuario | Nombre_Completo | Correo_ID | Cargo | Area | Rol_ID | Activo |
+| --- | --- | --- | --- | --- | --- | --- |
+| USR-003 | Tu nombre | tu.correo@empresa.com | Gerente | Plataformas Digitales | RO-08 | SI |
+
+`RO-08` es **Administrador**. Los demás roles están en la hoja `Roles`.
+
+**De aquí en adelante no vuelvas a tocar el Sheets**: desde la pestaña Admin creas usuarios,
+les asignas rol y administras todos los catálogos.
 
 > Recuerda: una persona **sin correo** también se puede registrar (por ejemplo un Business
 > Owner que aún no tiene cuenta). Queda asignable en las iniciativas, pero no podrá entrar a
@@ -266,7 +277,7 @@ Es correcto: hay que registrarte.
 
 | Mensaje | Qué significa | Qué hacer |
 | --- | --- | --- |
-| *Su correo no está asociado a ningún usuario* | No estás en la hoja Usuarios | Parte 6 |
+| *Su correo no está asociado a ningún usuario* | No estás en la hoja Usuarios | Ejecuta `registrarmeComoAdministrador` en `Setup.gs` (Parte 6) |
 | *Configuración faltante: ID_LIBRO_…* | No se ejecutó el instalador | Parte 3 |
 | *No se pudo crear la carpeta en Drive* | Falta permiso en la Unidad Compartida | Pide acceso de editor a la unidad `1ib9cr7o47ecPQ3KSpcAn_mBjiY9LzqaY` |
 | *Specified permissions are not sufficient…* | El proyecto cambió su lista de permisos | Vuelve a ejecutar la función: Google mostrará de nuevo la pantalla de autorización y hay que aceptarla |
