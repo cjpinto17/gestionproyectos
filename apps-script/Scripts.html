@@ -15,9 +15,16 @@ var accionModal = null;
 
 var TODAS = '*';
 var PAGINAS = ['home', 'iniciativas', 'gestion', 'roadmap', 'reportes', 'admin'];
+// Mismo codigo de color que los estados de iniciativa, para que el tablero y
+// la matriz se lean igual: gris lo que no arranca, amarillo lo que avanza,
+// verde lo terminado, rojo lo detenido.
 var CLASE_ESTADO = {
-  'EST-01': 'b-iniciar', 'EST-02': 'b-progreso', 'EST-03': 'b-aprobada',
-  'EST-04': 'b-bloqueada', 'EST-05': 'b-cancelada', 'EST-06': 'b-terminada'
+  'EST-01': 'e-por-iniciar',   // Por iniciar  · gris
+  'EST-02': 'e-en-progreso',   // En progreso  · amarillo
+  'EST-03': 'e-finalizada',    // Aprobada     · verde
+  'EST-04': 'e-en-pausa',      // Bloqueada    · rojo
+  'EST-05': 'e-cancelada',     // Cancelada    · gris tachado
+  'EST-06': 'e-finalizada'     // Terminada    · verde
 };
 // Codigo de color de los estados de iniciativa, definido por el negocio.
 var CLASE_ESTADO_INI = {
@@ -654,6 +661,9 @@ function tarjetaActividad(s) {
         esc(nombreEstado(s.Estado_Actual)) + '</span>' +
       (bloq ? '<button class="t-alerta" data-alerta="' + esc(s.ID_Solicitud) +
               '" aria-label="Ver causal de bloqueo">&#9888;&#65039;</button>' : '') +
+      (CTX.puedeEditarSolicitud ? '<button class="t-editar" data-editar-sol="' +
+              esc(s.ID_Solicitud) + '" title="Editar la solicitud" ' +
+              'aria-label="Editar la solicitud">&#9998;</button>' : '') +
     '</div>' +
     '<div class="t-ini">' + esc(s.Nombre_Iniciativa) + '</div>' +
     '<div class="t-nombre">' + esc(s.Nombre_Solicitud) + '</div>' +
@@ -745,11 +755,34 @@ function validarTransicionCliente(origen, destino) {
 
 /* --- Detalle de la actividad --- */
 document.addEventListener('click', function (e) {
+  var lapiz = e.target.closest('[data-editar-sol]');
+  if (lapiz) { editarSolicitud(lapiz.dataset.editarSol); return; }
   var alerta = e.target.closest('[data-alerta]');
   if (alerta) { verDetalle(alerta.dataset.alerta); return; }
   var t = e.target.closest('.tarjeta');
   if (t) verDetalle(t.dataset.id);
 });
+
+/** Edicion completa de una solicitud, para los roles autorizados. */
+function editarSolicitud(idSolicitud) {
+  abrirModal('Editar solicitud', idSolicitud, '<p class="nota">Cargando…</p>', null);
+  api('getFormularioSolicitud', idSolicitud).then(function (f) {
+    var campos = construirCampos(f.columnas, f.opciones, f.valores, null);
+    abrirModal('Editar solicitud',
+      idSolicitud + ' · ' + (f.valores.Nombre_Solicitud || ''),
+      '<div class="formulario">' +
+        '<p class="nota" style="margin:0">Si cambia la fase o el estado, el movimiento queda ' +
+        'registrado en la bitácora igual que un arrastre en el tablero.</p>' + campos + '</div>',
+      function () {
+        return api('actualizarSolicitudCompleta', idSolicitud, leerCampos(f.columnas))
+            .then(function (r) {
+              toast('Solicitud ' + idSolicitud + ' actualizada.');
+              invalidarCacheCliente();
+              cargarGestion(true);
+            });
+      });
+  }).catch(function (err) { cerrarModal(); fallo(err); });
+}
 
 function verDetalle(id) {
   abrirModal('Cargando…', id, '<p class="nota">Consultando la solicitud…</p>', null);
@@ -864,6 +897,13 @@ $('btnNueva').addEventListener('click', function () {
     '<label class="campo"><span>Responsable</span>' +
       sel('nsResponsable', CAT.usuarios, 'ID_Usuario', 'Nombre_Completo') + '</label>' +
     '<label class="campo"><span>Proceso impactado</span><input type="text" id="nsProceso"></label>' +
+    '<label class="campo"><span>Versión estimada</span>' +
+      '<select id="nsVersion"><option value="">(sin asignar)</option>' +
+      (DATOS.kanban.versiones || []).map(function (v) {
+        return '<option value="' + esc(v.valor) + '">' + esc(v.texto) + '</option>';
+      }).join('') + '</select>' +
+      '<small style="color:var(--ink-faint)">Las versiones se administran en el roadmap.</small>' +
+    '</label>' +
     '<label class="campo"><span>Documento de requerimiento (enlace de Drive)</span>' +
       '<input type="url" id="nsDoc" placeholder="https://docs.google.com/…">' +
       '<small style="color:var(--ink-faint)">Si lo deja vacío, el sistema clona la plantilla ' +
@@ -886,6 +926,7 @@ $('btnNueva').addEventListener('click', function () {
         Prioridad: $('nsPrioridad').value,
         Responsable_ID: $('nsResponsable').value,
         Proceso_Impactado: $('nsProceso').value,
+        Version_Semantica: $('nsVersion').value,
         Doc_Requerimiento_URL: $('nsDoc').value.trim()
       }).then(function (r) {
         toast('Solicitud ' + r.idSolicitud + ' creada.');
@@ -1219,10 +1260,6 @@ $('btnMigrar').addEventListener('click', function () {
         'Time y la antigüedad.</p>' +
         campos +
         '<label class="campo" style="flex-direction:row;align-items:center;gap:8px">' +
-          '<input type="checkbox" id="migCarpeta" style="width:auto">' +
-          '<span style="text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--ink)">' +
-          'Crear carpeta y documento en Drive</span></label>' +
-        '<label class="campo" style="flex-direction:row;align-items:center;gap:8px">' +
           '<input type="checkbox" id="migNotificar" style="width:auto">' +
           '<span style="text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--ink)">' +
           'Enviar notificación de Chat y correo</span></label>' +
@@ -1233,10 +1270,7 @@ $('btnMigrar').addEventListener('click', function () {
           throw new Error('Escriba el nombre de la solicitud.');
         }
         if (!datos.ID_Proyecto) throw new Error('Elija la iniciativa a la que pertenece.');
-        return api('migrarSolicitud', datos, {
-          crearCarpeta: $('migCarpeta').checked,
-          notificar: $('migNotificar').checked
-        }).then(function (r) {
+        return api('migrarSolicitud', datos, { notificar: $('migNotificar').checked }).then(function (r) {
           toast('Solicitud ' + r.idSolicitud + ' migrada.');
           (r.avisos || []).forEach(function (a) { toast(a, true); });
           invalidarCacheCliente();

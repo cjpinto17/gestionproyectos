@@ -40,7 +40,8 @@ function getFormularioMigracion() {
  * @param {!Object} datos Campos de la solicitud. ID_Solicitud es opcional: si
  *     no viene, se genera; si viene, se respeta para conservar el codigo que ya
  *     usaba el negocio.
- * @param {!Object=} opciones { crearCarpeta: boolean, notificar: boolean }
+ * @param {!Object=} opciones { notificar: boolean }. La migracion nunca crea
+ *     carpetas en Drive: trae informacion que ya vive en otra parte.
  * @return {!Object} { ok, idSolicitud, avisos }
  */
 function migrarSolicitud(datos, opciones) {
@@ -104,18 +105,6 @@ function migrarSolicitud(datos, opciones) {
     };
 
     validarRegistro_('Solicitudes', registro, true);
-
-    // Si la solicitud ya trae su documento, no se toca Drive: se guarda el
-    // enlace tal cual. La casilla de carpeta solo aplica cuando no hay enlace.
-    if (op.crearCarpeta && !registro.Doc_Requerimiento_URL) {
-      try {
-        var contenedor = crearContenedorDrive_(id, registro.Plataforma_ID, registro.Nombre_Solicitud);
-        registro.Carpeta_Drive_URL = contenedor.carpetaUrl;
-        registro.Doc_Requerimiento_URL = contenedor.docUrl;
-      } catch (e) {
-        avisos.push('No se pudo crear la carpeta en Drive: ' + e.message);
-      }
-    }
 
     agregarFila_('Solicitudes', registro);
 

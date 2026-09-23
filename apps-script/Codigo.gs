@@ -103,6 +103,7 @@ function getContextoUsuario() {
     rolNombre: nombreDeRol_(usuario.Rol_ID),
     esAdmin: esAdministrador(usuario.Rol_ID),
     puedeOperarTablero: puedeOperarTablero(usuario.Rol_ID),
+    puedeEditarSolicitud: puedeEditarSolicitud(usuario.Rol_ID),
     fasesEditables: permisos.fases === TODAS
         ? FASES.map(function (f) { return f.id; })
         : permisos.fases
@@ -481,7 +482,8 @@ function getDatosKanban(filtros) {
     estados: ESTADOS,
     tipos: TIPOS_SOLICITUD,
     prioridades: PRIORIDADES,
-    causales: CAUSALES_BLOQUEO
+    causales: CAUSALES_BLOQUEO,
+    versiones: getVersionesDisponibles()
   };
 }
 
@@ -530,6 +532,34 @@ function getDetalleSolicitud(idSolicitud) {
   return s;
 }
 
+/**
+ * Versiones registradas en el roadmap, para ofrecerlas en el formulario en
+ * lugar de que cada quien escriba la suya.
+ * @param {string=} idPlataforma Si se indica, solo las de esa plataforma.
+ * @return {!Array<{valor: string, texto: string}>}
+ */
+function getVersionesDisponibles(idPlataforma) {
+  var nombrePlataforma = mapaPlataformas();
+  var vistas = {};
+  var lista = [];
+
+  leerTabla('Roadmap_Versiones').forEach(function (v) {
+    if (!v.Numero_Version) return;
+    if (idPlataforma && v.Plataforma_ID !== idPlataforma) return;
+    var clave = v.Plataforma_ID + '|' + v.Numero_Version;
+    if (vistas[clave]) return;
+    vistas[clave] = true;
+    lista.push({
+      valor: v.Numero_Version,
+      texto: v.Numero_Version + ' · ' + (nombrePlataforma[v.Plataforma_ID] || v.Plataforma_ID) +
+             (v.Estado_Release ? ' (' + v.Estado_Release + ')' : '')
+    });
+  });
+
+  lista.sort(function (a, b) { return String(a.valor).localeCompare(String(b.valor), 'es'); });
+  return lista;
+}
+
 /* ================================================================== */
 /* 6. Solicitudes: escritura                                           */
 /* ================================================================== */
@@ -541,11 +571,19 @@ function getDetalleSolicitud(idSolicitud) {
  */
 function generarIdSolicitud_() {
   var hoy = Utilities.formatDate(new Date(), CONFIG.ZONA_HORARIA, 'yyyyMMdd');
-  var prefijo = CONFIG.PREFIJO_SOLICITUD + '-' + hoy + '-';
-  var existentes = leerTabla('Solicitudes').filter(function (s) {
-    return String(s.ID_Solicitud).indexOf(prefijo) === 0;
+
+  // El consecutivo continua la serie de toda la hoja, no se reinicia cada dia:
+  // asi el numero identifica la solicitud por si solo y nunca se repite, aunque
+  // dos se registren el mismo dia con semanas de diferencia.
+  var maximo = 0;
+  leerTabla('Solicitudes').forEach(function (s) {
+    var m = String(s.ID_Solicitud || '').match(/(\d+)\s*$/);
+    if (m) maximo = Math.max(maximo, Number(m[1]));
   });
-  return prefijo + ('00' + (existentes.length + 1)).slice(-3);
+
+  var siguiente = maximo + 1;
+  var relleno = siguiente < 1000 ? ('00' + siguiente).slice(-3) : String(siguiente);
+  return CONFIG.PREFIJO_SOLICITUD + '-' + hoy + '-' + relleno;
 }
 
 /**
@@ -689,6 +727,98 @@ function actualizarSolicitud(idSolicitud, cambios) {
 
     if (cambios.Version_Semantica) sincronizarRoadmap_(nuevo);
     return { ok: true, idSolicitud: idSolicitud };
+  });
+}
+
+/** Campos que administra el sistema y no se editan a mano. */
+var CAMPOS_NO_EDITABLES = ['ID_Solicitud', 'Fecha_Registro', 'Carpeta_Drive_URL',
+                           'Fecha_Ultimo_Cambio'];
+
+/**
+ * Devuelve el formulario de edicion de una solicitud: sus columnas editables,
+ * las listas desplegables resueltas y los valores actuales.
+ * @param {string} idSolicitud
+ * @return {!Object}
+ */
+function getFormularioSolicitud(idSolicitud) {
+  var ctx = exigirSesion_();
+  if (!puedeEditarSolicitud(ctx.rolId)) {
+    throw new Error('Su rol no puede editar solicitudes.');
+  }
+
+  var s = buscarPorPk_('Solicitudes', idSolicitud);
+  if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+
+  var columnas = getDefinicionTabla('Solicitudes').def.columnas.filter(function (c) {
+    return CAMPOS_NO_EDITABLES.indexOf(c.campo) === -1;
+  });
+  var opciones = opcionesDeReferencia_(columnas);
+  opciones.Version_Semantica = getVersionesDisponibles(s.Plataforma_ID);
+
+  return { idSolicitud: idSolicitud, columnas: columnas, opciones: opciones, valores: s };
+}
+
+/**
+ * Guarda la edicion completa de una solicitud.
+ *
+ * Si el cambio incluye la fase o el estado, queda registrado en la bitacora
+ * igual que un arrastre en el tablero: la trazabilidad no depende de por donde
+ * se haya hecho el cambio.
+ *
+ * @param {string} idSolicitud
+ * @param {!Object} datos
+ * @return {!Object}
+ */
+function actualizarSolicitudCompleta(idSolicitud, datos) {
+  var ctx = exigirSesion_();
+  if (!puedeEditarSolicitud(ctx.rolId)) {
+    throw new Error('Su rol no puede editar solicitudes.');
+  }
+
+  return conBloqueo_(function () {
+    var actual = buscarPorPk_('Solicitudes', idSolicitud);
+    if (!actual) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+
+    var nuevo = {};
+    Object.keys(actual).forEach(function (k) { if (k !== '_fila') nuevo[k] = actual[k]; });
+    Object.keys(datos).forEach(function (k) {
+      if (CAMPOS_NO_EDITABLES.indexOf(k) === -1) nuevo[k] = datos[k];
+    });
+
+    if (nuevo.Version_Semantica &&
+        !CONFIG.REGEX_VERSION_SEMANTICA.test(nuevo.Version_Semantica)) {
+      throw new Error('La version debe tener el formato vX.Y.Z, por ejemplo v2.4.0.');
+    }
+    var bloqueo = String(nuevo.Tiene_Bloqueo || 'NO').toUpperCase().indexOf('S') === 0 ? 'SI' : 'NO';
+    nuevo.Tiene_Bloqueo = bloqueo;
+    if (bloqueo === 'SI' && !nuevo.Causal_Bloqueo) {
+      throw new Error('La solicitud queda bloqueada: indique la causal.');
+    }
+    if (bloqueo === 'NO') nuevo.Causal_Bloqueo = '';
+
+    normalizarFechas_('Solicitudes', nuevo);
+    validarRegistro_('Solicitudes', nuevo, false);
+
+    var cambioFase = nuevo.Fase_Actual !== actual.Fase_Actual;
+    var cambioEstado = nuevo.Estado_Actual !== actual.Estado_Actual;
+    if (cambioFase || cambioEstado) nuevo.Fecha_Ultimo_Cambio = new Date();
+
+    escribirFila_('Solicitudes', actual._fila, nuevo);
+
+    if (cambioFase || cambioEstado) {
+      registrarTransicionAudit({
+        idSolicitud: idSolicitud,
+        faseOrigen: actual.Fase_Actual,
+        faseDestino: nuevo.Fase_Actual,
+        estadoOrigen: actual.Estado_Actual,
+        estadoDestino: nuevo.Estado_Actual,
+        desde: aFecha_(actual.Fecha_Ultimo_Cambio) || aFecha_(actual.Fecha_Registro),
+        correoUsuario: ctx.correo + ' (edicion)'
+      });
+    }
+    if (nuevo.Version_Semantica) sincronizarRoadmap_(nuevo);
+
+    return { ok: true, idSolicitud: idSolicitud, huboTransicion: cambioFase || cambioEstado };
   });
 }
 

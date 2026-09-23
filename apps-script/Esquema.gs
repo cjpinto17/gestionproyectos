@@ -110,7 +110,9 @@ var ROLES = [
   { id: 'RO-06', nombre: 'Equipo UAT' },
   { id: 'RO-07', nombre: 'Comite CAB' },
   { id: 'RO-08', nombre: 'Administrador' },
-  { id: 'RO-09', nombre: 'Business Owner' }
+  { id: 'RO-09', nombre: 'Business Owner' },
+  { id: 'RO-10', nombre: 'PM Fabrica SW' },
+  { id: 'RO-11', nombre: 'Lider de proyecto FS' }
 ];
 
 /**

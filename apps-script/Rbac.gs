@@ -63,6 +63,17 @@ var MATRIZ_PERMISOS = {
     campos: TODAS,
     override: true
   },
+  'RO-10': { // PM de la Fabrica de Software: coordina la ejecucion y mantiene
+             // al dia los datos de las solicitudes en todas las fases.
+    fases: TODAS,
+    campos: TODAS,
+    override: false
+  },
+  'RO-11': { // Lider de proyecto de Fabrica de Software
+    fases: TODAS,
+    campos: TODAS,
+    override: false
+  },
   'RO-09': { // Business Owner: duena de la iniciativa en el negocio.
              // Registra demanda y consulta todo, pero no opera el embudo.
     fases: ['FAS-01'],
@@ -89,6 +100,22 @@ var ROLES_OPERAN_TABLERO = ['RO-02', 'RO-08'];
  */
 function puedeOperarTablero(rolId) {
   return ROLES_OPERAN_TABLERO.indexOf(rolId) !== -1;
+}
+
+/**
+ * Roles que pueden editar los datos de una solicitud ya creada.
+ * Mover la tarjeta y editar su contenido son cosas distintas: la fabrica
+ * mantiene al dia fechas, version y responsables sin gobernar el avance del
+ * embudo, que sigue siendo del Product Owner.
+ */
+var ROLES_EDITAN_SOLICITUD = ['RO-02', 'RO-08', 'RO-10', 'RO-11'];
+
+/**
+ * @param {string} rolId
+ * @return {boolean}
+ */
+function puedeEditarSolicitud(rolId) {
+  return ROLES_EDITAN_SOLICITUD.indexOf(rolId) !== -1;
 }
 
 /**

@@ -343,6 +343,32 @@ copia de la plantilla dentro. Aplica igual en el alta normal y en la migración.
   fecha y hora de registro, y fase con estado. El encabezado lleva la iniciativa y la
   plataforma, que es el contexto que busca quien lee el espacio.
 
+### D-35 · Editar una solicitud y mover su tarjeta son permisos distintos
+Se agregaron los roles **`RO-10` PM Fábrica SW** y **`RO-11` Líder de proyecto FS**. Junto con
+el Product Owner y el Administrador, pueden **editar** todos los datos de una solicitud desde
+el lápiz de la tarjeta. Mover tarjetas en el tablero sigue siendo exclusivo del Product Owner
+y el Administrador (D-32): la fábrica mantiene al día fechas, versión y responsables sin
+gobernar el avance del embudo.
+
+Si la edición cambia la fase o el estado, **queda en la bitácora** igual que un arrastre: la
+trazabilidad no puede depender de por dónde se hizo el cambio. `ID_Solicitud`,
+`Fecha_Registro` y `Carpeta_Drive_URL` no son editables, porque son la identidad y la historia
+del registro.
+
+### D-36 · La versión se elige, no se escribe
+El campo de versión pasa a ser una lista con las versiones registradas en `Roadmap_Versiones`,
+mostrando plataforma y estado del release. Escribirla a mano producía variantes del mismo
+número (`v2.4`, `V2.4.0`, `2.4.0`) que rompían el agrupamiento del roadmap.
+
+### D-37 · El consecutivo continúa la serie de la hoja
+`SOL-AAAAMMDD-###` ya no reinicia el contador cada día: toma el mayor número existente en la
+hoja y sigue. Antes, dos solicitudes registradas en días distintos podían llevar el mismo
+`001`, y al hablar de "la solicitud 3" nadie sabía de cuál se trataba.
+
+### D-38 · Los estados de solicitud usan el mismo código de color
+El tablero y la matriz se leen igual: gris lo que no arranca, amarillo lo que avanza, verde lo
+aprobado y terminado, rojo lo bloqueado, gris tachado lo cancelado.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
