@@ -261,6 +261,29 @@ está preparada para ir embebida.
 - **El sitio no guarda datos**: es solo la ventana. Todo sigue viviendo en las hojas de
   cálculo y en Drive.
 
+### Si el botón de editar la implementación no funciona
+
+Pasa, y hay salida. Primero, las tres trampas frecuentes:
+
+1. **El lápiz está arriba a la derecha de la tarjeta** de la implementación, no junto al
+   nombre. Es fácil no verlo y terminar en *Nueva implementación*.
+2. Al abrirlo, el desplegable **Versión** muestra un número (1, 2, 3…). Hay que abrirlo y
+   elegir **Nueva versión**, que aparece *arriba* de los números. Elegir un número existente
+   no publica nada nuevo.
+3. Si la lista **no ofrece "Nueva versión"**, casi siempre es porque esa implementación es de
+   tipo **Prueba** (URL terminada en `/dev`) y no una aplicación web, o porque el proyecto lo
+   creó otra cuenta y usted no es el propietario.
+
+Y si aun así no se deja, hay dos caminos que **no pasan por ese botón**:
+
+- **Publicar desde GitHub.** Con el secreto `DEPLOYMENT_ID` configurado (Parte 2, paso A.3),
+  cada cambio actualiza esa misma implementación, con la misma URL, sin abrir el editor.
+- **Repartir la dirección del sitio y no la del `/exec`.** Si algún día toca crear una
+  implementación nueva, usted cambia el enlace dentro del sitio en medio minuto y el equipo no
+  se entera. Esta es la razón de fondo para montar el sitio aunque la URL hoy sea estable: es
+  lo único que hace que un error de implementación no cueste reenviarle el enlace a todo el
+  mundo.
+
 ## Parte 6 · Dar de alta a las personas (5 min)
 
 Al entrar por primera vez verás el mensaje *"Su correo no está asociado a ningún usuario del
