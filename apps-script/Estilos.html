@@ -226,7 +226,9 @@
                        padding:7px 12px;border:0;background:transparent;color:var(--ink-muted);
                        cursor:pointer;white-space:nowrap}
   .vista-toggle button+button{border-left:1px solid var(--line)}
-  .vista-toggle button.activa{background:var(--navy);color:#fff}
+  /* Verde esmeralda con texto azul, el mismo par que usa la marca en los
+     botones principales: resalta mucho mas que el azul sobre azul. */
+  .vista-toggle button.activa{background:var(--esmeralda);color:var(--navy)}
 
   /* Iniciativas agrupadas por prioridad */
   .prioridades{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));
@@ -239,7 +241,9 @@
   .pr-cab{position:sticky;top:-7px;z-index:2;display:flex;align-items:center;
           justify-content:space-between;gap:6px;background:#EDF1F8;
           padding:3px 2px 7px;margin:-2px 0 -3px}
-  .pr-cab .cuenta{font-family:var(--display);font-weight:800;font-size:14px;color:var(--navy);
+  /* El conteo en verde oscuro: se despega del fondo azulado de la columna.
+     No se usa --verde a secas porque sobre ese fondo claro queda muy tenue. */
+  .pr-cab .cuenta{font-family:var(--display);font-weight:800;font-size:14px;color:#0F7A47;
                   font-variant-numeric:tabular-nums}
   .pr-vacia{font-size:11.5px;color:var(--ink-faint);padding:4px 2px}
   .ini .clasif{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
