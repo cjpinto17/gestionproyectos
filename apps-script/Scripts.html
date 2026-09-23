@@ -89,6 +89,20 @@ function fechaHora(valor) {
   return fecha(valor) + ' ' + ('0' + d.getHours()).slice(-2) + ':' +
          ('0' + d.getMinutes()).slice(-2);
 }
+/**
+ * Valor para un <input type="date">: aaaa-mm-dd en la hora LOCAL.
+ *
+ * No se usa toISOString(), que convierte a UTC: una fecha registrada a las
+ * 7 de la noche en Colombia (UTC-5) ya es el dia siguiente en UTC, y el
+ * formulario mostraria un dia de mas. Al guardar, ese dia de mas se quedaria.
+ */
+function fechaInput(valor) {
+  if (!valor) return '';
+  var d = new Date(valor);
+  if (isNaN(d.getTime())) return '';
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+         ('0' + d.getDate()).slice(-2);
+}
 function etiquetaMes(clave) {
   var m = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   var p = String(clave).split('-');
@@ -772,7 +786,9 @@ function editarSolicitud(idSolicitud) {
       idSolicitud + ' · ' + (f.valores.Nombre_Solicitud || ''),
       '<div class="formulario">' +
         '<p class="nota" style="margin:0">Si cambia la fase o el estado, el movimiento queda ' +
-        'registrado en la bitácora igual que un arrastre en el tablero.</p>' + campos + '</div>',
+        'registrado en la bitácora igual que un arrastre en el tablero. La fecha de registro ' +
+        'es la que alimenta el Lead Time y la antigüedad: corríjala solo si la que quedó no ' +
+        'es la real.</p>' + campos + '</div>',
       function () {
         return api('actualizarSolicitudCompleta', idSolicitud, leerCampos(f.columnas))
             .then(function (r) {
@@ -1206,12 +1222,8 @@ function construirCampos(columnas, opciones, registro, campoBloqueado) {
     } else if (c.tipo === 'longtext') {
       control = '<textarea id="campo_' + c.campo + '" rows="3"' + bloqueado + '>' + esc(valor) + '</textarea>';
     } else if (c.tipo === 'date' || c.tipo === 'datetime') {
-      var iso = '';
-      if (valor) {
-        var d = new Date(valor);
-        if (!isNaN(d.getTime())) iso = d.toISOString().slice(0, 10);
-      }
-      control = '<input type="date" id="campo_' + c.campo + '" value="' + iso + '"' + bloqueado + '>';
+      control = '<input type="date" id="campo_' + c.campo + '" value="' +
+                fechaInput(valor) + '"' + bloqueado + '>';
     } else {
       var tipoInput = (c.tipo === 'number' || c.tipo === 'decimal') ? 'number'
                     : (c.tipo === 'email' ? 'email' : 'text');

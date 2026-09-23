@@ -779,8 +779,7 @@ function actualizarSolicitud(idSolicitud, cambios) {
 }
 
 /** Campos que administra el sistema y no se editan a mano. */
-var CAMPOS_NO_EDITABLES = ['ID_Solicitud', 'Fecha_Registro', 'Carpeta_Drive_URL',
-                           'Fecha_Ultimo_Cambio'];
+var CAMPOS_NO_EDITABLES = ['ID_Solicitud', 'Carpeta_Drive_URL', 'Fecha_Ultimo_Cambio'];
 
 /**
  * Devuelve el formulario de edicion de una solicitud: sus columnas editables,
@@ -804,6 +803,51 @@ function getFormularioSolicitud(idSolicitud) {
   opciones.Version_Semantica = getVersionesDisponibles(s.Plataforma_ID);
 
   return { idSolicitud: idSolicitud, columnas: columnas, opciones: opciones, valores: s };
+}
+
+/**
+ * Resuelve la fecha de registro que queda tras una edicion.
+ *
+ * La fecha de registro es editable porque la que quedo puede no ser la real:
+ * en la carga inicial y en las migraciones se registro el dia en que el dato
+ * entro al sistema, no el dia en que el negocio recibio la solicitud. De ella
+ * dependen el Lead Time y la antiguedad, asi que conviene poder corregirla.
+ *
+ * Dos cuidados:
+ *  - El formulario entrega solo el dia (aaaa-mm-dd), sin hora. Si el dia no
+ *    cambio se conserva la estampa original completa; de lo contrario, guardar
+ *    cualquier otro campo iria borrando la hora de registro.
+ *  - No se acepta una fecha futura: daria Lead Time negativo y ensuciaria todos
+ *    los indicadores.
+ *
+ * @param {*} valorNuevo Lo que viene del formulario.
+ * @param {*} valorActual Lo que hay hoy en la hoja.
+ * @return {!Date}
+ * @private
+ */
+function fechaRegistroEditada_(valorNuevo, valorActual) {
+  var nueva = aFechaDeFormulario_(valorNuevo);
+  if (!nueva) throw new Error('La fecha de registro es obligatoria.');
+
+  var anterior = aFecha_(valorActual);
+  if (anterior && mismoDia_(nueva, anterior)) return anterior;
+
+  var ahora = new Date();
+  if (nueva.getTime() > ahora.getTime()) {
+    throw new Error('La fecha de registro no puede ser futura.');
+  }
+  return nueva;
+}
+
+/**
+ * @param {!Date} a
+ * @param {!Date} b
+ * @return {boolean} true si caen en el mismo dia calendario local.
+ * @private
+ */
+function mismoDia_(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() &&
+         a.getDate() === b.getDate();
 }
 
 /**
@@ -833,6 +877,7 @@ function actualizarSolicitudCompleta(idSolicitud, datos) {
       if (CAMPOS_NO_EDITABLES.indexOf(k) === -1) nuevo[k] = datos[k];
     });
 
+    nuevo.Fecha_Registro = fechaRegistroEditada_(nuevo.Fecha_Registro, actual.Fecha_Registro);
     nuevo.Version_Semantica = limpiarVersion_(nuevo.Version_Semantica);
     validarVersionRoadmap_(nuevo.Version_Semantica, nuevo.Plataforma_ID);
     var bloqueo = String(nuevo.Tiene_Bloqueo || 'NO').toUpperCase().indexOf('S') === 0 ? 'SI' : 'NO';

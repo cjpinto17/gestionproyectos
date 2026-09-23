@@ -351,9 +351,9 @@ y el Administrador (D-32): la fábrica mantiene al día fechas, versión y respo
 gobernar el avance del embudo.
 
 Si la edición cambia la fase o el estado, **queda en la bitácora** igual que un arrastre: la
-trazabilidad no puede depender de por dónde se hizo el cambio. `ID_Solicitud`,
-`Fecha_Registro` y `Carpeta_Drive_URL` no son editables, porque son la identidad y la historia
-del registro.
+trazabilidad no puede depender de por dónde se hizo el cambio. `ID_Solicitud` y
+`Carpeta_Drive_URL` no son editables, porque son la identidad del registro. *(La fecha de
+registro sí se volvió editable más adelante: ver D-42.)*
 
 ### D-36 · La versión se elige, y el catálogo manda
 El campo de versión es una lista con las versiones registradas en `Roadmap_Versiones`. La
@@ -418,6 +418,32 @@ observación complementa, no reemplaza.
 Al levantar el bloqueo la observación se borra junto con la causal. Describe una situación que
 ya terminó, y dejarla haría creer que la solicitud sigue trabada. La historia del bloqueo no
 se pierde: queda en `Auditoria_Transiciones`, que es donde vive la trazabilidad.
+
+### D-42 · La fecha de registro se puede corregir
+
+`Fecha_Registro` nació como campo no editable, tratada como parte de la historia del registro.
+En la práctica no siempre lo es: en la carga inicial y en las migraciones quedó **el día en que
+el dato entró al sistema**, no el día en que el negocio recibió la solicitud. Y de esa fecha
+cuelgan el Lead Time, el Time to Market y toda la antigüedad. Un dato equivocado que no se
+puede corregir no protege la historia: la falsea.
+
+Queda editable desde el lápiz de la tarjeta, para los mismos roles de D-35, con dos
+salvaguardas:
+
+- **No puede ser futura.** Daría Lead Time negativo y ensuciaría todos los indicadores.
+- **Si el día no cambia, se conserva la estampa original con su hora.** El formulario entrega
+  solo el día (`aaaa-mm-dd`); sin este cuidado, guardar cualquier otro campo iría borrando la
+  hora de registro, que es la que sale en la notificación de Chat.
+
+**Corrección de paso:** el formulario armaba el valor de los campos de fecha con
+`toISOString()`, que convierte a UTC. Una solicitud registrada a las 7 de la noche en Colombia
+(UTC-5) ya es el día siguiente en UTC, así que el formulario mostraba un día de más — y ahora
+que la fecha es editable, ese día de más se habría guardado con solo abrir y guardar. El valor
+se arma con la fecha local (`fechaInput()`), como el resto de la interfaz.
+
+El cambio de la fecha no se registra en `Auditoria_Transiciones`: esa bitácora modela
+movimientos de fase y estado, y una fila extra con la misma fase distorsionaría los tiempos por
+fase que alimentan el SLA.
 
 ## Supuestos abiertos
 
