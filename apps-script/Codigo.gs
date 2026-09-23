@@ -548,6 +548,24 @@ function generarIdSolicitud_() {
 }
 
 /**
+ * Siguiente numero de orden dentro de una iniciativa.
+ * El orden no se pide en el formulario: la solicitud nueva entra al final de
+ * la fila de su iniciativa, y desde ahi el negocio la reordena si hace falta.
+ * @param {string} idProyecto
+ * @return {number}
+ * @private
+ */
+function siguienteOrdenIniciativa_(idProyecto) {
+  var maximo = 0;
+  leerTabla('Solicitudes').forEach(function (s) {
+    if (s.ID_Proyecto !== idProyecto) return;
+    var n = Number(s.Orden_Iniciativa);
+    if (!isNaN(n)) maximo = Math.max(maximo, n);
+  });
+  return maximo + 1;
+}
+
+/**
  * Registra una nueva solicitud: valida, asigna ID, crea la carpeta en Drive
  * con el documento de requerimiento, escribe la fila, registra la auditoria
  * inicial y notifica.
@@ -573,9 +591,11 @@ function crearSolicitud(datos) {
       Solicitante_ID: datos.Solicitante_ID || ctx.idUsuario,
       Tipo_Solicitud: datos.Tipo_Solicitud || '',
       Prioridad: datos.Prioridad || '',
-      Orden_Iniciativa: datos.Orden_Iniciativa || '',
+      Orden_Iniciativa: siguienteOrdenIniciativa_(datos.ID_Proyecto),
       Proceso_Impactado: datos.Proceso_Impactado || '',
-      Doc_Requerimiento_URL: '',
+      // Si la persona ya tiene el documento en Drive se conserva su enlace y no
+      // se clona la plantilla: quedaria un duplicado vacio al lado del bueno.
+      Doc_Requerimiento_URL: String(datos.Doc_Requerimiento_URL || '').trim(),
       Carpeta_Drive_URL: '',
       Fase_Actual: 'FAS-01',
       Estado_Actual: 'EST-01',
@@ -593,12 +613,18 @@ function crearSolicitud(datos) {
       throw new Error('La iniciativa ' + registro.ID_Proyecto + ' no existe.');
     }
 
+    var docPropio = !!registro.Doc_Requerimiento_URL;
+    if (docPropio && !/^https?:\/\//i.test(registro.Doc_Requerimiento_URL)) {
+      throw new Error('El enlace del documento debe empezar por http:// o https://');
+    }
+
     var avisos = [];
     var contenedor = { carpetaUrl: '', docUrl: '' };
     try {
-      contenedor = crearContenedorDrive_(id, registro.Plataforma_ID, registro.Nombre_Solicitud);
+      contenedor = crearContenedorDrive_(id, registro.Plataforma_ID,
+                                         registro.Nombre_Solicitud, !docPropio);
       registro.Carpeta_Drive_URL = contenedor.carpetaUrl;
-      registro.Doc_Requerimiento_URL = contenedor.docUrl;
+      if (!docPropio) registro.Doc_Requerimiento_URL = contenedor.docUrl;
     } catch (e) {
       // La solicitud no se pierde por un problema de Drive: se avisa y sigue.
       avisos.push('No se pudo crear la carpeta en Drive: ' + e.message);
@@ -880,10 +906,12 @@ function registrarTransicionAudit(datos) {
  * @param {string} idSolicitud
  * @param {string} idPlataforma
  * @param {string} nombreSolicitud
+ * @param {boolean=} clonarPlantilla false cuando la solicitud ya trae su propio
+ *     documento: se crea la carpeta pero no se duplica la plantilla.
  * @return {{carpetaUrl: string, docUrl: string}}
  * @private
  */
-function crearContenedorDrive_(idSolicitud, idPlataforma, nombreSolicitud) {
+function crearContenedorDrive_(idSolicitud, idPlataforma, nombreSolicitud, clonarPlantilla) {
   var raiz = DriveApp.getFolderById(CONFIG.DRIVE_UNIDAD_RAIZ_ID);
   var hoy = Utilities.formatDate(new Date(), CONFIG.ZONA_HORARIA, 'yyyyMMdd');
   var plataforma = mapaPlataformas()[idPlataforma] || idPlataforma || 'Sin plataforma';
@@ -894,7 +922,7 @@ function crearContenedorDrive_(idSolicitud, idPlataforma, nombreSolicitud) {
 
   var docUrl = '';
   var idPlantilla = getProp(PROP_KEYS.PLANTILLA_REQUERIMIENTO, false);
-  if (idPlantilla) {
+  if (clonarPlantilla !== false && idPlantilla) {
     var copia = DriveApp.getFileById(idPlantilla)
         .makeCopy('Requerimiento_' + idSolicitud, carpeta);
     docUrl = copia.getUrl();

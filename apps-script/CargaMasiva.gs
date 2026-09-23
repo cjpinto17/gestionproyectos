@@ -291,7 +291,8 @@ function crearSolicitudDesdeCarga_(datos, ctx) {
       Solicitante_ID: datos.Solicitante_ID || ctx.idUsuario,
       Tipo_Solicitud: datos.Tipo_Solicitud || '',
       Prioridad: datos.Prioridad || '',
-      Orden_Iniciativa: datos.Orden_Iniciativa || '',
+      Orden_Iniciativa: datos.Orden_Iniciativa ||
+                        siguienteOrdenIniciativa_(datos.ID_Proyecto),
       Proceso_Impactado: datos.Proceso_Impactado || '',
       Doc_Requerimiento_URL: '',
       Carpeta_Drive_URL: '',

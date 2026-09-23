@@ -832,18 +832,18 @@ function formularioBloqueo(id) {
     });
 }
 
-/* --- Nueva actividad --- */
+/* --- Nueva solicitud --- */
 $('btnNueva').addEventListener('click', function () {
   var sel = function (id, lista, valor, texto) {
     return '<select id="' + id + '">' + lista.map(function (x) {
       return '<option value="' + esc(x[valor]) + '">' + esc(x[texto]) + '</option>';
     }).join('') + '</select>';
   };
-  abrirModal('Nueva actividad', 'Se creará la carpeta en Drive y el documento de requerimiento',
+  abrirModal('Nueva solicitud', 'Se creará la carpeta en Drive para esta solicitud',
     '<div class="formulario">' +
     '<label class="campo"><span>Iniciativa *</span>' +
       sel('nsProyecto', CAT.proyectos, 'ID_Proyecto', 'Nombre_Proyecto') + '</label>' +
-    '<label class="campo"><span>Nombre de la actividad *</span>' +
+    '<label class="campo"><span>Nombre de la solicitud *</span>' +
       '<input type="text" id="nsNombre" maxlength="120"></label>' +
     '<label class="campo"><span>Objetivo</span><textarea id="nsObjetivo" rows="3"></textarea></label>' +
     '<label class="campo"><span>Entregable</span><input type="text" id="nsEntregable"></label>' +
@@ -853,15 +853,22 @@ $('btnNueva').addEventListener('click', function () {
       sel('nsTipo', CAT.tipos, 'id', 'nombre') + '</label>' +
     '<label class="campo"><span>Prioridad *</span>' +
       sel('nsPrioridad', CAT.prioridades, 'id', 'nombre') + '</label>' +
-    '<label class="campo"><span>Orden dentro de la iniciativa</span>' +
-      '<input type="number" id="nsOrden" min="1" step="1" placeholder="1, 2, 3…"></label>' +
+
     '<label class="campo"><span>Responsable</span>' +
       sel('nsResponsable', CAT.usuarios, 'ID_Usuario', 'Nombre_Completo') + '</label>' +
     '<label class="campo"><span>Proceso impactado</span><input type="text" id="nsProceso"></label>' +
+    '<label class="campo"><span>Documento de requerimiento (enlace de Drive)</span>' +
+      '<input type="url" id="nsDoc" placeholder="https://docs.google.com/…">' +
+      '<small style="color:var(--ink-faint)">Si lo deja vacío, el sistema clona la plantilla ' +
+      'oficial dentro de la carpeta nueva.</small></label>' +
     '</div>',
     function () {
       var nombre = $('nsNombre').value.trim();
-      if (!nombre) throw new Error('Escriba el nombre de la actividad.');
+      if (!nombre) throw new Error('Escriba el nombre de la solicitud.');
+      var doc = $('nsDoc').value.trim();
+      if (doc && !/^https?:\/\//i.test(doc)) {
+        throw new Error('El enlace del documento debe empezar por http:// o https://');
+      }
       return api('crearSolicitud', {
         Nombre_Solicitud: nombre,
         Objetivo: $('nsObjetivo').value,
@@ -870,11 +877,11 @@ $('btnNueva').addEventListener('click', function () {
         Plataforma_ID: $('nsPlataforma').value,
         Tipo_Solicitud: $('nsTipo').value,
         Prioridad: $('nsPrioridad').value,
-        Orden_Iniciativa: $('nsOrden').value,
         Responsable_ID: $('nsResponsable').value,
-        Proceso_Impactado: $('nsProceso').value
+        Proceso_Impactado: $('nsProceso').value,
+        Doc_Requerimiento_URL: $('nsDoc').value.trim()
       }).then(function (r) {
-        toast('Actividad ' + r.idSolicitud + ' creada.');
+        toast('Solicitud ' + r.idSolicitud + ' creada.');
         (r.avisos || []).forEach(function (a) { toast(a, true); });
         invalidarCacheCliente();
         cargarGestion(true);

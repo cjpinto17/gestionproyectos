@@ -20,7 +20,7 @@ var PROP_KEYS = {
 
 var CONFIG = {
   /** Nombre visible de la aplicacion en el navbar y en los correos. */
-  APP_NOMBRE: 'Plataformas Digitales',
+  APP_NOMBRE: 'Gestion de Plataformas Digitales',
   APP_SUBTITULO: 'Gestion de Proyectos, Iniciativas y Demandas Digitales',
 
   /** Zona horaria y formatos. Decision tomada: America/Bogota. */

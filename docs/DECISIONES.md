@@ -299,6 +299,21 @@ cada fecha capturada se guardaría **corrida un día hacia atrás**. `aFechaDeFo
 la reconstruye en horario local, y se aplica tanto en la migración como en el CRUD de
 administración.
 
+### D-30 · El orden dentro de la iniciativa lo asigna el sistema
+El formulario de alta ya no pide el orden: la solicitud nueva entra al final de la fila de su
+iniciativa (`siguienteOrdenIniciativa_()`) y desde ahí el negocio la reordena si hace falta.
+Pedirlo obligaba a quien registra a saber cuántas solicitudes existían antes, un dato que la
+persona no tiene a la vista y que se equivoca con facilidad.
+
+La migración y la carga masiva **sí** admiten un orden explícito —ahí el negocio lo está
+trayendo de su fuente— y solo lo completan cuando viene vacío.
+
+### D-31 · Documento de requerimiento propio
+El alta acepta el enlace de un documento que ya exista en Drive. Cuando se informa, se crea
+la carpeta de la solicitud pero **no se clona la plantilla**: de lo contrario quedaría un
+documento vacío al lado del bueno, y nadie sabría cuál es el válido. Si el campo se deja
+vacío, sigue clonándose la plantilla oficial como hasta ahora.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
