@@ -575,6 +575,13 @@ decir, cuando la están usando.
    lee, y corre a nombre del dueño del proyecto, así que no puede llamar a nada que dependa de
    quién pregunta. Consume unos 14 minutos diarios de los 90 que Google concede.
 
+**Cómo se comprueba.** `medirRendimiento()` tiene tres corridas, no dos: en frío, en caliente
+y **después de una escritura** — que es el caso que de verdad vive el equipo y el que las otras
+dos no alcanzan a ver, porque empiezan botando toda la caché. La tercera no escribe nada en las
+hojas: reproduce el estado exacto en que queda una escritura (tablas intactas, cálculos
+invalidados), que es justamente lo que el parcheo de la fila consigue. El informe indica además
+si el calentamiento automático quedó instalado.
+
 **Un error encontrado por la prueba:** el sello de versión de D-45 se armaba con la hora en
 milisegundos. Dos sellos generados en el mismo milisegundo salían iguales, de modo que una
 escritura podía **no** invalidar lo que se había calculado un instante antes, y se habría

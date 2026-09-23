@@ -382,19 +382,53 @@ function medirRendimiento() {
     medir('getMetricasHome', function () { return getMetricasHome(12); })
   ];
 
+  // Tercera corrida: como queda la aplicacion justo DESPUES de que alguien
+  // mueve una tarjeta. Ese es el caso que de verdad vive el equipo, y el que
+  // las dos corridas anteriores no alcanzan a ver.
+  //
+  // No se escribe nada en las hojas para medirlo: se reproduce el estado exacto
+  // en que queda una escritura. Desde que la fila se parcha en vez de botar la
+  // tabla, una escritura deja intactas las tablas en cache y solo invalida lo
+  // calculado, que es precisamente lo que se hace aqui.
+  MEMO_TABLAS = {};
+  nuevaVersionDatos_();
+  var trasEscritura = [
+    medir('getCatalogos', function () { return getCatalogos(); }),
+    medir('getMatrizIniciativas', function () { return getMatrizIniciativas(); }),
+    medir('getDatosKanban', function () { return getDatosKanban({}); }),
+    medir('getMetricasHome', function () { return getMetricasHome(12); })
+  ];
+
   var total = function (lista) {
     return lista.reduce(function (a, x) { return a + (x.ms || 0); }, 0);
   };
   var resultado = {
     sinCache: frio,
     conCache: caliente,
+    trasEscritura: trasEscritura,
     totalSinCacheMs: total(frio),
     totalConCacheMs: total(caliente),
+    totalTrasEscrituraMs: total(trasEscritura),
+    calentamientoProgramado: hayCalentamientoProgramado_(),
     cacheSegundos: CONFIG.CACHE_SEGUNDOS,
     resultadosSegundos: CONFIG.CACHE_RESULTADOS_SEGUNDOS
   };
   Logger.log(JSON.stringify(resultado, null, 2));
   return resultado;
+}
+
+/**
+ * @return {boolean} true si el calentamiento automatico ya quedo instalado.
+ * @private
+ */
+function hayCalentamientoProgramado_() {
+  try {
+    return ScriptApp.getProjectTriggers().some(function (t) {
+      return t.getHandlerFunction() === 'calentarCache';
+    });
+  } catch (e) {
+    return false;   // sin permiso para consultarlo; no es un error de medicion
+  }
 }
 
 /* ================================================================== */
