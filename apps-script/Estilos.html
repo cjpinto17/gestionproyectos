@@ -219,6 +219,33 @@
   .mz-conteo{position:sticky;top:-7px;z-index:2;background:#EDF1F8;font-family:var(--display);font-weight:700;
              font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);
              padding:2px 2px 6px;margin:-2px 0 -3px}
+  /* Selector de vista del portafolio: matriz o columnas por prioridad */
+  .vista-toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;
+                overflow:hidden;background:var(--surface)}
+  .vista-toggle button{font-family:var(--display);font-weight:600;font-size:11.5px;
+                       padding:7px 12px;border:0;background:transparent;color:var(--ink-muted);
+                       cursor:pointer;white-space:nowrap}
+  .vista-toggle button+button{border-left:1px solid var(--line)}
+  .vista-toggle button.activa{background:var(--navy);color:#fff}
+
+  /* Iniciativas agrupadas por prioridad */
+  .prioridades{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));
+               gap:10px;align-items:start}
+  /* display:grid le gana al hidden del atributo, que solo vale display:none */
+  .prioridades[hidden]{display:none}
+  .pr-col{background:#EDF1F8;border-radius:8px;padding:7px;display:flex;flex-direction:column;
+          gap:7px;max-height:calc(100vh - 250px);overflow-y:auto}
+  .pr-col.vacia{background:repeating-linear-gradient(45deg,#F2F5FA,#F2F5FA 7px,#EDF1F8 7px,#EDF1F8 14px)}
+  .pr-cab{position:sticky;top:-7px;z-index:2;display:flex;align-items:center;
+          justify-content:space-between;gap:6px;background:#EDF1F8;
+          padding:3px 2px 7px;margin:-2px 0 -3px}
+  .pr-cab .cuenta{font-family:var(--display);font-weight:800;font-size:14px;color:var(--navy);
+                  font-variant-numeric:tabular-nums}
+  .pr-vacia{font-size:11.5px;color:var(--ink-faint);padding:4px 2px}
+  .ini .clasif{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+  .c-len{background:#E8EDF7;color:var(--navy)}
+  .c-vertical{background:#E6F7EE;color:#0F7A47}
+
   .sin-clasificar{background:var(--surface);border:1px dashed var(--line);border-radius:var(--radio);padding:14px;margin-top:12px}
   .sin-clasificar h3{font-size:13px;font-weight:700;margin-bottom:4px}
 
@@ -293,6 +320,10 @@
     /* Matriz: celdas mas angostas para que quepan mas verticales */
     .matriz-scroll{max-height:calc(100vh - 260px)}
     .mz-celda{max-height:340px}
+    /* Por prioridad: una columna debajo de otra, sin scroll interno */
+    .pr-col{max-height:none}
+    .vista-toggle{width:100%}
+    .vista-toggle button{flex:1}
     .mz-cab{font-size:11px;padding:7px 6px}
     .mz-fila{font-size:11px;padding:8px}
 

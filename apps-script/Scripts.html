@@ -362,31 +362,81 @@ function cargarIniciativas() {
         r.plataformas.map(function (pl) {
           return '<option value="' + pl.id + '">' + esc(pl.nombre) + '</option>';
         }).join('') + '<option value="__SIN__">Sin plataforma asignada</option>';
-    pintarMatriz();
+    pintarIniciativas();
   }).catch(fallo);
 }
-$('buscIni').addEventListener('input', pintarMatriz);
-$('filtroEstadoIni').addEventListener('change', pintarMatriz);
-$('filtroTipoIni').addEventListener('change', pintarMatriz);
-$('filtroPrioridadIni').addEventListener('change', pintarMatriz);
-$('filtroPlataformaIni').addEventListener('change', pintarMatriz);
+$('buscIni').addEventListener('input', pintarIniciativas);
+$('filtroEstadoIni').addEventListener('change', pintarIniciativas);
+$('filtroTipoIni').addEventListener('change', pintarIniciativas);
+$('filtroPrioridadIni').addEventListener('change', pintarIniciativas);
+$('filtroPlataformaIni').addEventListener('change', pintarIniciativas);
 
-function ordenPorPrioridad(a, b) {
-  var pa = PESO_PRIORIDAD[a.prioridad], pb = PESO_PRIORIDAD[b.prioridad];
-  if (pa === undefined) pa = 9;
-  if (pb === undefined) pb = 9;
-  if (pa !== pb) return pa - pb;
-  return String(a.nombre).localeCompare(String(b.nombre));
+/**
+ * Vista activa del portafolio: la matriz LEN x vertical, o las columnas por
+ * prioridad. Los dos cortes leen los mismos datos y respetan los mismos
+ * filtros; cambia el eje con el que se agrupan.
+ */
+var VISTA_INI = 'matriz';
+
+$('vistaIni').addEventListener('click', function (e) {
+  var boton = e.target.closest('button[data-vista]');
+  if (!boton || boton.dataset.vista === VISTA_INI) return;
+  VISTA_INI = boton.dataset.vista;
+  Array.prototype.forEach.call(this.querySelectorAll('button'), function (b) {
+    b.classList.toggle('activa', b.dataset.vista === VISTA_INI);
+  });
+  pintarIniciativas();
+});
+
+function pintarIniciativas() {
+  var esMatriz = VISTA_INI === 'matriz';
+  $('vistaMatriz').hidden = !esMatriz;
+  $('prioridades').hidden = esMatriz;
+  $('subMatriz').hidden = !esMatriz;
+  $('subPrioridad').hidden = esMatriz;
+  $('notaMatriz').hidden = !esMatriz;
+  $('notaPrioridad').hidden = esMatriz;
+  // La caja de "sin clasificar" la llena la matriz. En la vista por prioridad
+  // esas iniciativas ya salen en su columna, asi que se recoge.
+  if (!esMatriz) $('sinClasificar').hidden = true;
+  if (esMatriz) pintarMatriz(); else pintarPorPrioridad();
 }
 
-function pintarMatriz() {
-  var r = DATOS.matriz;
-  if (!r) return;
+/**
+ * Arma el predicado de los filtros de la pagina. Lo comparten las dos vistas:
+ * lo que se ve en una es exactamente lo que se ve en la otra, reagrupado.
+ */
+function filtroIniciativas() {
   var q = $('buscIni').value.toLowerCase();
   var estado = $('filtroEstadoIni').value;
   var tipo = $('filtroTipoIni').value;
   var prioridad = $('filtroPrioridadIni').value;
   var plataforma = $('filtroPlataformaIni').value;
+
+  return function (i) {
+    if (estado && i.estado !== estado) return false;
+    if (tipo && i.tipo !== tipo) return false;
+    if (prioridad && i.prioridad !== prioridad) return false;
+    if (plataforma === '__SIN__') {
+      if (i.plataformaId) return false;
+    } else if (plataforma && i.plataformaId !== plataforma) {
+      return false;
+    }
+    if (q && String(i.nombre).toLowerCase().indexOf(q) === -1) return false;
+    return true;
+  };
+}
+
+function ordenPorPrioridad(a, b) {
+  var pa = pesoPrioridad_(a.prioridad), pb = pesoPrioridad_(b.prioridad);
+  if (pa !== pb) return pa - pb;
+  return String(a.nombre).localeCompare(String(b.nombre), 'es');
+}
+
+function pintarMatriz() {
+  var r = DATOS.matriz;
+  if (!r) return;
+  var pasa = filtroIniciativas();
   var cont = $('matriz');
 
   // Filas: lineas estrategicas de negocio. Columnas: verticales de producto.
@@ -399,18 +449,7 @@ function pintarMatriz() {
   cont.style.gridTemplateColumns = '150px repeat(' + columnas.length + ',1fr) 96px';
 
   function filtrar(lista) {
-    return (lista || []).filter(function (i) {
-      if (estado && i.estado !== estado) return false;
-      if (tipo && i.tipo !== tipo) return false;
-      if (prioridad && i.prioridad !== prioridad) return false;
-      if (plataforma === '__SIN__') {
-        if (i.plataformaId) return false;
-      } else if (plataforma && i.plataformaId !== plataforma) {
-        return false;
-      }
-      if (q && String(i.nombre).toLowerCase().indexOf(q) === -1) return false;
-      return true;
-    });
+    return (lista || []).filter(pasa);
   }
 
   // Se resuelve cada celda una sola vez y de ahi salen los totales: asi las
@@ -445,7 +484,7 @@ function pintarMatriz() {
       var items = porCelda[f.id + '>' + c.id];
       html += '<div class="mz-celda' + (items.length ? '' : ' vacia-celda') + '">' +
               (items.length > 3 ? '<div class="mz-conteo">' + items.length + ' iniciativas · desplace</div>' : '') +
-              items.map(tarjetaIniciativa).join('') + '</div>';
+              items.map(function (i) { return tarjetaIniciativa(i); }).join('') + '</div>';
     });
     html += celdaTotal(totalFila[f.id], 'en la LEN', '');
   });
@@ -467,16 +506,89 @@ function pintarMatriz() {
     }
   });
   var caja = $('sinClasificar');
+  // Solo tiene sentido en la matriz: en la vista por prioridad estas mismas
+  // iniciativas ya aparecen en su columna, con LEN y vertical en la tarjeta.
   caja.innerHTML = sueltas.length
       ? '<h3>Sin clasificar · ' + sueltas.length + '</h3>' +
         '<p class="nota" style="margin:0 0 10px">Les falta línea estratégica o vertical en la hoja de iniciativas.</p>' +
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px">' +
-        sueltas.sort(ordenPorPrioridad).map(tarjetaIniciativa).join('') + '</div>'
+        sueltas.sort(ordenPorPrioridad)
+               .map(function (i) { return tarjetaIniciativa(i); }).join('') + '</div>'
       : '';
   caja.hidden = !sueltas.length;
 }
 
-function tarjetaIniciativa(i) {
+/**
+ * Portafolio en columnas por prioridad: critica, alta, media y baja.
+ *
+ * La matriz responde "en que cruce de LEN y vertical estamos invirtiendo"; esta
+ * vista responde "que es lo mas urgente", que es otra conversacion. Por eso
+ * aqui entran tambien las iniciativas sin LEN o sin vertical: en la matriz no
+ * tienen celda, pero una iniciativa critica sin clasificar sigue siendo
+ * critica.
+ */
+function pintarPorPrioridad() {
+  var r = DATOS.matriz;
+  if (!r) return;
+  var pasa = filtroIniciativas();
+
+  var todas = [];
+  Object.keys(r.celdas).forEach(function (k) { todas = todas.concat(r.celdas[k]); });
+  var visibles = todas.filter(pasa);
+
+  var columnas = r.prioridades.slice().sort(function (a, b) {
+    return pesoPrioridad_(a.id) - pesoPrioridad_(b.id);
+  });
+
+  var grupos = {};
+  columnas.forEach(function (p) { grupos[p.id] = []; });
+  var sinPrioridad = [];
+  visibles.forEach(function (i) {
+    if (grupos[i.prioridad]) grupos[i.prioridad].push(i);
+    else sinPrioridad.push(i);
+  });
+
+  var porNombre = function (a, b) {
+    return String(a.nombre).localeCompare(String(b.nombre), 'es');
+  };
+
+  function columna(id, nombre, lista) {
+    lista.sort(porNombre);
+    return '<div class="pr-col' + (lista.length ? '' : ' vacia') + '">' +
+      '<div class="pr-cab">' +
+        '<span class="chip ' + (PRIORIDAD_CLASE[id] || 'p-baja') + '">' + esc(nombre) + '</span>' +
+        '<span class="cuenta">' + lista.length + '</span>' +
+      '</div>' +
+      (lista.length
+        ? lista.map(function (i) { return tarjetaIniciativa(i, true); }).join('')
+        : '<p class="pr-vacia">Ninguna con este filtro.</p>') +
+    '</div>';
+  }
+
+  var html = columnas.map(function (p) {
+    return columna(p.id, p.nombre, grupos[p.id]);
+  }).join('');
+
+  // La columna de las que no tienen prioridad solo aparece si hay alguna: no
+  // tiene sentido mostrar un hueco permanente por un dato que puede estar bien.
+  if (sinPrioridad.length) {
+    html += columna('', 'Sin prioridad', sinPrioridad);
+  }
+
+  $('prioridades').innerHTML = html;
+}
+
+/** Peso de orden de una prioridad; lo desconocido va al final. */
+function pesoPrioridad_(id) {
+  return PESO_PRIORIDAD[id] === undefined ? 9 : PESO_PRIORIDAD[id];
+}
+
+/**
+ * @param {!Object} i Iniciativa.
+ * @param {boolean=} conClasificacion Muestra LEN y vertical en la tarjeta. En
+ *     la matriz sobran, porque la posicion de la tarjeta ya las dice.
+ */
+function tarjetaIniciativa(i, conClasificacion) {
   var nombreEst = nombreDeCatalogo(DATOS.matriz.estados, i.estado) || 'Sin estado';
   var clase = CLASE_ESTADO_INI[i.estado] || 'e-cancelada';
   var franja = FRANJA_ESTADO_INI[i.estado] || '';
@@ -485,6 +597,15 @@ function tarjetaIniciativa(i) {
   var sinAsignar = function (texto) {
     return '<span style="color:var(--ink-faint)">' + texto + '</span>';
   };
+
+  var clasificacion = conClasificacion
+      ? '<div class="clasif">' +
+        '<span class="chip c-len">' +
+        esc(nombreDeCatalogo(DATOS.matriz.lineas, i.lenId) || 'Sin LEN') + '</span>' +
+        '<span class="chip c-vertical">' +
+        esc(nombreDeCatalogo(DATOS.matriz.verticales, i.verticalId) || 'Sin vertical') + '</span>' +
+        '</div>'
+      : '';
 
   var fechas = (i.fechaInicio || i.fechaFinPlaneada)
       ? '<div class="fechas">' +
@@ -511,7 +632,7 @@ function tarjetaIniciativa(i) {
         (i.actividadesAbiertas ? ' · ' + i.actividadesAbiertas +
           (i.actividadesAbiertas === 1 ? ' abierta' : ' abiertas') : '') + '</span>' +
       '<span class="app">' + (i.plataforma ? esc(i.plataforma) : sinAsignar('sin plataforma')) + '</span>' +
-    '</div>' + fechas +
+    '</div>' + fechas + clasificacion +
   '</article>';
 }
 

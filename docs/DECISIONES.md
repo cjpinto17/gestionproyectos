@@ -473,6 +473,34 @@ Si encuentra **códigos repetidos no renumera nada** y los reporta. Con un códi
 hay forma de saber a cuál de las dos filas pertenece cada movimiento de la bitácora, y
 asignarlo a la equivocada en silencio sería peor que dejar los dos formatos conviviendo.
 
+### D-44 · El portafolio se mira por dos ejes, no por uno
+
+La matriz LEN × vertical responde *"¿en qué cruce del negocio estamos invirtiendo?"*. Es la
+pregunta del comité de portafolio, y por eso sigue siendo la vista de entrada. Pero no es la
+única: *"¿qué es lo más urgente?"* es otra conversación, y en la matriz las críticas quedan
+repartidas entre dieciséis celdas.
+
+Se agrega una segunda vista, elegible con un selector en el encabezado: una columna por
+prioridad, de crítica a baja, con el conteo de lo que se está viendo. Ambas leen los mismos
+datos y **comparten los mismos filtros** (`filtroIniciativas()` arma un solo predicado): lo que
+se ve en una es exactamente lo mismo, reagrupado. La vista elegida se mantiene mientras dure la
+sesión; al volver a entrar arranca en la matriz.
+
+En la vista por prioridad cada tarjeta muestra **su LEN y su vertical**, que ahí dejan de
+leerse en la posición. En la matriz no se muestran: la celda ya las dice, y repetirlas sería
+ruido.
+
+Dos diferencias deliberadas:
+
+- **Aquí entran todas las iniciativas**, incluidas las que no tienen LEN o vertical. En la
+  matriz no tienen celda y van a la caja *Sin clasificar* al pie; en esta vista una iniciativa
+  crítica sin clasificar sigue siendo crítica y no puede quedar escondida abajo.
+- **La columna *Sin prioridad* solo aparece si hay alguna.** No tiene sentido un hueco
+  permanente por un dato que puede estar bien.
+
+Dentro de cada columna el orden es alfabético: la prioridad ya es el agrupador, así que la
+tarjeta se busca por nombre.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

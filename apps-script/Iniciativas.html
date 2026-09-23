@@ -1,11 +1,17 @@
-<!-- Iniciativas.html | Pagina 2: Matriz LEN x Vertical, solo lectura -->
+<!-- Iniciativas.html | Pagina 2: portafolio de solo lectura, en dos vistas:
+     la matriz LEN x vertical y las columnas por prioridad -->
 <section class="pagina" id="pg-iniciativas" hidden>
     <div class="fila encabezado">
       <div>
         <h1>Iniciativas de Negocio</h1>
-        <p>Portafolio cruzado: líneas estratégicas de negocio en las filas, verticales de producto en las columnas. Vista de solo lectura alimentada por la hoja <code>Proyectos</code>.</p>
+        <p id="subMatriz">Portafolio cruzado: líneas estratégicas de negocio en las filas, verticales de producto en las columnas. Vista de solo lectura alimentada por la hoja <code>Proyectos</code>.</p>
+        <p id="subPrioridad" hidden>Portafolio ordenado por prioridad: una columna por nivel, de crítica a baja. Vista de solo lectura alimentada por la hoja <code>Proyectos</code>.</p>
       </div>
       <div class="fila ml-auto">
+        <div class="vista-toggle" id="vistaIni">
+          <button type="button" data-vista="matriz" class="activa">LEN × Vertical</button>
+          <button type="button" data-vista="prioridad">Por prioridad</button>
+        </div>
         <input type="search" id="buscIni" placeholder="Buscar iniciativa…" style="width:210px">
         <select class="filtro" id="filtroTipoIni"></select>
         <select class="filtro" id="filtroPrioridadIni"></select>
@@ -13,7 +19,9 @@
         <select class="filtro" id="filtroEstadoIni"></select>
       </div>
     </div>
-    <div class="matriz-scroll"><div id="matriz" class="matriz"></div></div>
+    <div class="matriz-scroll" id="vistaMatriz"><div id="matriz" class="matriz"></div></div>
+    <div id="prioridades" class="prioridades" hidden></div>
     <div id="sinClasificar" class="sin-clasificar" hidden></div>
-    <p class="nota">Cada tarjeta muestra estado, prioridad, tipo de iniciativa, Business Owner, Product Owner, plataforma digital, fechas y número de actividades relacionadas. Las celdas rayadas no tienen iniciativas en ese cruce. Los totales de la última fila y la última columna corresponden a lo que se está viendo: cambian al aplicar los filtros, y no incluyen las iniciativas sin clasificar.</p>
+    <p class="nota" id="notaMatriz">Cada tarjeta muestra estado, prioridad, tipo de iniciativa, Business Owner, Product Owner, plataforma digital, fechas y número de actividades relacionadas. Las celdas rayadas no tienen iniciativas en ese cruce. Los totales de la última fila y la última columna corresponden a lo que se está viendo: cambian al aplicar los filtros, y no incluyen las iniciativas sin clasificar.</p>
+    <p class="nota" id="notaPrioridad" hidden>Cada tarjeta muestra además su línea estratégica y su vertical, que en esta vista dejan de leerse en la posición. Dentro de cada columna van en orden alfabético, y el número del encabezado corresponde a lo que se está viendo: cambia al aplicar los filtros. Aquí aparecen todas las iniciativas, incluidas las que no tienen LEN o vertical asignada.</p>
 </section>
