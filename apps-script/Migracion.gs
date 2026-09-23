@@ -13,7 +13,7 @@
  */
 
 /** Campos que calcula el sistema y no se piden en el formulario. */
-var CAMPOS_NO_MIGRABLES = ['Doc_Requerimiento_URL', 'Carpeta_Drive_URL', 'Fecha_Ultimo_Cambio'];
+var CAMPOS_NO_MIGRABLES = ['Carpeta_Drive_URL', 'Fecha_Ultimo_Cambio'];
 
 /**
  * Devuelve la definicion del formulario de migracion: las columnas de
@@ -79,7 +79,7 @@ function migrarSolicitud(datos, opciones) {
       Orden_Iniciativa: datos.Orden_Iniciativa ||
                         siguienteOrdenIniciativa_(datos.ID_Proyecto),
       Proceso_Impactado: datos.Proceso_Impactado || '',
-      Doc_Requerimiento_URL: '',
+      Doc_Requerimiento_URL: String(datos.Doc_Requerimiento_URL || '').trim(),
       Carpeta_Drive_URL: '',
       Fase_Actual: datos.Fase_Actual || 'FAS-02',
       Estado_Actual: datos.Estado_Actual || 'EST-01',
@@ -105,7 +105,9 @@ function migrarSolicitud(datos, opciones) {
 
     validarRegistro_('Solicitudes', registro, true);
 
-    if (op.crearCarpeta) {
+    // Si la solicitud ya trae su documento, no se toca Drive: se guarda el
+    // enlace tal cual. La casilla de carpeta solo aplica cuando no hay enlace.
+    if (op.crearCarpeta && !registro.Doc_Requerimiento_URL) {
       try {
         var contenedor = crearContenedorDrive_(id, registro.Plataforma_ID, registro.Nombre_Solicitud);
         registro.Carpeta_Drive_URL = contenedor.carpetaUrl;

@@ -635,16 +635,17 @@ function pintarKanban() {
   }).join('');
 
   $('subGestion').textContent = visibles.length + ' de ' + r.solicitudes.length +
-      ' actividades · fases editables para su rol: ' +
-      (CTX.fasesEditables.length === CAT.fases.length
-        ? 'todas'
-        : (CTX.fasesEditables.map(nombreFase).join(', ') || 'ninguna'));
+      ' solicitudes · ' + (CTX.puedeOperarTablero
+        ? 'arrastre las tarjetas para cambiarlas de fase'
+        : 'tablero de consulta: mover tarjetas es exclusivo del Product Owner y el Administrador');
 }
 
 function tarjetaActividad(s) {
   var bloq = String(s.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0;
-  return '<article class="tarjeta' + (bloq ? ' bloqueada' : '') +
-      '" draggable="true" data-id="' + esc(s.ID_Solicitud) + '">' +
+  // Sin permiso para operar el tablero, la tarjeta se abre pero no se arrastra.
+  return '<article class="tarjeta' + (bloq ? ' bloqueada' : '') + (CTX.puedeOperarTablero ? '' : ' fija') +
+      '"' + (CTX.puedeOperarTablero ? ' draggable="true"' : '') +
+      ' data-id="' + esc(s.ID_Solicitud) + '">' +
     '<div class="t-top">' +
       (s.Orden_Iniciativa ? '<span class="t-orden" title="Orden dentro de la iniciativa">' +
         esc(s.Orden_Iniciativa) + '</span>' : '') +
@@ -725,6 +726,10 @@ function solicitudPorId(id) {
 
 /** Espejo de validarTransicion() del backend, para dar respuesta inmediata. */
 function validarTransicionCliente(origen, destino) {
+  if (!CTX.puedeOperarTablero) {
+    return { permitido: false,
+             motivo: 'Solo el Product Owner y el Administrador pueden mover tarjetas.' };
+  }
   if (CTX.esAdmin) return { permitido: true, motivo: '' };
   var a = ordenDeFase(origen), b = ordenDeFase(destino);
   if (a === b) return { permitido: false, motivo: 'La actividad ya está en esa fase.' };
@@ -780,11 +785,13 @@ function verDetalle(id) {
                  esc(s.Doc_Requerimiento_URL) + '" target="_blank" rel="noopener">Requerimiento</a>';
     }
 
-    var acciones = '<div class="fila" style="margin-top:14px">' +
-        (bloq
-          ? '<button class="btn-sec" id="btnLevantarBloqueo">Levantar bloqueo</button>'
-          : '<button class="btn-sec" id="btnBloquear">Marcar bloqueo</button>') +
-        '</div>';
+    var acciones = CTX.puedeOperarTablero
+        ? '<div class="fila" style="margin-top:14px">' +
+          (bloq
+            ? '<button class="btn-sec" id="btnLevantarBloqueo">Levantar bloqueo</button>'
+            : '<button class="btn-sec" id="btnBloquear">Marcar bloqueo</button>') +
+          '</div>'
+        : '';
 
     var historial = (s.Historial || []).slice(0, 6).map(function (a) {
       return '<div class="it"><div><b>' + esc(nombreFase(a.Fase_Destino) || '—') + '</b><br>' +

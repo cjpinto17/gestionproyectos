@@ -102,6 +102,7 @@ function getContextoUsuario() {
     rolId: usuario.Rol_ID,
     rolNombre: nombreDeRol_(usuario.Rol_ID),
     esAdmin: esAdministrador(usuario.Rol_ID),
+    puedeOperarTablero: puedeOperarTablero(usuario.Rol_ID),
     fasesEditables: permisos.fases === TODAS
         ? FASES.map(function (f) { return f.id; })
         : permisos.fases
@@ -620,14 +621,18 @@ function crearSolicitud(datos) {
 
     var avisos = [];
     var contenedor = { carpetaUrl: '', docUrl: '' };
-    try {
-      contenedor = crearContenedorDrive_(id, registro.Plataforma_ID,
-                                         registro.Nombre_Solicitud, !docPropio);
-      registro.Carpeta_Drive_URL = contenedor.carpetaUrl;
-      if (!docPropio) registro.Doc_Requerimiento_URL = contenedor.docUrl;
-    } catch (e) {
-      // La solicitud no se pierde por un problema de Drive: se avisa y sigue.
-      avisos.push('No se pudo crear la carpeta en Drive: ' + e.message);
+    // Cuando la persona trae el enlace de su documento no se toca Drive: no se
+    // crea carpeta ni se clona plantilla. El sistema solo guarda y muestra ese
+    // enlace, que es donde el equipo ya esta trabajando.
+    if (!docPropio) {
+      try {
+        contenedor = crearContenedorDrive_(id, registro.Plataforma_ID, registro.Nombre_Solicitud);
+        registro.Carpeta_Drive_URL = contenedor.carpetaUrl;
+        registro.Doc_Requerimiento_URL = contenedor.docUrl;
+      } catch (e) {
+        // La solicitud no se pierde por un problema de Drive: se avisa y sigue.
+        avisos.push('No se pudo crear la carpeta en Drive: ' + e.message);
+      }
     }
 
     agregarFila_('Solicitudes', registro);
@@ -785,8 +790,8 @@ function marcarBloqueo(idSolicitud, bloqueada, idCausal) {
   return conBloqueo_(function () {
     var s = buscarPorPk_('Solicitudes', idSolicitud);
     if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
-    if (!puedeEditarFase(ctx.rolId, s.Fase_Actual)) {
-      throw new Error('Su rol no puede operar la fase ' + s.Fase_Actual + '.');
+    if (!puedeOperarTablero(ctx.rolId)) {
+      throw new Error('Solo el Product Owner y el Administrador pueden marcar bloqueos.');
     }
     if (bloqueada && !idCausal) {
       throw new Error('Debe indicar la causal del bloqueo.');
@@ -906,12 +911,10 @@ function registrarTransicionAudit(datos) {
  * @param {string} idSolicitud
  * @param {string} idPlataforma
  * @param {string} nombreSolicitud
- * @param {boolean=} clonarPlantilla false cuando la solicitud ya trae su propio
- *     documento: se crea la carpeta pero no se duplica la plantilla.
  * @return {{carpetaUrl: string, docUrl: string}}
  * @private
  */
-function crearContenedorDrive_(idSolicitud, idPlataforma, nombreSolicitud, clonarPlantilla) {
+function crearContenedorDrive_(idSolicitud, idPlataforma, nombreSolicitud) {
   var raiz = DriveApp.getFolderById(CONFIG.DRIVE_UNIDAD_RAIZ_ID);
   var hoy = Utilities.formatDate(new Date(), CONFIG.ZONA_HORARIA, 'yyyyMMdd');
   var plataforma = mapaPlataformas()[idPlataforma] || idPlataforma || 'Sin plataforma';
@@ -922,7 +925,7 @@ function crearContenedorDrive_(idSolicitud, idPlataforma, nombreSolicitud, clona
 
   var docUrl = '';
   var idPlantilla = getProp(PROP_KEYS.PLANTILLA_REQUERIMIENTO, false);
-  if (clonarPlantilla !== false && idPlantilla) {
+  if (idPlantilla) {
     var copia = DriveApp.getFileById(idPlantilla)
         .makeCopy('Requerimiento_' + idSolicitud, carpeta);
     docUrl = copia.getUrl();
@@ -985,8 +988,19 @@ function notificarChat_(solicitud, evento) {
   var fase = mapaFases()[solicitud.Fase_Actual] || solicitud.Fase_Actual;
   var estado = mapaEstados()[solicitud.Estado_Actual] || solicitud.Estado_Actual;
 
+  var proyecto = solicitud.ID_Proyecto ? buscarPorPk_('Proyectos', solicitud.ID_Proyecto) : null;
+  var iniciativa = proyecto ? proyecto.Nombre_Proyecto : (solicitud.ID_Proyecto || 'Sin iniciativa');
+  var registro = aFecha_(solicitud.Fecha_Registro);
+  var registroTexto = registro
+      ? Utilities.formatDate(registro, CONFIG.ZONA_HORARIA, CONFIG.FORMATO_FECHA_HORA)
+      : 'sin fecha';
+
   var campos = [
-    { decoratedText: { topLabel: 'Solicitud', text: solicitud.ID_Solicitud } },
+    { decoratedText: { topLabel: 'Solicitud',
+                       text: solicitud.Nombre_Solicitud + ' (' + solicitud.ID_Solicitud + ')',
+                       wrapText: true } },
+    { decoratedText: { topLabel: 'Iniciativa', text: iniciativa, wrapText: true } },
+    { decoratedText: { topLabel: 'Registrada', text: registroTexto } },
     { decoratedText: { topLabel: 'Fase / Estado', text: fase + ' · ' + estado } }
   ];
   if (String(solicitud.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0) {
@@ -1011,7 +1025,7 @@ function notificarChat_(solicitud, evento) {
       cardId: solicitud.ID_Solicitud + '-' + evento,
       card: {
         header: { title: titulos[evento] || 'Actualizacion',
-                  subtitle: solicitud.Nombre_Solicitud + (plataforma ? ' · ' + plataforma : '') },
+                  subtitle: iniciativa + (plataforma ? ' · ' + plataforma : '') },
         sections: [{ widgets: campos }]
       }
     }]
@@ -1041,13 +1055,18 @@ function notificarCorreo_(solicitud, evento) {
   if (!destinatarios.length) return;   // nadie tiene correo corporativo todavia
 
   var asuntos = {
-    creacion: 'Solicitud registrada: ',
-    cambio_fase: 'Avance de solicitud: ',
-    bloqueo: 'Solicitud bloqueada: '
+    creacion: 'Solicitud registrada',
+    cambio_fase: 'Avance de solicitud',
+    bloqueo: 'Solicitud bloqueada'
   };
+  // El asunto lleva el nombre de la solicitud: quien recibe varios correos al
+  // dia distingue de cual se trata sin abrirlos.
+  var asunto = (asuntos[evento] || 'Actualizacion') + ': ' +
+               solicitud.Nombre_Solicitud + ' (' + solicitud.ID_Solicitud + ')';
+
   MailApp.sendEmail({
     to: destinatarios.join(','),
-    subject: (asuntos[evento] || 'Actualizacion: ') + solicitud.ID_Solicitud,
+    subject: asunto,
     htmlBody: cuerpoCorreo_(solicitud, evento)
   });
 }

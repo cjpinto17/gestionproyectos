@@ -76,6 +76,22 @@ var MATRIZ_PERMISOS = {
 var ROLES_ADMIN = ['RO-08'];
 
 /**
+ * Roles que pueden mover tarjetas en el tablero y marcar bloqueos.
+ * Para los demas, la pagina de Gestion es de solo lectura: ven todo el estado
+ * del embudo pero no lo alteran. El avance del flujo lo gobierna el Product
+ * Owner, que es el aprobador de los pasos clave.
+ */
+var ROLES_OPERAN_TABLERO = ['RO-02', 'RO-08'];
+
+/**
+ * @param {string} rolId
+ * @return {boolean} True si el rol puede cambiar de fase y bloquear.
+ */
+function puedeOperarTablero(rolId) {
+  return ROLES_OPERAN_TABLERO.indexOf(rolId) !== -1;
+}
+
+/**
  * @param {string} rolId
  * @return {!Object} Permisos del rol; por defecto, sin acceso.
  */
@@ -132,6 +148,12 @@ function ordenDeFase(faseId) {
  * @return {{permitido: boolean, motivo: string}}
  */
 function validarTransicion(rolId, faseOrigen, faseDestino) {
+  if (!puedeOperarTablero(rolId)) {
+    return { permitido: false,
+             motivo: 'Solo el Product Owner y el Administrador pueden mover tarjetas. ' +
+                     'Para su rol, el tablero es de consulta.' };
+  }
+
   var p = getPermisos(rolId);
   if (p.override) return { permitido: true, motivo: '' };
 

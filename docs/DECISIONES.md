@@ -314,6 +314,35 @@ la carpeta de la solicitud pero **no se clona la plantilla**: de lo contrario qu
 documento vacío al lado del bueno, y nadie sabría cuál es el válido. Si el campo se deja
 vacío, sigue clonándose la plantilla oficial como hasta ahora.
 
+### D-32 · El tablero lo opera el Product Owner
+Mover tarjetas y marcar bloqueos queda reservado a **Product Owner (`RO-02`)** y
+**Administrador (`RO-08`)**. Para los demás roles, Gestión es una página de consulta: ven
+todo el estado del embudo, abren el detalle de cualquier solicitud y usan los filtros, pero
+no alteran el flujo. Es coherente con el documento funcional, que designa al PO como
+aprobador único de los pasos clave.
+
+**Registrar una solicitud nueva sigue abierto** a los roles que ya lo tenían: es la entrada
+del proceso, no una alteración del embudo. Si el negocio quiere cerrarlo también, se ajusta
+en una línea.
+
+La restricción vive en el servidor (`puedeOperarTablero()` en `Rbac.gs`), no solo en la
+interfaz: ocultar el arrastre es comodidad, la regla es la que corre en el backend.
+
+### D-33 · El enlace del requerimiento no crea nada en Drive
+Cuando la solicitud llega con el enlace de su documento, el sistema **no crea carpeta ni
+clona plantilla**: solo guarda y muestra ese enlace. El equipo ya está trabajando en ese
+documento; crear una carpeta vacía al lado solo agregaría ruido a la Unidad Compartida.
+
+Sin enlace, se mantiene el comportamiento original: carpeta con la nomenclatura oficial y
+copia de la plantilla dentro. Aplica igual en el alta normal y en la migración.
+
+### D-34 · Qué dice cada notificación
+- **Correo:** el asunto lleva el nombre de la solicitud y su código —*"Solicitud registrada:
+  Onboarding banca móvil (SOL-…)"*—, para distinguir varios correos del mismo día sin abrirlos.
+- **Google Chat:** la tarjeta muestra nombre de la solicitud, iniciativa a la que pertenece,
+  fecha y hora de registro, y fase con estado. El encabezado lleva la iniciativa y la
+  plataforma, que es el contexto que busca quien lee el espacio.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
