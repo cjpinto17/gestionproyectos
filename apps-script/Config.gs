@@ -73,6 +73,13 @@ var CONFIG = {
    * Toda escritura invalida la tabla afectada, asi que subirlo no produce
    * datos viejos: solo evita releer lo mismo. En 0 se desactiva la cache.
    */
+  /**
+   * Ventana con la que abre el Home, en meses. Debe coincidir con
+   * VENTANA_INICIAL de Scripts.html: el servidor la necesita para dejar
+   * calientes en cache los indicadores que la primera persona va a pedir.
+   */
+  VENTANA_HOME_MESES: 1,
+
   CACHE_SEGUNDOS: 900,
 
   /**

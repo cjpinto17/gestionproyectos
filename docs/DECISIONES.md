@@ -588,6 +588,24 @@ escritura podía **no** invalidar lo que se había calculado un instante antes, 
 seguido sirviendo el dato viejo. Ahora el sello lleva una cola al azar y se comprueba que sea
 distinto del anterior.
 
+### D-47 · El Home abre en el último mes
+
+Igual que la página de Reportes, el Home abre mostrando **el último mes** y no los últimos doce. La
+ventana de doce sigue disponible en el mismo desplegable.
+
+El valor vive en dos sitios que tienen que coincidir, y por eso ambos están anotados: el
+`<option selected>` de la página lo lee el usuario, y `VENTANA_INICIAL` en `Scripts.html` es la
+ventana que el arranque pide al servidor **en el mismo viaje** que la sesión y los catálogos. Si
+los dos se separaran, el Home volvería a preguntar apenas abrir y se perdería justo el viaje
+que ese arranque ahorra. Del lado del servidor, `CONFIG.VENTANA_HOME_MESES` decide cuál ventana
+deja caliente el calentamiento automático (D-46): si apuntara a otra, el trabajo de calentar no
+serviría para la pantalla que la gente abre.
+
+**Consecuencia asumida:** las dos gráficas mensuales del Home —throughput y demanda contra
+entrega— muestran una sola columna en esta ventana. Son series de tiempo y con un mes no hay
+tendencia que leer; para verla hay que subir la ventana a 3, 6 o 12. Los demás indicadores
+(Lead Time, WIP, bloqueos, SLA) no dependen de la ventana y se leen igual.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

@@ -44,6 +44,17 @@ var PRIORIDAD_CLASE = {
 // Orden de presentacion: critica, alta, media, baja. Lo que no tenga prioridad
 // va al final de la celda.
 var PESO_PRIORIDAD = { 'PRI-01': 0, 'PRI-02': 1, 'PRI-03': 2, 'PRI-04': 3 };
+/**
+ * Ventana con la que abre el Home: el ultimo mes.
+ *
+ * Vive aqui y no solo en el <option selected> porque el arranque pide los
+ * indicadores de esta ventana en el mismo viaje que la sesion y los catalogos.
+ * Si los dos valores se separaran, el Home pediria de nuevo al servidor apenas
+ * abrir, y se perderia justo el viaje que ese arranque ahorra. Su gemelo del
+ * lado del servidor es CONFIG.VENTANA_HOME_MESES, que decide cual ventana se
+ * deja caliente en cache.
+ */
+var VENTANA_INICIAL = 1;
 var COLOR_FASE = ['#00306E','#0B4FA5','#1B6FD0','#3E92E0','#1BB26C','#1DD982','#50EAA2','#9CF3CB'];
 
 /* ================= Utilidades ================= */
@@ -1540,7 +1551,8 @@ $('btnActualizar').addEventListener('click', function () {
 });
 
 // Un solo viaje al servidor para sesion, catalogos e indicadores del Home.
-api('getArranque', 12).then(function (r) {
+$('ventanaMeses').value = String(VENTANA_INICIAL);
+api('getArranque', VENTANA_INICIAL).then(function (r) {
   CTX = r.contexto;
   if (!CTX.autorizado) {
     $('usuarioNombre').textContent = CTX.correo || 'Sin sesión';
@@ -1551,7 +1563,7 @@ api('getArranque', 12).then(function (r) {
   }
   CAT = r.catalogos;
   DATOS.home = {};
-  DATOS.home[12] = r.metricas;
+  DATOS.home[VENTANA_INICIAL] = r.metricas;
 
   $('usuarioNombre').textContent = CTX.nombre;
   $('usuarioRol').textContent = CTX.rolNombre;

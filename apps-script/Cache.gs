@@ -371,7 +371,7 @@ function medirRendimiento() {
     medir('getCatalogos', function () { return getCatalogos(); }),
     medir('getMatrizIniciativas', function () { return getMatrizIniciativas(); }),
     medir('getDatosKanban', function () { return getDatosKanban({}); }),
-    medir('getMetricasHome', function () { return getMetricasHome(12); })
+    medir('getMetricasHome', function () { return getMetricasHome(CONFIG.VENTANA_HOME_MESES); })
   ];
 
   MEMO_TABLAS = {};   // se conserva la cache compartida, se borra la de ejecucion
@@ -379,7 +379,7 @@ function medirRendimiento() {
     medir('getCatalogos', function () { return getCatalogos(); }),
     medir('getMatrizIniciativas', function () { return getMatrizIniciativas(); }),
     medir('getDatosKanban', function () { return getDatosKanban({}); }),
-    medir('getMetricasHome', function () { return getMetricasHome(12); })
+    medir('getMetricasHome', function () { return getMetricasHome(CONFIG.VENTANA_HOME_MESES); })
   ];
 
   // Tercera corrida: como queda la aplicacion justo DESPUES de que alguien
@@ -396,7 +396,7 @@ function medirRendimiento() {
     medir('getCatalogos', function () { return getCatalogos(); }),
     medir('getMatrizIniciativas', function () { return getMatrizIniciativas(); }),
     medir('getDatosKanban', function () { return getDatosKanban({}); }),
-    medir('getMetricasHome', function () { return getMetricasHome(12); })
+    medir('getMetricasHome', function () { return getMetricasHome(CONFIG.VENTANA_HOME_MESES); })
   ];
 
   var total = function (lista) {
@@ -460,7 +460,7 @@ function calentarCache() {
     medir('getCatalogos', function () { return getCatalogos(); }),
     medir('getMatrizIniciativas', function () { return getMatrizIniciativas(); }),
     medir('getDatosKanban', function () { return getDatosKanban({}); }),
-    medir('getMetricasHome', function () { return getMetricasHome(12); })
+    medir('getMetricasHome', function () { return getMetricasHome(CONFIG.VENTANA_HOME_MESES); })
   ];
 
   var resultado = {
