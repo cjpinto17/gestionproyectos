@@ -1578,3 +1578,138 @@ function exigirAdministrador_() {
   if (!ctx.esAdmin) throw new Error('Acceso denegado: se requiere rol Administrador.');
   return ctx;
 }
+
+/* ================================================================== */
+/* 12. Correo de bienvenida                                            */
+/* ================================================================== */
+
+/**
+ * Envia a una persona el correo que la invita a empezar a usar la herramienta.
+ *
+ * Dar de alta a alguien en la hoja de Usuarios no le avisa nada: queda
+ * habilitado y no se entera. Este correo cierra ese hueco, y de paso le dice
+ * las tres cosas que nadie mas le va a decir: para que sirve la herramienta,
+ * como se entra, y que su rol ya lo espera.
+ *
+ * Quien lo envia recibe copia, para tener constancia de a quien se invito y
+ * cuando, sin depender de la memoria de nadie.
+ *
+ * @param {string} idUsuario
+ * @return {!Object} { ok, destinatario, copia, nombre }
+ */
+function enviarCorreoBienvenida(idUsuario) {
+  var ctx = exigirAdministrador_();
+
+  var u = buscarPorPk_('Usuarios', idUsuario);
+  if (!u) throw new Error('No existe el usuario ' + idUsuario + '.');
+  if (!u.Correo_ID) {
+    throw new Error('A ' + (u.Nombre_Completo || idUsuario) + ' le falta el correo ' +
+                    'corporativo. Registrelo primero en la ficha del usuario.');
+  }
+
+  var url = getUrlAplicacion();
+  if (!url) {
+    throw new Error('No hay una direccion de acceso configurada. Ejecute ' +
+                    'configurarUrlAplicacion("https://...") desde el editor de Apps Script ' +
+                    'con la direccion que reparte al equipo.');
+  }
+
+  var rol = mapaCatalogo_(ROLES)[u.Rol_ID] || '';
+  // Sin genero: el correo va a personas cuyo genero el sistema no conoce ni
+  // tiene por que suponer a partir del nombre.
+  var asunto = 'Le damos la bienvenida a ' + CONFIG.APP_NOMBRE;
+
+  MailApp.sendEmail({
+    to: u.Correo_ID,
+    cc: ctx.correo,
+    subject: asunto,
+    htmlBody: cuerpoBienvenida_(u, rol, url, ctx)
+  });
+
+  return {
+    ok: true,
+    nombre: u.Nombre_Completo || idUsuario,
+    destinatario: u.Correo_ID,
+    copia: ctx.correo
+  };
+}
+
+/**
+ * Cuerpo del correo de bienvenida.
+ * @private
+ */
+function cuerpoBienvenida_(usuario, rol, url, ctx) {
+  var nombreCorto = String(usuario.Nombre_Completo || '').split(' ')[0] || '';
+
+  // El texto del correo lleva sus tildes como entidades HTML: el resto de los
+  // archivos .gs es ASCII puro, y asi el mensaje se lee bien escrito sin que el
+  // codigo dependa de como viaje la codificacion hasta Apps Script.
+  var pasos = [
+    'Abra el enlace de abajo desde su cuenta corporativa.',
+    'La primera vez, Google le pedir&aacute; autorizar la aplicaci&oacute;n: es normal y ' +
+    'ocurre una sola vez.',
+    'Entrar&aacute; directo, con su nombre y su rol ya configurados. No hay usuario ni ' +
+    'contrase&ntilde;a aparte.'
+  ].map(function (t, i) {
+    return '<tr><td style="padding:3px 10px 3px 0;color:#1BB26C;font-weight:bold;' +
+           'font-size:13px;vertical-align:top">' + (i + 1) + '.</td>' +
+           '<td style="padding:3px 0;font-size:13.5px;color:#0D1F3C">' + t + '</td></tr>';
+  }).join('');
+
+  return '<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;' +
+    'border:1px solid #EDF1F8;border-radius:12px;overflow:hidden">' +
+
+    '<div style="background:#00306E;color:#fff;padding:20px">' +
+    '<div style="font-size:18px;font-weight:bold">' + CONFIG.APP_NOMBRE + '</div>' +
+    '<div style="font-size:12px;color:#AFC3E4">' + CONFIG.APP_SUBTITULO + '</div></div>' +
+
+    '<div style="padding:22px">' +
+
+    '<p style="font-size:15px;color:#0D1F3C;margin:0 0 14px">' +
+    (nombreCorto ? 'Hola, ' + escapeHtml_(nombreCorto) + ':' : 'Hola:') + '</p>' +
+
+    '<p style="font-size:13.5px;color:#0D1F3C;line-height:1.55;margin:0 0 14px">' +
+    'Ya tiene acceso a <b>' + CONFIG.APP_NOMBRE + '</b>, el lugar donde la Gerencia de ' +
+    'Desarrollo de Plataformas Digitales gestionar&aacute; de aqu&iacute; en adelante sus ' +
+    'iniciativas, solicitudes y entregas.</p>' +
+
+    '<p style="font-size:13.5px;color:#0D1F3C;line-height:1.55;margin:0 0 14px">' +
+    'La idea es simple: que todo lo que hoy vive repartido entre correos, archivos y ' +
+    'conversaciones quede en un solo tablero, con su fase, su responsable y su fecha a la ' +
+    'vista. As&iacute; se sabe en qu&eacute; va cada cosa sin tener que preguntar, y los ' +
+    'indicadores de la f&aacute;brica salen solos de lo que el equipo registra a diario.</p>' +
+
+    (rol ? '<p style="font-size:13.5px;color:#0D1F3C;margin:0 0 6px">' +
+           'Su perfil es <b>' + escapeHtml_(rol) + '</b>, y define qu&eacute; puede ver y ' +
+           'mover dentro del flujo.</p>' : '') +
+
+    '<div style="background:#F3F6FB;border-radius:8px;padding:14px 16px;margin:16px 0">' +
+    '<div style="font-size:12px;font-weight:bold;color:#00306E;text-transform:uppercase;' +
+    'letter-spacing:.06em;margin-bottom:8px">C&oacute;mo ingresar</div>' +
+    '<table style="border-collapse:collapse">' + pasos + '</table></div>' +
+
+    '<div style="text-align:center;margin:22px 0 18px">' +
+    '<a href="' + escapeHtml_(url) + '" style="background:#1DD982;color:#00306E;' +
+    'text-decoration:none;font-weight:bold;font-size:14px;padding:13px 26px;' +
+    'border-radius:8px;display:inline-block">Entrar a la plataforma</a></div>' +
+
+    '<p style="font-size:13.5px;color:#0D1F3C;line-height:1.55;margin:0 0 14px">' +
+    'Nos alegra contar con usted. Entre, mire el tablero y empecemos a gestionar.</p>' +
+
+    '<p style="font-size:12px;color:#5A6B8C;margin:18px 0 0;border-top:1px solid #EDF1F8;' +
+    'padding-top:12px">Cualquier duda, responda este correo: le llega a ' +
+    escapeHtml_(ctx.correo) + '.</p>' +
+
+    '</div></div>';
+}
+
+/**
+ * Escapa texto para insertarlo en HTML. El correo lleva nombres y direcciones
+ * que vienen de la hoja, y una comilla suelta bastaria para romper el marcado.
+ * @private
+ */
+function escapeHtml_(texto) {
+  return String(texto === null || texto === undefined ? '' : texto)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}

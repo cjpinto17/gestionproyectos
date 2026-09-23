@@ -377,6 +377,34 @@ quiere quitarlo, ejecute **`desinstalarCalentamiento`**.
 
 ---
 
+## Parte 7.3 · La bienvenida a cada persona (1 min la primera vez)
+
+Registrar a alguien en la hoja de Usuarios lo habilita, pero no le avisa. Desde
+**Administración → Usuarios**, el botón **Bienvenida** de cada fila le envía un correo con el
+objetivo de la herramienta, el paso a paso para ingresar y el enlace de acceso. Usted recibe
+copia de cada uno.
+
+**Antes del primer envío hay que decirle cuál es la dirección que se reparte.** En el editor de
+Apps Script, abra `Config.gs`, seleccione la función **`configurarUrlAplicacion`** y ejecútela
+una vez con su dirección — o más cómodo, péguela primero en el editor así:
+
+```javascript
+function fijarDireccion() {
+  configurarUrlAplicacion('https://sites.google.com/su-dominio/gestion-plataformas');
+}
+```
+
+y ejecute `fijarDireccion`. Use la dirección del **sitio de Google** si lo montó (Parte 5.1);
+si no, la de la aplicación terminada en `/exec`.
+
+Si no la configura, el sistema usa la de la implementación activa. Y si tampoco la encuentra,
+el botón avisa en lugar de mandar un correo con un enlace roto.
+
+> El botón aparece gris cuando a la persona le falta el correo corporativo en su ficha:
+> primero regístreselo y vuelva a intentar.
+
+---
+
 ## Parte 8 · Cuando actualicemos el código
 
 - **Si configuraste el Camino A**: no haces nada. El cambio se publica solo. Si además

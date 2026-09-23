@@ -270,6 +270,7 @@ validaciones junto con ella y las filas existentes quedan alineadas solas.
 | `calentarCache()` | Rehace las consultas principales para dejarlas en memoria (ver D-46) |
 | `instalarCalentamiento()` | Programa lo anterior cada 10 minutos. Se ejecuta una sola vez |
 | `desinstalarCalentamiento()` | Quita esa programación |
+| `configurarUrlAplicacion(url)` | Fija la dirección que llevan los correos de bienvenida (ver D-49) |
 
 La reparación nunca adivina: si el enderezado no produce una fila coherente, la deja intacta
 y la marca. Es preferible una fila señalada que una fila "reparada" a ciegas.
@@ -619,6 +620,41 @@ Tres meses es además el mínimo con el que las dos gráficas mensuales del Home
 demanda contra entrega— dicen algo: con una sola columna no hay tendencia que leer. Los demás
 indicadores (Lead Time, WIP, bloqueos, SLA) no dependen de la ventana y se leen igual en
 cualquiera.
+
+### D-48 · La gráfica de throughput no sigue el filtro del Home
+
+El Home abre en tres meses (D-47), y con esa ventana la gráfica de throughput quedaba en tres
+barras. Tres puntos no dibujan una tendencia: muestran ruido. La gráfica va ahora siempre a
+**seis meses**, sin importar el filtro, y el subtítulo lo dice para que nadie crea que responde
+al desplegable.
+
+El **indicador numérico** de throughput sí sigue respetando el filtro, porque ahí la pregunta
+es otra: no "cómo venimos" sino "a qué ritmo vamos en el periodo que estoy mirando".
+
+### D-49 · Dar de alta a alguien no le avisa nada
+
+Registrar a una persona en la hoja de Usuarios la habilita, pero no se entera. Se agrega un
+botón **Bienvenida** en cada fila de esa tabla que le envía el correo de invitación: para qué
+sirve la herramienta, cómo se ingresa, cuál es su rol y el enlace de acceso.
+
+Tres decisiones dentro:
+
+- **Quien lo envía recibe copia.** Así queda constancia de a quién se invitó y cuándo, sin
+  depender de la memoria de nadie.
+- **La dirección del enlace es configurable** (`configurarUrlAplicacion()`), y no siempre la
+  de la aplicación: si está embebida en un sitio de Google, la que hay que repartir es la del
+  sitio. Si no se configura, se usa la de la implementación activa. Sin ninguna de las dos, el
+  botón avisa en lugar de enviar un correo con un enlace roto.
+- **El texto no tiene género.** El correo va a personas cuyo género el sistema no conoce ni
+  tiene por qué suponer a partir del nombre: dice *"Ya tiene acceso"* y *"Le damos la
+  bienvenida"*, no *"habilitado"* ni *"Bienvenido"*.
+
+El botón aparece deshabilitado cuando a la persona le falta el correo corporativo, que es
+exactamente el caso que hoy tiene el portafolio (S-12).
+
+Las tildes del correo van como entidades HTML. El resto de los archivos `.gs` es ASCII puro, y
+así el mensaje se lee bien escrito sin que el código dependa de cómo viaje la codificación
+hasta Apps Script.
 
 ## Supuestos abiertos
 

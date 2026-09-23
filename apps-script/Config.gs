@@ -15,7 +15,8 @@ var PROP_KEYS = {
   LIBRO_TRANSACCIONAL: 'ID_LIBRO_TRANSACCIONAL',
   PLANTILLA_REQUERIMIENTO: 'ID_PLANTILLA_REQUERIMIENTO',
   CHAT_WEBHOOK_URL: 'CHAT_WEBHOOK_URL',
-  DOMINIO_CORPORATIVO: 'DOMINIO_CORPORATIVO'
+  DOMINIO_CORPORATIVO: 'DOMINIO_CORPORATIVO',
+  URL_APLICACION: 'URL_APLICACION'
 };
 
 var CONFIG = {
@@ -145,6 +146,46 @@ function getIdPlantillaRequerimiento() {
 /** @return {string} URL del webhook de Google Chat ('' si no esta configurado). */
 function getChatWebhookUrl() {
   return getProp(PROP_KEYS.CHAT_WEBHOOK_URL, false);
+}
+
+/**
+ * Direccion que se reparte a las personas.
+ *
+ * Se guarda como propiedad y no se deduce siempre sola, porque la direccion
+ * buena puede no ser la de la aplicacion: si esta embebida en un sitio de
+ * Google, la que hay que repartir es la del sitio. Si no esta configurada, se
+ * usa la de la implementacion activa, que es la que responde en ese momento.
+ *
+ * @return {string} '' si no hay ninguna disponible.
+ */
+function getUrlAplicacion() {
+  var propia = getProp(PROP_KEYS.URL_APLICACION, false);
+  if (propia) return propia;
+  try {
+    return ScriptApp.getService().getUrl() || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * Fija la direccion que llevaran los correos de bienvenida. Se ejecuta una vez
+ * desde el editor, tipicamente con la URL del sitio de Google.
+ * @param {string} url
+ * @return {!Object}
+ */
+function configurarUrlAplicacion(url) {
+  var limpia = String(url || '').trim();
+  if (!/^https:\/\//.test(limpia)) {
+    throw new Error('Escriba la direccion completa, empezando por https://');
+  }
+  var valores = {};
+  valores[PROP_KEYS.URL_APLICACION] = limpia;
+  guardarConfiguracion(valores);
+  var resultado = { ok: true, url: limpia,
+                    mensaje: 'Los correos de bienvenida enviaran a esta direccion.' };
+  Logger.log(JSON.stringify(resultado, null, 2));
+  return resultado;
 }
 
 /** @return {string} Dominio corporativo autorizado ('' = sin restriccion). */

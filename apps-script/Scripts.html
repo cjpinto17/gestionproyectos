@@ -1318,6 +1318,13 @@ function pintarTablaAdmin() {
         return '<td>' + esc(textoCelda(c, f[c.campo])) + '</td>';
       }).join('') +
       '<td style="text-align:right;white-space:nowrap">' +
+        // Dar de alta a alguien en la hoja no le avisa nada: el boton cierra
+        // ese hueco desde la misma fila donde se acaba de crear.
+        (r.tabla === 'Usuarios'
+          ? '<button class="btn-sec" style="padding:3px 8px;font-size:12px" data-bienvenida="' +
+            esc(f[r.pk]) + '"' + (f.Correo_ID ? '' : ' disabled title="Sin correo corporativo"') +
+            '>Bienvenida</button> '
+          : '') +
         '<button class="btn-sec" style="padding:3px 8px;font-size:12px" data-editar="' +
           esc(f[r.pk]) + '">Editar</button> ' +
         '<button class="btn-sec" style="padding:3px 8px;font-size:12px" data-eliminar="' +
@@ -1339,11 +1346,31 @@ function textoCelda(col, valor) {
 }
 
 $('tablaAdmin').addEventListener('click', function (e) {
+  var bienvenida = e.target.closest('[data-bienvenida]');
+  if (bienvenida) { confirmarBienvenida(bienvenida.dataset.bienvenida); return; }
   var editar = e.target.closest('[data-editar]');
   if (editar) { formularioRegistro(editar.dataset.editar); return; }
   var eliminar = e.target.closest('[data-eliminar]');
   if (eliminar) confirmarEliminar(eliminar.dataset.eliminar);
 });
+
+/** Invita a una persona a empezar a usar la herramienta. */
+function confirmarBienvenida(idUsuario) {
+  var r = DATOS.admin;
+  var u = r.filas.filter(function (f) { return String(f[r.pk]) === String(idUsuario); })[0] || {};
+
+  abrirModal('Correo de bienvenida', u.Nombre_Completo || idUsuario,
+    '<p style="font-size:13.5px">Se enviará a <b>' + esc(u.Correo_ID || '') + '</b> una ' +
+    'invitación con el objetivo de la herramienta, el paso a paso para ingresar y el enlace ' +
+    'de acceso.</p>' +
+    '<p class="nota">Usted recibe copia, para que quede constancia de a quién se invitó y ' +
+    'cuándo. El enlace es el que esté configurado como dirección de acceso.</p>',
+    function () {
+      return api('enviarCorreoBienvenida', idUsuario).then(function (res) {
+        toast('Bienvenida enviada a ' + res.destinatario + ' (copia a ' + res.copia + ').');
+      });
+    });
+}
 $('btnNuevoReg').addEventListener('click', function () { formularioRegistro(null); });
 
 /**

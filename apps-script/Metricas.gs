@@ -201,6 +201,13 @@ function calcularLeadTime_(solicitudes) {
 }
 
 /**
+ * Meses que dibuja la grafica de throughput del Home, sin importar el filtro de
+ * la pagina. Medio ano es el minimo con el que se distingue una tendencia de
+ * una casualidad.
+ */
+var MESES_GRAFICA_THROUGHPUT = 6;
+
+/**
  * Throughput: solicitudes desplegadas a produccion por mes. Mide la capacidad
  * real de entrega de la fabrica.
  * @param {!Array<!Object>} solicitudes
@@ -541,6 +548,11 @@ function calcularMetricasHome_(n) {
   var wip = calcularWip_(datos.solicitudes);
   var throughput = calcularThroughput_(datos.solicitudes, n);
   var entregadasVentana = throughput.reduce(function (a, m) { return a + m.entregadas; }, 0);
+  // La grafica de throughput no sigue el filtro del Home: va siempre a medio
+  // ano. Con la ventana en tres meses quedaban tres barras, y tres puntos no
+  // dibujan una tendencia. El indicador numerico si respeta el filtro, porque
+  // ahi lo que se quiere saber es el ritmo del periodo que se esta mirando.
+  var throughputGrafica = calcularThroughput_(datos.solicitudes, MESES_GRAFICA_THROUGHPUT);
 
   return {
     generado: new Date().toISOString(),
@@ -568,7 +580,8 @@ function calcularMetricasHome_(n) {
       leadTimeMediana: leadTime.mediana,
       leadTimeP85: leadTime.percentil85,
       muestraLeadTime: leadTime.muestra,
-      throughputMensual: throughput,
+      throughputMensual: throughputGrafica,
+      mesesGraficaThroughput: MESES_GRAFICA_THROUGHPUT,
       throughputPromedioMes: red_(entregadasVentana / n),
       tiempoConstruccionDias: calcularTiempoConstruccion_(datos.solicitudes),
       cycleTimePorFase: calcularCycleTimePorFase_(datos.auditoria, sla)
