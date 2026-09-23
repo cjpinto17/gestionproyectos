@@ -588,10 +588,12 @@ escritura podía **no** invalidar lo que se había calculado un instante antes, 
 seguido sirviendo el dato viejo. Ahora el sello lleva una cola al azar y se comprueba que sea
 distinto del anterior.
 
-### D-47 · El Home abre en el último mes
+### D-47 · El Home abre en los últimos tres meses
 
-Igual que la página de Reportes, el Home abre mostrando **el último mes** y no los últimos doce. La
-ventana de doce sigue disponible en el mismo desplegable.
+El Home abría en doce meses. Ahora abre en **tres**: suficiente para que las series mensuales
+muestren tendencia y corto como para que lo que se ve sea la operación actual. Las ventanas de
+uno, seis y doce meses siguen disponibles en el mismo desplegable. *(La página de Reportes abre
+en el último mes, porque ahí se consulta el cierre de un mes concreto.)*
 
 El valor vive en dos sitios que tienen que coincidir, y por eso ambos están anotados: el
 `<option selected>` de la página lo lee el usuario, y `VENTANA_INICIAL` en `Scripts.html` es la
@@ -601,10 +603,10 @@ que ese arranque ahorra. Del lado del servidor, `CONFIG.VENTANA_HOME_MESES` deci
 deja caliente el calentamiento automático (D-46): si apuntara a otra, el trabajo de calentar no
 serviría para la pantalla que la gente abre.
 
-**Consecuencia asumida:** las dos gráficas mensuales del Home —throughput y demanda contra
-entrega— muestran una sola columna en esta ventana. Son series de tiempo y con un mes no hay
-tendencia que leer; para verla hay que subir la ventana a 3, 6 o 12. Los demás indicadores
-(Lead Time, WIP, bloqueos, SLA) no dependen de la ventana y se leen igual.
+Tres meses es además el mínimo con el que las dos gráficas mensuales del Home —throughput y
+demanda contra entrega— dicen algo: con una sola columna no hay tendencia que leer. Los demás
+indicadores (Lead Time, WIP, bloqueos, SLA) no dependen de la ventana y se leen igual en
+cualquiera.
 
 ## Supuestos abiertos
 

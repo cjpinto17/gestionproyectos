@@ -78,7 +78,7 @@ var CONFIG = {
    * VENTANA_INICIAL de Scripts.html: el servidor la necesita para dejar
    * calientes en cache los indicadores que la primera persona va a pedir.
    */
-  VENTANA_HOME_MESES: 1,
+  VENTANA_HOME_MESES: 3,
 
   CACHE_SEGUNDOS: 900,
 
