@@ -73,7 +73,19 @@ var CONFIG = {
    * Toda escritura invalida la tabla afectada, asi que subirlo no produce
    * datos viejos: solo evita releer lo mismo. En 0 se desactiva la cache.
    */
-  CACHE_SEGUNDOS: 300,
+  CACHE_SEGUNDOS: 900,
+
+  /**
+   * La parametrizacion cambia unas pocas veces al ano, asi que vive mas en
+   * cache. Toda escritura desde la aplicacion la invalida igual.
+   */
+  CACHE_PARAMETRIZACION_SEGUNDOS: 3600,
+
+  /**
+   * Cuanto viven los resultados ya calculados (indicadores, matriz, reportes).
+   * Tambien se invalidan solos en cada escritura, por el sello de version.
+   */
+  CACHE_RESULTADOS_SEGUNDOS: 900,
 
   /** Modo diagnostico: escribe trazas en Logger ante cada transicion. */
   DEBUG: false

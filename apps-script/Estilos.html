@@ -246,6 +246,21 @@
   .c-len{background:#E8EDF7;color:var(--navy)}
   .c-vertical{background:#E6F7EE;color:#0F7A47}
 
+  /* Esqueleto de carga: la forma de lo que viene, mientras viene */
+  .esqueleto{display:block}
+  .eq{background:linear-gradient(90deg,#E8EDF7 25%,#F2F5FA 37%,#E8EDF7 63%);
+      background-size:400% 100%;border-radius:8px;animation:eq-brillo 1.4s ease-in-out infinite}
+  @keyframes eq-brillo{0%{background-position:100% 50%}100%{background-position:0 50%}}
+  @media (prefers-reduced-motion:reduce){.eq{animation:none}}
+  .eq-linea{height:46px;margin-bottom:8px}
+  .eq-grafico{height:230px}
+  .eq-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .eq-kpi{height:82px}
+  .eq-matriz{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+  .eq-celda{height:132px}
+  .eq-tablero{display:flex;gap:10px;overflow:hidden}
+  .eq-columna{flex:1 0 220px;height:320px}
+
   .sin-clasificar{background:var(--surface);border:1px dashed var(--line);border-radius:var(--radio);padding:14px;margin-top:12px}
   .sin-clasificar h3{font-size:13px;font-weight:700;margin-bottom:4px}
 

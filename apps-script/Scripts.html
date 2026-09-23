@@ -169,8 +169,27 @@ function columnas(items, max) {
            cuerpo + '<span class="etq">' + esc(i.etq) + '</span></div>';
   }).join('') + '</div>';
 }
-function cargando(contenedor) {
-  $(contenedor).innerHTML = '<p style="color:var(--ink-faint);font-size:13px">Cargando&hellip;</p>';
+/**
+ * Dibuja de inmediato la forma de lo que se esta pidiendo, en vez de la palabra
+ * "Cargando". La espera es la misma, pero el ojo ya tiene donde posarse y la
+ * pagina no da el salto de quedarse en blanco y llenarse de golpe.
+ *
+ * @param {string} contenedor
+ * @param {string=} forma kpis | matriz | tablero | grafico | lista (por defecto).
+ */
+function cargando(contenedor, forma) {
+  var caja = $(contenedor);
+  if (!caja) return;
+  var repetir = function (html, veces) { return new Array(veces + 1).join(html); };
+  var formas = {
+    kpis: '<div class="eq-kpis">' + repetir('<div class="eq eq-kpi"></div>', 5) + '</div>',
+    matriz: '<div class="eq-matriz">' + repetir('<div class="eq eq-celda"></div>', 8) + '</div>',
+    tablero: '<div class="eq-tablero">' + repetir('<div class="eq eq-columna"></div>', 4) + '</div>',
+    grafico: '<div class="eq eq-grafico"></div>',
+    lista: repetir('<div class="eq eq-linea"></div>', 4)
+  };
+  caja.innerHTML = '<div class="esqueleto" aria-busy="true" aria-label="Cargando">' +
+                   (formas[forma] || formas.lista) + '</div>';
 }
 function fallo(err) {
   toast(err && err.message ? err.message : String(err), true);
@@ -224,7 +243,7 @@ function cargarHome() {
   var meses = Number($('ventanaMeses').value);
   // Si ya se pidieron estos meses en esta sesion, se pinta de inmediato.
   if (DATOS.home && DATOS.home[meses]) { pintarHome(DATOS.home[meses]); return; }
-  cargando('kpisPortafolio');
+  cargando('kpisPortafolio', 'kpis');
   api('getMetricasHome', meses).then(function (m) {
     DATOS.home = DATOS.home || {};
     DATOS.home[meses] = m;
@@ -342,28 +361,42 @@ function pintarHome(m) {
 
 /* ================= Iniciativas ================= */
 function cargarIniciativas() {
-  if (DATOS.matriz) { pintarMatriz(); return; }
-  cargando('matriz');
+  if (DATOS.matriz) {
+    prepararFiltrosIniciativas(DATOS.matriz);
+    pintarIniciativas();
+    return;
+  }
+  cargando(VISTA_INI === 'matriz' ? 'matriz' : 'prioridades', 'matriz');
   api('getMatrizIniciativas').then(function (r) {
     DATOS.matriz = r;
-    $('filtroEstadoIni').innerHTML = '<option value="">Todos los estados</option>' +
-        r.estados.map(function (e) {
-          return '<option value="' + e.id + '">' + esc(e.nombre) + '</option>';
-        }).join('');
-    $('filtroTipoIni').innerHTML = '<option value="">Todos los tipos</option>' +
-        r.tipos.map(function (t) {
-          return '<option value="' + t.id + '">' + esc(t.nombre) + '</option>';
-        }).join('');
-    $('filtroPrioridadIni').innerHTML = '<option value="">Todas las prioridades</option>' +
-        r.prioridades.map(function (pr) {
-          return '<option value="' + pr.id + '">' + esc(pr.nombre) + '</option>';
-        }).join('');
-    $('filtroPlataformaIni').innerHTML = '<option value="">Todas las plataformas</option>' +
-        r.plataformas.map(function (pl) {
-          return '<option value="' + pl.id + '">' + esc(pl.nombre) + '</option>';
-        }).join('') + '<option value="__SIN__">Sin plataforma asignada</option>';
+    prepararFiltrosIniciativas(r);
     pintarIniciativas();
   }).catch(fallo);
+}
+
+/**
+ * Llena los combos de la pagina. Vive aparte de la consulta porque los datos
+ * pueden llegar por la precarga en segundo plano y no solo por abrir la pagina.
+ */
+function prepararFiltrosIniciativas(r) {
+  if (DATOS.filtrosIniListos) return;
+  $('filtroEstadoIni').innerHTML = '<option value="">Todos los estados</option>' +
+      r.estados.map(function (e) {
+        return '<option value="' + e.id + '">' + esc(e.nombre) + '</option>';
+      }).join('');
+  $('filtroTipoIni').innerHTML = '<option value="">Todos los tipos</option>' +
+      r.tipos.map(function (t) {
+        return '<option value="' + t.id + '">' + esc(t.nombre) + '</option>';
+      }).join('');
+  $('filtroPrioridadIni').innerHTML = '<option value="">Todas las prioridades</option>' +
+      r.prioridades.map(function (pr) {
+        return '<option value="' + pr.id + '">' + esc(pr.nombre) + '</option>';
+      }).join('');
+  $('filtroPlataformaIni').innerHTML = '<option value="">Todas las plataformas</option>' +
+      r.plataformas.map(function (pl) {
+        return '<option value="' + pl.id + '">' + esc(pl.nombre) + '</option>';
+      }).join('') + '<option value="__SIN__">Sin plataforma asignada</option>';
+  DATOS.filtrosIniListos = true;
 }
 $('buscIni').addEventListener('input', pintarIniciativas);
 $('filtroEstadoIni').addEventListener('change', pintarIniciativas);
@@ -641,7 +674,7 @@ function cargarGestion(forzar) {
   // Se traen todas las actividades una sola vez y el filtrado ocurre en el
   // navegador: asi la busqueda predictiva responde sin esperar al servidor.
   if (!forzar && DATOS.kanban) { pintarKanban(); return; }
-  cargando('kanban');
+  cargando('kanban', 'tablero');
   api('getDatosKanban', {}).then(function (r) {
     DATOS.kanban = r;
     prepararFiltrosKanban(r);
@@ -1090,7 +1123,7 @@ $('btnNueva').addEventListener('click', function () {
 /* ================= Roadmap ================= */
 function cargarRoadmap() {
   if (DATOS.roadmap) { pintarRoadmap(); return; }
-  cargando('roadmap');
+  cargando('roadmap', 'lista');
   api('getRoadmapVersiones').then(function (r) {
     DATOS.roadmap = r;
     $('fRmPlataforma').innerHTML = '<option value="">Todas las plataformas</option>' +
@@ -1159,7 +1192,7 @@ function pintarRoadmap() {
 function cargarReportes() {
   var meses = Number($('ventanaReportes').value);
   if (DATOS.reportes && DATOS.reportes[meses]) { pintarReportes(DATOS.reportes[meses]); return; }
-  cargando('graficoIniMes');
+  cargando('graficoIniMes', 'grafico');
   api('getReportes', meses).then(function (r) {
     DATOS.reportes = DATOS.reportes || {};
     DATOS.reportes[meses] = r;
@@ -1441,6 +1474,44 @@ function confirmarEliminar(valorPk) {
 
 /* ================= Arranque ================= */
 
+/**
+ * Trae calladamente las paginas que el usuario todavia no ha abierto.
+ *
+ * Cada viaje al servidor de Apps Script cuesta cerca de un segundo solo en ida
+ * y vuelta, y ese segundo se paga igual si nadie lo esta esperando. Mientras la
+ * persona mira el Home, el tablero y la matriz se van trayendo; cuando hace
+ * clic en la pestana, ya estan.
+ *
+ * Reglas: nunca pisa lo que ya esta cargado, va en cadena y no en paralelo para
+ * no competir con lo que el usuario pida entretanto, y si algo falla se queda
+ * callado — la pagina lo volvera a pedir cuando se abra de verdad.
+ */
+function precargarEnSegundoPlano() {
+  setTimeout(function () {
+    var pasos = [
+      function () {
+        if (DATOS.matriz) return Promise.resolve();
+        return api('getMatrizIniciativas').then(function (r) {
+          if (DATOS.matriz) return;
+          DATOS.matriz = r;
+          prepararFiltrosIniciativas(r);
+        });
+      },
+      function () {
+        if (DATOS.kanban) return Promise.resolve();
+        return api('getDatosKanban', {}).then(function (r) {
+          if (DATOS.kanban) return;
+          DATOS.kanban = r;
+          prepararFiltrosKanban(r);
+        });
+      }
+    ];
+    pasos.reduce(function (cadena, paso) {
+      return cadena.then(paso).catch(function () {});
+    }, Promise.resolve());
+  }, 900);
+}
+
 /** Descarta lo que el navegador tiene guardado de las consultas anteriores. */
 function invalidarCacheCliente() {
   DATOS.home = null;
@@ -1449,6 +1520,7 @@ function invalidarCacheCliente() {
   DATOS.roadmap = null;
   DATOS.kanban = null;
   DATOS.filtrosListos = null;
+  DATOS.filtrosIniListos = null;
 }
 
 /** Boton "Actualizar": relee las hojas, por si alguien las edito por fuera. */
@@ -1486,6 +1558,7 @@ api('getArranque', 12).then(function (r) {
   if (!CTX.esAdmin) $('tabAdmin').hidden = true;
   $('contenido').hidden = false;
   navegar(PAGINA_INICIAL || 'home');
+  precargarEnSegundoPlano();
 }).catch(function (err) {
   $('avisoAccesoMotivo').textContent = (err && err.message) ? err.message : String(err);
   $('avisoAcceso').hidden = false;

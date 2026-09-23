@@ -206,7 +206,7 @@ una sola pantalla puede necesitar la misma hoja cinco o seis veces. Se agregaron
 | Nivel | Qué hace | Dónde |
 | --- | --- | --- |
 | Memoria de ejecución | Cada hoja y cada archivo se abren una vez por petición | `Cache.gs` |
-| Caché compartida | El resultado sirve a las siguientes peticiones y a los demás usuarios, 300 s | `Cache.gs`, `CONFIG.CACHE_SEGUNDOS` |
+| Caché compartida | El resultado sirve a las siguientes peticiones y a los demás usuarios | `Cache.gs`, `CONFIG.CACHE_SEGUNDOS` |
 | Arranque | `getArranque()` entrega sesión, catálogos e indicadores en un solo viaje, en vez de tres encadenados | `Codigo.gs` |
 | Navegador | Cada página recuerda lo que ya consultó; cambiar de pestaña no vuelve a pedir | `Scripts.html` |
 | Payload | La bitácora viaja acotada a las 200 transiciones más recientes, con el total aparte | `Metricas.gs` |
@@ -216,7 +216,7 @@ tras un cambio hecho desde la aplicación. El único caso de desfase es editar e
 a mano: para eso está el botón **Actualizar** de la barra superior, que fuerza la relectura.
 
 `medirRendimiento()` en `Cache.gs` cronometra las cuatro consultas principales con y sin
-caché, para comprobar el efecto sobre los datos reales.
+caché, para comprobar el efecto sobre los datos reales. *(Ampliado en D-45.)*
 
 ### D-24 · La prioridad se lee tolerante al formato
 El archivo fuente traía la prioridad como texto (*Crítica*, *Alta*, *Media*), mientras que el
@@ -500,6 +500,43 @@ Dos diferencias deliberadas:
 
 Dentro de cada columna el orden es alfabético: la prioridad ya es el agrupador, así que la
 tarjeta se busca por nombre.
+
+### D-45 · Cachear las hojas no bastaba: había que dejar de recalcular
+
+D-22 evitó **releer** las hojas, pero no evitó **rehacer las cuentas**. Los indicadores del
+Home, la matriz y los reportes no son una lectura: son un recorrido por todas las solicitudes y
+toda la bitácora, con el cálculo de días hábiles de cada movimiento. Eso se repetía en cada
+visita aunque nadie hubiera cambiado nada.
+
+Ahora el resultado ya calculado también se guarda. El mecanismo es un **sello de versión**:
+cada entrada se guarda bajo el sello vigente, y cualquier escritura genera uno nuevo. Con eso
+todas las entradas anteriores quedan inalcanzables de golpe y expiran solas — no hay que salir
+a borrarlas una por una, y por tanto no existe el riesgo de olvidar alguna y servir un dato
+viejo. Solo entran ahí resultados iguales para todos: la caché es del script, no de la sesión,
+así que nada que dependa de quién pregunta se guarda.
+
+**Vencimientos por tipo de dato.** La parametrización (roles, fases, SLA, festivos) cambia unas
+pocas veces al año y vive una hora; lo transaccional, quince minutos. En ambos casos el plazo
+solo aplica a ediciones hechas **a mano en el Sheets**: cualquier cambio desde la aplicación
+invalida de inmediato. Para lo primero sigue estando el botón **Actualizar**.
+
+**Precarga en segundo plano.** Cada viaje al servidor de Apps Script cuesta cerca de un segundo
+solo en ida y vuelta, y ese segundo se paga igual si nadie lo está esperando. Mientras la
+persona mira el Home, la matriz y el tablero se van trayendo callados; al hacer clic en la
+pestaña, ya están. Va en cadena y no en paralelo para no competir con lo que el usuario pida
+entretanto, nunca pisa lo ya cargado, y si algo falla no dice nada: la página lo volverá a
+pedir cuando se abra de verdad.
+
+**Esqueleto de carga.** En vez de la palabra *Cargando*, se dibuja de inmediato la forma de lo
+que viene: los recuadros de los indicadores, las celdas de la matriz, las columnas del tablero.
+La espera es la misma; lo que cambia es que el ojo ya tiene dónde posarse y la página no da el
+salto de quedarse en blanco y llenarse de golpe. Respeta `prefers-reduced-motion`.
+
+**Lo que deliberadamente no se hizo:** cambiar Sheets por una base de datos. Con este volumen
+el cuello de botella no es Sheets sino el arranque del motor de Apps Script y el ida y vuelta
+de cada llamada, y ninguno de los dos desaparece al cambiar de base de datos. Sheets empezaría
+a pesar hacia las decenas de miles de filas. A cambio se perdería que cualquiera abra la hoja y
+revise o corrija a mano, que en este proyecto se ha usado varias veces.
 
 ## Supuestos abiertos
 

@@ -520,6 +520,19 @@ function calcularDemandaVsEntrega_(solicitudes, meses) {
  */
 function getMetricasHome(meses) {
   var n = meses || 12;
+  return conResultadoEnCache_('metricasHome_' + n, function () {
+    return calcularMetricasHome_(n);
+  });
+}
+
+/**
+ * El calculo de verdad de los indicadores del Home. Vive aparte para que
+ * getMetricasHome pueda servirlo desde la cache sin rehacerlo.
+ * @param {number} n Ventana en meses.
+ * @return {!Object}
+ * @private
+ */
+function calcularMetricasHome_(n) {
   var datos = cargarDatos_();
   var sla = mapaSla_(datos.sla);
 
@@ -605,6 +618,18 @@ function getMetricasHome(meses) {
  */
 function getReportes(meses) {
   var n = meses || 12;
+  return conResultadoEnCache_('reportes_' + n, function () {
+    return calcularReportes_(n);
+  });
+}
+
+/**
+ * El calculo de verdad de los reportes mensuales.
+ * @param {number} n Ventana en meses.
+ * @return {!Object}
+ * @private
+ */
+function calcularReportes_(n) {
   var datos = cargarDatos_();
   var ventana = ultimosMeses_(n);
   var proyectoDe = {};
@@ -751,6 +776,15 @@ function normalizarPrioridad_(valor) {
  * @return {!Object}
  */
 function getMatrizIniciativas() {
+  return conResultadoEnCache_('matrizIniciativas', calcularMatrizIniciativas_);
+}
+
+/**
+ * El armado de verdad de la matriz de iniciativas.
+ * @return {!Object}
+ * @private
+ */
+function calcularMatrizIniciativas_() {
   var datos = cargarDatos_();
   var nombrePlataforma = mapaPlataformas();
   var nombreUsuario = {};

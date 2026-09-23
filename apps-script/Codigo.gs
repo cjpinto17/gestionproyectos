@@ -459,6 +459,23 @@ function getArranque(meses) {
  * @return {!Object}
  */
 function getDatosKanban(filtros) {
+  // El tablero se abre siempre sin filtros (el filtrado ocurre en el
+  // navegador), asi que ese caso —el unico que se repite— vale la pena
+  // cachearlo ya armado. Una consulta con filtros es de un solo uso.
+  var sinFiltros = !filtros || Object.keys(filtros).length === 0;
+  if (sinFiltros) {
+    return conResultadoEnCache_('kanban', function () { return armarDatosKanban_({}); });
+  }
+  return armarDatosKanban_(filtros);
+}
+
+/**
+ * Arma el tablero de verdad.
+ * @param {!Object} filtros
+ * @return {!Object}
+ * @private
+ */
+function armarDatosKanban_(filtros) {
   var proyectos = leerTabla('Proyectos');
   var usuarios = leerTabla('Usuarios');
   var nombrePlataforma = mapaPlataformas();
