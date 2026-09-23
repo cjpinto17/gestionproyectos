@@ -266,6 +266,7 @@ validaciones junto con ella y las filas existentes quedan alineadas solas.
 | `verificarEstructura()` | Revisa las 18 hojas contra el esquema e inserta lo que falte |
 | `diagnosticarSolicitudes()` | Informa qué filas tienen valores fuera de su columna, sin tocar nada |
 | `repararSolicitudesDesalineadas()` | Endereza solo las filas que, al corregirlas, quedan con fase y estado válidos; las demás las reporta para revisión manual |
+| `renumerarSolicitudes()` | Lleva los ID ya existentes al formato `SOL-0015`. Sin argumento solo informa; con `true` aplica (ver D-43) |
 
 La reparación nunca adivina: si el enderezado no produce una fila coherente, la deja intacta
 y la marca. Es preferible una fila señalada que una fila "reparada" a ciegas.
@@ -370,9 +371,9 @@ el mensaje indica dónde registrarla en lugar de exigir un formato.
 ejemplo pegada desde otra pantalla.
 
 ### D-37 · El consecutivo continúa la serie de la hoja
-`SOL-AAAAMMDD-###` ya no reinicia el contador cada día: toma el mayor número existente en la
-hoja y sigue. Antes, dos solicitudes registradas en días distintos podían llevar el mismo
-`001`, y al hablar de "la solicitud 3" nadie sabía de cuál se trataba.
+El contador no se reinicia cada día: toma el mayor número existente en la hoja y sigue. Antes,
+dos solicitudes registradas en días distintos podían llevar el mismo `001`, y al hablar de "la
+solicitud 3" nadie sabía de cuál se trataba. *(El formato del ID cambió después: ver D-43.)*
 
 ### D-38 · Los estados de solicitud usan el mismo código de color
 El tablero y la matriz se leen igual: gris lo que no arranca, amarillo lo que avanza, verde lo
@@ -444,6 +445,33 @@ se arma con la fecha local (`fechaInput()`), como el resto de la interfaz.
 El cambio de la fecha no se registra en `Auditoria_Transiciones`: esa bitácora modela
 movimientos de fase y estado, y una fila extra con la misma fase distorsionaría los tiempos por
 fase que alimentan el SLA.
+
+### D-43 · El ID de la solicitud es el prefijo y el consecutivo: `SOL-0015`
+
+El código llevaba también la fecha —`SOL-20260923-015`— y eso lo hacía largo de leer, de
+dictar por teléfono y de buscar en la hoja, sin aportar nada: la fecha de registro ya vive en
+su propia columna, donde además ahora se puede corregir (D-42). La del ID quedaba congelada y
+podía terminar contradiciendo a la real.
+
+Queda `SOL-` más el consecutivo con cuatro dígitos. El consecutivo sigue siendo el de D-37: el
+mayor número de la hoja, más uno, sin reiniciarse nunca. Pasados los 9.999 el número
+simplemente crece y el ID se alarga; no se reinicia ni se recorta.
+
+El sistema **lee los dos formatos**: `consecutivoDeId_()` saca el 15 tanto de `SOL-0015` como
+del antiguo `SOL-20260923-015`, así que la serie continúa correctamente sobre los datos que ya
+estaban cargados y nada se rompe si los dos conviven.
+
+**Para unificar lo ya cargado** está `renumerarSolicitudes()` en `Mantenimiento.gs`. Cada
+solicitud conserva su número (`SOL-20260915-013` → `SOL-0013`). Sin argumento solo informa lo
+que haría; con `true` aplica. Y actualiza también `Auditoria_Transiciones` y el resultado de la
+carga masiva: el ID es la llave con la que la bitácora referencia cada solicitud, y renombrar
+solo la hoja de Solicitudes dejaría la historia apuntando al vacío y los tiempos por fase sin
+con qué calcularse. No reescribe la historia: ajusta la referencia a una fila que sigue siendo
+la misma.
+
+Si encuentra **códigos repetidos no renumera nada** y los reporta. Con un código duplicado no
+hay forma de saber a cuál de las dos filas pertenece cada movimiento de la bitácora, y
+asignarlo a la equivocada en silencio sería peor que dejar los dos formatos conviviendo.
 
 ## Supuestos abiertos
 

@@ -610,25 +610,54 @@ function getVersionesDisponibles(idPlataforma) {
 /* ================================================================== */
 
 /**
- * Genera el consecutivo SOL-YYYYMMDD-XXX del dia.
+ * Genera el ID de la siguiente solicitud: SOL-0015.
+ *
+ * El ID es el prefijo y el consecutivo, nada mas. Antes llevaba tambien la
+ * fecha (SOL-20260923-015) y eso lo hacia largo de leer y de dictar, sin
+ * aportar: la fecha de registro ya vive en su propia columna, donde ademas se
+ * puede corregir; la del ID quedaba congelada y podia terminar contradiciendola.
+ *
+ * El consecutivo continua la serie de toda la hoja y nunca se reinicia, de modo
+ * que el numero identifica la solicitud por si solo.
+ *
  * @return {string}
  * @private
  */
 function generarIdSolicitud_() {
-  var hoy = Utilities.formatDate(new Date(), CONFIG.ZONA_HORARIA, 'yyyyMMdd');
-
-  // El consecutivo continua la serie de toda la hoja, no se reinicia cada dia:
-  // asi el numero identifica la solicitud por si solo y nunca se repite, aunque
-  // dos se registren el mismo dia con semanas de diferencia.
   var maximo = 0;
   leerTabla('Solicitudes').forEach(function (s) {
-    var m = String(s.ID_Solicitud || '').match(/(\d+)\s*$/);
-    if (m) maximo = Math.max(maximo, Number(m[1]));
+    maximo = Math.max(maximo, consecutivoDeId_(s.ID_Solicitud));
   });
+  return formatearIdSolicitud_(maximo + 1);
+}
 
-  var siguiente = maximo + 1;
-  var relleno = siguiente < 1000 ? ('00' + siguiente).slice(-3) : String(siguiente);
-  return CONFIG.PREFIJO_SOLICITUD + '-' + hoy + '-' + relleno;
+/**
+ * Numero consecutivo que lleva un ID de solicitud, en cualquiera de los dos
+ * formatos: SOL-0015 y el antiguo SOL-20260923-015 devuelven 15.
+ *
+ * @param {*} id
+ * @return {number} 0 si el ID no trae un consecutivo reconocible.
+ * @private
+ */
+function consecutivoDeId_(id) {
+  var partes = String(id || '').trim().split('-');
+  var ultimo = partes[partes.length - 1].trim();
+  // Se aceptan hasta seis digitos: asi un ID trunco como "SOL-20260923" no se
+  // confunde con un numero de serie y dispara el contador a veinte millones.
+  return /^\d{1,6}$/.test(ultimo) ? Number(ultimo) : 0;
+}
+
+/**
+ * Arma el ID a partir del consecutivo, con relleno de ceros a la izquierda.
+ * @param {number} numero
+ * @return {string}
+ * @private
+ */
+function formatearIdSolicitud_(numero) {
+  var n = String(Math.max(1, Math.floor(Number(numero) || 1)));
+  var ancho = CONFIG.DIGITOS_SOLICITUD;
+  var relleno = n.length >= ancho ? n : (new Array(ancho + 1).join('0') + n).slice(-ancho);
+  return CONFIG.PREFIJO_SOLICITUD + '-' + relleno;
 }
 
 /**

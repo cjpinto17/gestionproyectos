@@ -38,8 +38,15 @@ var CONFIG = {
   /** Nombre del Google Doc maestro que se clona por cada solicitud. */
   NOMBRE_PLANTILLA_REQUERIMIENTO: 'Plantilla_Formato_Requerimiento',
 
-  /** Prefijo del ID de solicitud: SOL-YYYYMMDD-XXX */
+  /** Prefijo del ID de solicitud: SOL-0015 */
   PREFIJO_SOLICITUD: 'SOL',
+
+  /**
+   * Digitos del consecutivo en el ID de la solicitud. Con cuatro alcanza para
+   * 9.999 solicitudes; de ahi en adelante el numero simplemente crece y el ID
+   * se alarga, no se reinicia ni se recorta.
+   */
+  DIGITOS_SOLICITUD: 4,
 
   /**
    * Formato sugerido de version semantica (ej. v2.4.0). Es una referencia para

@@ -98,7 +98,8 @@ Portal Empresarial (`PL-08`).
 ## Libro 2 — `Gestion_Proyectos_Plataformas`
 
 ### `Solicitudes`
-Entidad central. PK `ID_Solicitud` con formato `SOL-YYYYMMDD-XXX`.
+Entidad central. PK `ID_Solicitud` con formato `SOL-0015`: el prefijo y el consecutivo de la
+hoja, con cuatro dígitos (ver D-43).
 
 **Identificación:** `ID_Solicitud`, `Fecha_Registro`, `Nombre_Solicitud`, `Objetivo`,
 `Entregable`, `Proceso_Impactado`.

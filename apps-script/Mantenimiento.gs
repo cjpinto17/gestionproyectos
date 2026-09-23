@@ -150,3 +150,168 @@ function repararSolicitudesDesalineadas() {
     return reporte;
   });
 }
+
+/**
+ * Lleva los ID de solicitud ya existentes al formato SOL-0015.
+ *
+ * Las solicitudes cargadas antes del cambio de formato quedaron como
+ * SOL-20260923-015. Conviven sin romper nada —el sistema lee las dos formas—
+ * pero el tablero termina mostrando dos estilos de codigo para lo mismo.
+ *
+ * Cada solicitud conserva su numero: SOL-20260915-015 pasa a ser SOL-0015. Si
+ * dos codigos distintos traen el mismo consecutivo, o alguno no trae ninguno,
+ * esa fila toma el siguiente numero libre al final de la serie.
+ *
+ * Si hay codigos repetidos no renumera nada y los reporta: con un codigo
+ * duplicado no hay forma de saber a cual de las dos filas pertenece cada
+ * movimiento de la bitacora.
+ *
+ * El ID es la llave con la que la auditoria referencia cada solicitud, asi que
+ * renombrar solo la hoja de Solicitudes dejaria la bitacora apuntando al vacio
+ * y los indicadores de tiempo por fase se quedarian sin historia. Por eso la
+ * funcion actualiza tambien Auditoria_Transiciones y el resultado de la carga
+ * masiva. No reescribe la historia: ajusta la referencia a una fila que sigue
+ * siendo la misma.
+ *
+ * @param {boolean=} aplicar false (o sin valor) solo informa lo que haria.
+ * @return {!Object} Reporte.
+ */
+function renumerarSolicitudes(aplicar) {
+  return conBloqueo_(function () {
+    var columnas = asegurarColumnas_('Solicitudes');
+    var iId = columnas.indexOf('ID_Solicitud');
+    if (iId === -1) throw new Error('La hoja Solicitudes no tiene la columna ID_Solicitud.');
+
+    var hoja = getHoja_('Solicitudes');
+    var ultimaFila = hoja.getLastRow();
+    if (ultimaFila < 2) {
+      return { total: 0, porCambiar: 0, mensaje: 'No hay solicitudes registradas.' };
+    }
+
+    var rango = hoja.getRange(2, iId + 1, ultimaFila - 1, 1);
+    var ids = rango.getValues();
+
+    // Un ID repetido no se puede renumerar: la auditoria referencia la
+    // solicitud por su codigo, y si dos filas comparten el mismo, no hay forma
+    // de saber a cual de las dos pertenece cada movimiento. Renumerarlas
+    // asignaria la historia a la fila equivocada, en silencio. Se informan para
+    // corregirlas a mano y no se toca nada.
+    var vistos = {};
+    var repetidos = [];
+    ids.forEach(function (f, i) {
+      var actual = String(f[0] || '').trim();
+      if (!actual) return;
+      if (vistos[actual]) repetidos.push({ fila: i + 2, id: actual });
+      vistos[actual] = true;
+    });
+    if (repetidos.length) {
+      var conflicto = {
+        total: ids.length,
+        porCambiar: 0,
+        idsRepetidos: repetidos,
+        mensaje: 'Hay ID de solicitud repetidos. No se renumero nada: primero ' +
+                 'corrija los duplicados en la hoja, porque la bitacora referencia ' +
+                 'cada solicitud por su codigo.'
+      };
+      Logger.log(JSON.stringify(conflicto, null, 2));
+      return conflicto;
+    }
+
+    var maximo = 0;
+    ids.forEach(function (f) { maximo = Math.max(maximo, consecutivoDeId_(f[0])); });
+
+    var tomados = {};
+    var cambios = [];
+    var nuevos = ids.map(function (f) {
+      var actual = String(f[0] || '').trim();
+      if (!actual) return [''];
+
+      var n = consecutivoDeId_(actual);
+      // Sin consecutivo legible, o repetido: va al final de la serie. Nunca se
+      // le quita el numero a la primera fila que lo tenia.
+      if (!n || tomados[n]) n = ++maximo;
+      tomados[n] = true;
+
+      var nuevo = formatearIdSolicitud_(n);
+      if (nuevo !== actual) cambios.push({ anterior: actual, nuevo: nuevo });
+      return [nuevo];
+    });
+
+    if (!cambios.length) {
+      var sinCambios = { total: ids.length, porCambiar: 0,
+                         mensaje: 'Todos los ID ya estan en el formato SOL-0015.' };
+      Logger.log(JSON.stringify(sinCambios, null, 2));
+      return sinCambios;
+    }
+
+    if (!aplicar) {
+      var ensayo = {
+        total: ids.length,
+        porCambiar: cambios.length,
+        ejemplos: cambios.slice(0, 10),
+        siguientePaso: 'Revise la lista y ejecute renumerarSolicitudes(true) para aplicarla.'
+      };
+      Logger.log(JSON.stringify(ensayo, null, 2));
+      return ensayo;
+    }
+
+    var mapa = {};
+    cambios.forEach(function (c) { mapa[c.anterior] = c.nuevo; });
+
+    rango.setValues(nuevos);
+    invalidarTabla_('Solicitudes');
+
+    var referencias = actualizarReferenciasId_('Auditoria_Transiciones', 'ID_Solicitud', mapa) +
+                      actualizarReferenciasId_('Carga_Solicitudes', 'Resultado', mapa);
+
+    var reporte = {
+      total: ids.length,
+      renumeradas: cambios.length,
+      referenciasActualizadas: referencias,
+      ejemplos: cambios.slice(0, 10),
+      mensaje: cambios.length + ' solicitud(es) renumeradas al formato SOL-0015.'
+    };
+    Logger.log(JSON.stringify(reporte, null, 2));
+    return reporte;
+  });
+}
+
+/**
+ * Reemplaza en una columna los ID viejos por los nuevos, segun el mapa.
+ * Si la hoja o la columna no existen, no hay nada que actualizar.
+ *
+ * @param {string} tabla
+ * @param {string} campo
+ * @param {!Object<string, string>} mapa ID anterior -> ID nuevo.
+ * @return {number} Celdas actualizadas.
+ * @private
+ */
+function actualizarReferenciasId_(tabla, campo, mapa) {
+  var hoja;
+  try { hoja = getHoja_(tabla); } catch (e) { return 0; }
+
+  var columnas = asegurarColumnas_(tabla);
+  var indice = columnas.indexOf(campo);
+  if (indice === -1) return 0;
+
+  var ultimaFila = hoja.getLastRow();
+  if (ultimaFila < 2) return 0;
+
+  var rango = hoja.getRange(2, indice + 1, ultimaFila - 1, 1);
+  var valores = rango.getValues();
+  var tocadas = 0;
+
+  for (var i = 0; i < valores.length; i++) {
+    var actual = String(valores[i][0] || '').trim();
+    if (mapa[actual]) {
+      valores[i][0] = mapa[actual];
+      tocadas++;
+    }
+  }
+
+  if (tocadas) {
+    rango.setValues(valores);
+    invalidarTabla_(tabla);
+  }
+  return tocadas;
+}
