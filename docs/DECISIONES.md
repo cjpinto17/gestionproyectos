@@ -378,6 +378,18 @@ hoja y sigue. Antes, dos solicitudes registradas en días distintos podían llev
 El tablero y la matriz se leen igual: gris lo que no arranca, amarillo lo que avanza, verde lo
 aprobado y terminado, rojo lo bloqueado, gris tachado lo cancelado.
 
+### D-39 · La aplicación puede ir embebida
+`doGet()` declara `XFrameOptionsMode.ALLOWALL` y la página trae `<base target="_top">`, que
+son las dos condiciones para que la aplicación funcione dentro de un marco de Google Sites:
+la primera permite el embebido y la segunda hace que los enlaces a Drive y a los documentos se
+abran en la pestaña completa, no dentro del marco.
+
+La URL de la aplicación **solo cambia al crear una implementación nueva**. Actualizar la
+existente —o dejar que lo haga el flujo de GitHub con `DEPLOYMENT_ID`— conserva la dirección.
+Google Sites, entonces, no es un requisito técnico sino una decisión de presentación: da una
+dirección corta con el nombre de la compañía y permite acompañar la herramienta con
+instrucciones. El paso a paso está en `docs/IMPLEMENTACION.md`, parte 5.1.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

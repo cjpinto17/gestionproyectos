@@ -213,6 +213,54 @@ Todo esto se hace desde el editor de Apps Script, con el código ya cargado.
 
 ---
 
+## Parte 5.1 · La URL estable, y cómo publicarla en Google Sites
+
+### Lo primero: la URL no tiene por qué cambiar
+
+La dirección de la aplicación **solo cambia cuando se crea una implementación nueva**. Si en
+lugar de eso se actualiza la existente, la URL es la misma para siempre:
+
+**Implementar → Administrar implementaciones →** el lápiz de la implementación activa **→
+Versión: Nueva → Implementar**
+
+Ese es el camino correcto para publicar cada cambio. *Nueva implementación* se usa una sola
+vez, el primer día.
+
+Si configuró el secreto `DEPLOYMENT_ID` (Parte 2, paso A.3), esto ya ocurre solo: el flujo de
+GitHub actualiza esa misma implementación en cada cambio y usted no entra al editor.
+
+### Publicarla en Google Sites
+
+Aun con URL estable, un sitio de Google le da una dirección corta, con el nombre de la
+compañía, y le permite acompañar la aplicación con instrucciones o enlaces. La aplicación ya
+está preparada para ir embebida.
+
+1. Entre a **[sites.google.com](https://sites.google.com)** y cree un sitio nuevo.
+2. Póngale nombre: `Gestión de Plataformas Digitales`.
+3. En el panel derecho, pestaña **Insertar** → botón **Insertar** (el del icono `<>`).
+4. Elija la pestaña **Por URL** y pegue la **URL de la aplicación web** (la que termina en
+   `/exec`). **Insertar**.
+5. Estire el marco hasta ocupar todo el ancho y unos **900 px de alto**: la aplicación trae su
+   propio desplazamiento interno, pero con poco alto el tablero se ve apretado.
+6. Para ganar espacio: engranaje de la página → desactive el encabezado, o póngalo en modo
+   **Solo título**. En el tema, elija el ancho **completo**.
+7. Botón **Publicar** (arriba a la derecha). En *Quién puede ver*, elija **Cualquier usuario
+   de su organización**, no público.
+8. Comparta con el equipo la dirección del sitio, no la del `/exec`.
+
+### Qué tener en cuenta
+
+- **Cada persona entra con su propia cuenta.** El sitio no cambia eso: la aplicación sigue
+  reconociendo al usuario y aplicando su rol.
+- **Si el marco aparece en blanco**, casi siempre es el bloqueo de cookies de terceros del
+  navegador. Solución: permitir cookies para `googleusercontent.com`, o abrir la aplicación en
+  pestaña aparte. Conviene dejar en el sitio un enlace de respaldo a la URL `/exec`.
+- **La primera vez** que alguien entra, Google le pide autorizar la aplicación. Eso ocurre una
+  sola vez por persona y no se puede hacer desde dentro del marco: si se queda trabada, que
+  abra la URL `/exec` directamente, autorice, y vuelva al sitio.
+- **El sitio no guarda datos**: es solo la ventana. Todo sigue viviendo en las hojas de
+  cálculo y en Drive.
+
 ## Parte 6 · Dar de alta a las personas (5 min)
 
 Al entrar por primera vez verás el mensaje *"Su correo no está asociado a ningún usuario del
