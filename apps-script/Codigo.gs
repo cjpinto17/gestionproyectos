@@ -229,7 +229,9 @@ function escribirFila_(tabla, numeroFila, registro) {
     return (v === undefined || v === null) ? '' : v;
   });
   hoja.getRange(numeroFila, 1, 1, columnas.length).setValues([valores]);
-  invalidarTabla_(tabla);
+  // Se actualiza esa fila en la memoria compartida en vez de botar la tabla:
+  // botarla obligaba a releer la hoja entera en la siguiente consulta.
+  refrescarFilaEnCache_(tabla, numeroFila, columnas);
 }
 
 /**

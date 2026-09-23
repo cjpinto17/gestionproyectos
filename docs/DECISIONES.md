@@ -267,6 +267,9 @@ validaciones junto con ella y las filas existentes quedan alineadas solas.
 | `diagnosticarSolicitudes()` | Informa qué filas tienen valores fuera de su columna, sin tocar nada |
 | `repararSolicitudesDesalineadas()` | Endereza solo las filas que, al corregirlas, quedan con fase y estado válidos; las demás las reporta para revisión manual |
 | `renumerarSolicitudes()` | Lleva los ID ya existentes al formato `SOL-0015`. Sin argumento solo informa; con `true` aplica (ver D-43) |
+| `calentarCache()` | Rehace las consultas principales para dejarlas en memoria (ver D-46) |
+| `instalarCalentamiento()` | Programa lo anterior cada 10 minutos. Se ejecuta una sola vez |
+| `desinstalarCalentamiento()` | Quita esa programación |
 
 La reparación nunca adivina: si el enderezado no produce una fila coherente, la deja intacta
 y la marca. Es preferible una fila señalada que una fila "reparada" a ciegas.
@@ -537,6 +540,46 @@ el cuello de botella no es Sheets sino el arranque del motor de Apps Script y el
 de cada llamada, y ninguno de los dos desaparece al cambiar de base de datos. Sheets empezaría
 a pesar hacia las decenas de miles de filas. A cambio se perdería que cualquiera abra la hoja y
 revise o corrija a mano, que en este proyecto se ha usado varias veces.
+
+### D-46 · La medición corrigió el diagnóstico: el costo es leer, no calcular
+
+Se cronometraron las cuatro consultas principales sobre los datos reales:
+
+| Consulta | En frío | Qué paga |
+| --- | --- | --- |
+| `getCatalogos` | 1.974 ms | Abrir el libro de parametrización y leerlo |
+| `getMatrizIniciativas` | 3.355 ms | Abrir el libro transaccional + Solicitudes y bitácora |
+| `getDatosKanban` | 105 ms | Nada nuevo: ya estaba leído |
+| `getMetricasHome` | 307 ms | El cálculo puro de los 20 indicadores |
+| **Total** | **5.741 ms** | En caliente: **256 ms** |
+
+La hipótesis de D-45 era que recalcular pesaba. **Pesa un 5%.** El 95% es abrir los archivos de
+Sheets y leerlos. La caché de resultados sirve igual (307 → 41 ms), pero era el premio chico.
+
+La pregunta correcta no era *cuánto cuesta en frío* sino **cada cuánto se enfría**. Y ahí estaba
+el problema real: hasta ahora, **cada escritura botaba la tabla de la caché**. Mover una tarjeta
+escribe en `Solicitudes` y en la bitácora, así que la siguiente consulta volvía a leer las hojas
+completas. La aplicación quedaba lenta justo después de que alguien trabajaba en ella — es
+decir, cuando la están usando.
+
+**Dos medidas:**
+
+1. **Actualizar la fila en la caché en vez de botar la tabla.** Una escritura cambia una fila;
+   se relee solo esa fila. Y se **relee de la hoja** en lugar de copiar lo que acabábamos de
+   mandar: así la copia en memoria contiene exactamente lo que Sheets guardó, con sus
+   conversiones de fecha y de número. La prueba compara, después de cada escritura, la caché
+   parcheada contra una relectura limpia: deben ser idénticas, y lo son, incluido el caso del
+   texto `"7"` que Sheets convierte en el número `7`. Los borrados, las reparaciones y la carga
+   por rangos siguen botando la tabla entera, porque ahí sí cambia la numeración de las filas.
+2. **Un proceso que mantiene la caché tibia** cada 10 minutos (`instalarCalentamiento()`). Solo
+   lee, y corre a nombre del dueño del proyecto, así que no puede llamar a nada que dependa de
+   quién pregunta. Consume unos 14 minutos diarios de los 90 que Google concede.
+
+**Un error encontrado por la prueba:** el sello de versión de D-45 se armaba con la hora en
+milisegundos. Dos sellos generados en el mismo milisegundo salían iguales, de modo que una
+escritura podía **no** invalidar lo que se había calculado un instante antes, y se habría
+seguido sirviendo el dato viejo. Ahora el sello lleva una cola al azar y se comprueba que sea
+distinto del anterior.
 
 ## Supuestos abiertos
 

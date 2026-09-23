@@ -331,6 +331,29 @@ Cuando haya que registrar de golpe el trabajo que ya venía en curso:
 Procesa 25 filas por ejecución, para no agotar el tiempo máximo que Google le da a un script.
 Si quedan pendientes, el registro te lo dice y basta con ejecutarla de nuevo.
 
+## Parte 7.2 · Dejar la aplicación siempre tibia (2 min, una sola vez)
+
+La aplicación guarda en memoria lo que ya leyó de las hojas. Mientras esa memoria está tibia,
+las consultas tardan un cuarto de segundo; cuando se enfría —porque nadie entró en un rato—, la
+primera persona paga unos cinco segundos. Este paso hace que esa primera persona **no sea una
+persona**, sino un proceso automático.
+
+1. Abra el editor de Apps Script.
+2. En la lista de funciones (arriba, al lado del botón Ejecutar) elija **`instalarCalentamiento`**.
+3. **Ejecutar**.
+4. La primera vez Google le pedirá autorizar un permiso nuevo (el de programar tareas).
+   **Revisar permisos → su cuenta → Permitir.** Vuelva a **Ejecutar**.
+5. En el registro debe aparecer: *"Listo: la caché se refrescará sola cada 10 minutos"*.
+
+Puede verlo en el menú de la izquierda, en el icono del **reloj** (*Activadores*). Si alguna vez
+quiere quitarlo, ejecute **`desinstalarCalentamiento`**.
+
+> **Importante:** este paso agrega un permiso nuevo al proyecto. La **primera vez que alguien
+> abra la aplicación** después de publicarla, Google le volverá a pedir autorización. Es normal
+> y pasa una sola vez por persona.
+
+---
+
 ## Parte 8 · Cuando actualicemos el código
 
 - **Si configuraste el Camino A**: no haces nada. El cambio se publica solo. Si además

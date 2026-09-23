@@ -100,11 +100,11 @@ function leerBloques_(prefijo) {
  * @private
  */
 function guardarBloques_(prefijo, texto, segundos) {
-  if (!segundos) return;
+  if (!segundos) return false;
   try {
     var bloques = Math.ceil(texto.length / CACHE_TAMANO_BLOQUE);
     // Algo enorme no vale la pena cachearlo: ocuparia toda la cache.
-    if (bloques > 20) return;
+    if (bloques > 20) return false;
 
     var valores = {};
     for (var i = 0; i < bloques; i++) {
@@ -113,8 +113,9 @@ function guardarBloques_(prefijo, texto, segundos) {
     }
     valores[prefijo] = JSON.stringify({ bloques: bloques });
     CacheService.getScriptCache().putAll(valores, segundos);
+    return true;
   } catch (e) {
-    // Sin cache el sistema sigue funcionando, solo mas lento.
+    return false;   // sin cache el sistema sigue funcionando, solo mas lento
   }
 }
 
@@ -154,7 +155,7 @@ function leerDeCache_(tabla) {
  * @private
  */
 function guardarEnCache_(tabla, filas) {
-  guardarBloques_(claveCache_(tabla), JSON.stringify(filas), segundosDeCache_(tabla));
+  return guardarBloques_(claveCache_(tabla), JSON.stringify(filas), segundosDeCache_(tabla));
 }
 
 /**
@@ -169,6 +170,74 @@ function invalidarTabla_(tabla) {
   nuevaVersionDatos_();
   if (!CONFIG.CACHE_SEGUNDOS) return;
   borrarBloques_(claveCache_(tabla));
+}
+
+/**
+ * Actualiza en la memoria compartida la fila que se acaba de escribir, en vez
+ * de botar la tabla entera.
+ *
+ * La medicion sobre los datos reales fue clara: recalcular los indicadores
+ * cuesta 300 ms, pero releer las hojas cuesta entre uno y tres segundos. Botar
+ * la tabla en cada escritura obligaba a esa relectura completa, de modo que la
+ * aplicacion quedaba lenta justo despues de que alguien trabajaba en ella, que
+ * es cuando la estan usando.
+ *
+ * Como una escritura cambia una sola fila, se relee solo esa fila. Y se RELEE
+ * de la hoja en lugar de copiar lo que acabamos de mandar: asi la copia en
+ * memoria contiene exactamente lo que Google Sheets guardo, con sus propias
+ * conversiones de fecha y de numero, y no una version parecida. Esa es la
+ * diferencia entre una cache que acelera y una que miente.
+ *
+ * Las escrituras estan serializadas por LockService, asi que dos personas no
+ * pueden parchar la misma copia a la vez. Lo que no pase por aqui —borrados,
+ * reparaciones, cambios a mano en la hoja— sigue botando la tabla completa.
+ *
+ * @param {string} tabla
+ * @param {number} numeroFila
+ * @param {!Array<string>} columnas Encabezados reales de la hoja.
+ * @private
+ */
+function refrescarFilaEnCache_(tabla, numeroFila, columnas) {
+  // Los indicadores, la matriz y los reportes salen de esta tabla: cambiaron.
+  nuevaVersionDatos_();
+  delete MEMO_ENCABEZADOS[tabla];
+
+  var filas = MEMO_TABLAS[tabla] || leerDeCache_(tabla);
+  if (!filas) return;                     // no habia copia que actualizar
+
+  var fila = leerFilaDeHoja_(tabla, numeroFila, columnas);
+  if (!fila) { invalidarTabla_(tabla); return; }
+
+  var copia = filas.slice();
+  var indice = -1;
+  for (var i = 0; i < copia.length; i++) {
+    if (copia[i]._fila === numeroFila) { indice = i; break; }
+  }
+  if (indice === -1) copia.push(fila); else copia[indice] = fila;
+
+  MEMO_TABLAS[tabla] = copia;
+  // Si la tabla ya no cabe en cache, hay que borrar la copia vieja: dejarla
+  // seria servir el dato anterior.
+  if (!guardarEnCache_(tabla, copia)) borrarBloques_(claveCache_(tabla));
+}
+
+/**
+ * Lee una sola fila de la hoja y la arma igual que lo haria leerTabla().
+ * @return {?Object} null si la fila quedo vacia.
+ * @private
+ */
+function leerFilaDeHoja_(tabla, numeroFila, columnas) {
+  var valores = getHoja_(tabla).getRange(numeroFila, 1, 1, columnas.length).getValues()[0];
+  var obj = {};
+  var vacia = true;
+  for (var j = 0; j < columnas.length; j++) {
+    if (!columnas[j]) continue;
+    obj[columnas[j]] = normalizarValor_(valores[j]);
+    if (obj[columnas[j]] !== '' && obj[columnas[j]] !== null) vacia = false;
+  }
+  if (vacia) return null;
+  obj._fila = numeroFila;
+  return obj;
 }
 
 /* ================================================================== */
@@ -190,6 +259,25 @@ function invalidarTabla_(tabla) {
 /** Sello de version memorizado en esta ejecucion. */
 var MEMO_VERSION = null;
 
+/**
+ * Arma un sello nuevo, garantizadamente distinto del que se le pase.
+ *
+ * La hora sola no sirve: dos sellos generados en el mismo milisegundo salen
+ * iguales, y entonces una escritura no invalidaria lo calculado justo antes
+ * —se seguiria sirviendo el dato viejo—. La cola al azar cierra esa puerta.
+ *
+ * @param {?string} anterior
+ * @return {string}
+ * @private
+ */
+function selloNuevo_(anterior) {
+  var sello;
+  do {
+    sello = String(new Date().getTime()) + '-' + Math.floor(Math.random() * 1000000);
+  } while (sello === anterior);
+  return sello;
+}
+
 /** @return {string} Sello de version vigente. @private */
 function versionDatos_() {
   if (MEMO_VERSION) return MEMO_VERSION;
@@ -197,7 +285,7 @@ function versionDatos_() {
     var cache = CacheService.getScriptCache();
     var v = cache.get('version_datos');
     if (!v) {
-      v = String(new Date().getTime());
+      v = selloNuevo_(null);
       cache.put('version_datos', v, CONFIG.CACHE_PARAMETRIZACION_SEGUNDOS);
     }
     MEMO_VERSION = v;
@@ -214,8 +302,9 @@ function versionDatos_() {
 function nuevaVersionDatos_() {
   MEMO_VERSION = null;
   try {
-    CacheService.getScriptCache().put('version_datos', String(new Date().getTime()),
-                                      CONFIG.CACHE_PARAMETRIZACION_SEGUNDOS);
+    var cache = CacheService.getScriptCache();
+    cache.put('version_datos', selloNuevo_(cache.get('version_datos')),
+              CONFIG.CACHE_PARAMETRIZACION_SEGUNDOS);
   } catch (e) {
     // Sin cache no hay nada que invalidar.
   }
@@ -304,6 +393,96 @@ function medirRendimiento() {
     cacheSegundos: CONFIG.CACHE_SEGUNDOS,
     resultadosSegundos: CONFIG.CACHE_RESULTADOS_SEGUNDOS
   };
+  Logger.log(JSON.stringify(resultado, null, 2));
+  return resultado;
+}
+
+/* ================================================================== */
+/* Mantener la cache tibia                                             */
+/* ================================================================== */
+
+/**
+ * Rehace las consultas principales para que queden en cache.
+ *
+ * La medicion mostro que en frio las cuatro consultas suman cerca de seis
+ * segundos, y en caliente un cuarto de segundo. La diferencia la paga quien
+ * llegue primero despues de un rato sin movimiento: el primero de la manana,
+ * tipicamente. Esta funcion existe para que ese primero no sea una persona.
+ *
+ * Solo lee. Pensada para un disparador de tiempo (ver instalarCalentamiento),
+ * que corre a nombre del dueno del proyecto y sin usuario activo: por eso no
+ * puede llamar a nada que dependa de quien pregunta.
+ *
+ * @return {!Object} Cuanto tardo cada consulta.
+ */
+function calentarCache() {
+  function medir(nombre, fn) {
+    var t = new Date().getTime();
+    try { fn(); } catch (e) { return { consulta: nombre, error: e.message }; }
+    return { consulta: nombre, ms: new Date().getTime() - t };
+  }
+
+  var pasos = [
+    medir('getCatalogos', function () { return getCatalogos(); }),
+    medir('getMatrizIniciativas', function () { return getMatrizIniciativas(); }),
+    medir('getDatosKanban', function () { return getDatosKanban({}); }),
+    medir('getMetricasHome', function () { return getMetricasHome(12); })
+  ];
+
+  var resultado = {
+    cuando: Utilities.formatDate(new Date(), CONFIG.ZONA_HORARIA, CONFIG.FORMATO_FECHA_HORA),
+    pasos: pasos,
+    totalMs: pasos.reduce(function (a, x) { return a + (x.ms || 0); }, 0)
+  };
+  Logger.log(JSON.stringify(resultado, null, 2));
+  return resultado;
+}
+
+/**
+ * Programa el calentamiento cada diez minutos.
+ *
+ * Se ejecuta una sola vez, a mano, desde el editor de Apps Script. Borra antes
+ * los disparadores anteriores de la misma funcion para no acumular copias si se
+ * ejecuta dos veces.
+ *
+ * @return {!Object}
+ */
+function instalarCalentamiento() {
+  var previos = 0;
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'calentarCache') {
+      ScriptApp.deleteTrigger(t);
+      previos++;
+    }
+  });
+
+  ScriptApp.newTrigger('calentarCache').timeBased().everyMinutes(10).create();
+
+  var resultado = {
+    ok: true,
+    disparadoresAnterioresBorrados: previos,
+    mensaje: 'Listo: la cache se refrescara sola cada 10 minutos. Puede verlo en ' +
+             'Activadores (el reloj del menu de la izquierda).'
+  };
+  Logger.log(JSON.stringify(resultado, null, 2));
+  return resultado;
+}
+
+/**
+ * Quita el calentamiento programado.
+ * @return {!Object}
+ */
+function desinstalarCalentamiento() {
+  var borrados = 0;
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'calentarCache') {
+      ScriptApp.deleteTrigger(t);
+      borrados++;
+    }
+  });
+  var resultado = { ok: true, borrados: borrados,
+                    mensaje: borrados ? 'Calentamiento desprogramado.'
+                                      : 'No habia calentamiento programado.' };
   Logger.log(JSON.stringify(resultado, null, 2));
   return resultado;
 }
