@@ -300,6 +300,7 @@ function crearSolicitudDesdeCarga_(datos, ctx) {
       Estado_Actual: datos.Estado_Actual || 'EST-01',
       Tiene_Bloqueo: bloqueo,
       Causal_Bloqueo: bloqueo === 'SI' ? datos.Causal_Bloqueo : '',
+      Observacion_Bloqueo: bloqueo === 'SI' ? String(datos.Observacion_Bloqueo || '').trim() : '',
       Link_Taiga: datos.Link_Taiga || '',
       Version_Semantica: datos.Version_Semantica || '',
       Responsable_ID: datos.Responsable_ID || '',

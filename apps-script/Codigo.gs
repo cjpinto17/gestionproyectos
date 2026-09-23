@@ -685,6 +685,7 @@ function crearSolicitud(datos) {
       Estado_Actual: 'EST-01',
       Tiene_Bloqueo: 'NO',
       Causal_Bloqueo: '',
+      Observacion_Bloqueo: '',
       Link_Taiga: datos.Link_Taiga || '',
       Version_Semantica: limpiarVersion_(datos.Version_Semantica),
       Responsable_ID: datos.Responsable_ID || ctx.idUsuario,
@@ -839,7 +840,10 @@ function actualizarSolicitudCompleta(idSolicitud, datos) {
     if (bloqueo === 'SI' && !nuevo.Causal_Bloqueo) {
       throw new Error('La solicitud queda bloqueada: indique la causal.');
     }
-    if (bloqueo === 'NO') nuevo.Causal_Bloqueo = '';
+    if (bloqueo === 'NO') {
+      nuevo.Causal_Bloqueo = '';
+      nuevo.Observacion_Bloqueo = '';
+    }
 
     normalizarFechas_('Solicitudes', nuevo);
     validarRegistro_('Solicitudes', nuevo, false);
@@ -957,9 +961,10 @@ function sellarEstampas_(registro, faseOrigen, faseDestino, ahora) {
  * @param {string} idSolicitud
  * @param {boolean} bloqueada
  * @param {string=} idCausal Obligatorio cuando bloqueada es true.
+ * @param {string=} observacion Detalle libre de que esta trabando la solicitud.
  * @return {!Object}
  */
-function marcarBloqueo(idSolicitud, bloqueada, idCausal) {
+function marcarBloqueo(idSolicitud, bloqueada, idCausal, observacion) {
   var ctx = exigirSesion_();
 
   return conBloqueo_(function () {
@@ -971,6 +976,7 @@ function marcarBloqueo(idSolicitud, bloqueada, idCausal) {
     if (bloqueada && !idCausal) {
       throw new Error('Debe indicar la causal del bloqueo.');
     }
+    var nota = String(observacion || '').trim();
 
     var ahora = new Date();
     var estadoOrigen = s.Estado_Actual;
@@ -978,6 +984,9 @@ function marcarBloqueo(idSolicitud, bloqueada, idCausal) {
     Object.keys(s).forEach(function (k) { if (k !== '_fila') nuevo[k] = s[k]; });
     nuevo.Tiene_Bloqueo = bloqueada ? 'SI' : 'NO';
     nuevo.Causal_Bloqueo = bloqueada ? idCausal : '';
+    // Al levantar el bloqueo la observacion se limpia: describe una situacion
+    // que ya termino, y dejarla haria creer que la solicitud sigue trabada.
+    nuevo.Observacion_Bloqueo = bloqueada ? nota : '';
     nuevo.Estado_Actual = bloqueada ? 'EST-04' : 'EST-02';
     nuevo.Fecha_Ultimo_Cambio = ahora;
 
@@ -1182,6 +1191,11 @@ function notificarChat_(solicitud, evento) {
     var causal = solicitud.Causal_Bloqueo;
     CAUSALES_BLOQUEO.forEach(function (c) { if (c.id === causal) causal = c.nombre; });
     campos.push({ decoratedText: { topLabel: 'Causal del bloqueo', text: causal } });
+    if (solicitud.Observacion_Bloqueo) {
+      campos.push({ decoratedText: { topLabel: 'Observacion',
+                                     text: String(solicitud.Observacion_Bloqueo),
+                                     wrapText: true } });
+    }
   }
 
   var botones = [];
@@ -1260,13 +1274,23 @@ function cuerpoCorreo_(solicitud, evento) {
     bloqueo: 'La solicitud fue marcada con un bloqueo.'
   };
 
-  var filas = [
+  var datos = [
     ['Solicitud', solicitud.ID_Solicitud],
     ['Nombre', solicitud.Nombre_Solicitud],
     ['Plataforma', plataforma],
     ['Fase actual', fase],
     ['Estado', estado]
-  ].map(function (f) {
+  ];
+  if (String(solicitud.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0) {
+    var causal = solicitud.Causal_Bloqueo;
+    CAUSALES_BLOQUEO.forEach(function (c) { if (c.id === causal) causal = c.nombre; });
+    datos.push(['Causal del bloqueo', causal]);
+    if (solicitud.Observacion_Bloqueo) {
+      datos.push(['Observacion', String(solicitud.Observacion_Bloqueo)]);
+    }
+  }
+
+  var filas = datos.map(function (f) {
     return '<tr><td style="padding:6px 12px;color:#5A6B8C;font-size:13px">' + f[0] +
            '</td><td style="padding:6px 12px;font-size:13px"><b>' + f[1] + '</b></td></tr>';
   }).join('');

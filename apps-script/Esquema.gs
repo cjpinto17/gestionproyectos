@@ -320,6 +320,10 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Estado_Actual', etiqueta: 'Estado actual', tipo: 'enum', fk: 'Estados', requerido: true },
       { campo: 'Tiene_Bloqueo', etiqueta: 'Tiene bloqueo', tipo: 'boolSN', requerido: true },
       { campo: 'Causal_Bloqueo', etiqueta: 'Causal de bloqueo', tipo: 'enum', fk: 'Causales_Bloqueo' },
+      // La causal dice de que tipo es el bloqueo; la observacion dice que pasa
+      // exactamente y que se esta esperando. Sin ella el tablero muestra la
+      // etiqueta pero no el contexto que necesita quien tiene que destrabarlo.
+      { campo: 'Observacion_Bloqueo', etiqueta: 'Observacion del bloqueo', tipo: 'longtext' },
       { campo: 'Link_Taiga', etiqueta: 'Issue en Taiga', tipo: 'url' },
       { campo: 'Version_Semantica', etiqueta: 'Version estimada', tipo: 'text' },
       { campo: 'Responsable_ID', etiqueta: 'Responsable actual', tipo: 'enum', fk: 'Usuarios' },

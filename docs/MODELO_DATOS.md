@@ -109,7 +109,9 @@ Entidad central. PK `ID_Solicitud` con formato `SOL-YYYYMMDD-XXX`.
 **Documentación:** `Doc_Requerimiento_URL`, `Carpeta_Drive_URL`, `Link_Taiga`.
 
 **Control de flujo:** `Fase_Actual`, `Estado_Actual`, `Tiene_Bloqueo` (SÍ/NO),
-`Causal_Bloqueo`, `Responsable_Actual`, `Version_Semantica`, `Fecha_Ultimo_Cambio`.
+`Causal_Bloqueo`, `Observacion_Bloqueo` (texto libre opcional: qué está trabando la solicitud;
+se borra al levantar el bloqueo), `Responsable_Actual`, `Version_Semantica`,
+`Fecha_Ultimo_Cambio`.
 
 **Estampas de tiempo:** `Fecha_Inicio_Analisis`, `Fecha_Fin_Analisis`, `Fecha_Inicio_Dev`,
 `Fecha_Fin_Dev`, `Fecha_Inicio_QA`, `Fecha_Fin_QA`, `Fecha_Inicio_UAT`, `Fecha_Fin_UAT`,

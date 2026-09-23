@@ -26,9 +26,16 @@ function getFormularioMigracion() {
   var columnas = info.def.columnas.filter(function (c) {
     return CAMPOS_NO_MIGRABLES.indexOf(c.campo) === -1;
   });
+  var opciones = opcionesDeReferencia_(columnas);
+  // Misma regla que al crear o editar: la version se elige del roadmap, no se
+  // escribe. Aqui todavia no se sabe la plataforma (se elige en el mismo
+  // formulario), asi que se ofrecen todas y cada opcion viene rotulada con su
+  // plataforma; al guardar se valida contra la plataforma elegida.
+  opciones.Version_Semantica = getVersionesDisponibles();
+
   return {
     columnas: columnas,
-    opciones: opcionesDeReferencia_(columnas),
+    opciones: opciones,
     // Valores por defecto pensados para migrar: entra al backlog, por iniciar.
     valoresPorDefecto: { Fase_Actual: 'FAS-02', Estado_Actual: 'EST-01', Tiene_Bloqueo: 'NO' }
   };
@@ -86,8 +93,10 @@ function migrarSolicitud(datos, opciones) {
       Estado_Actual: datos.Estado_Actual || 'EST-01',
       Tiene_Bloqueo: bloqueo,
       Causal_Bloqueo: bloqueo === 'SI' ? datos.Causal_Bloqueo : '',
+      Observacion_Bloqueo: bloqueo === 'SI' ? String(datos.Observacion_Bloqueo || '').trim() : '',
       Link_Taiga: datos.Link_Taiga || '',
-      Version_Semantica: datos.Version_Semantica || '',
+      // De la etiqueta "Plataforma · version (estado)" solo se guarda el codigo.
+      Version_Semantica: limpiarVersion_(datos.Version_Semantica),
       Responsable_ID: datos.Responsable_ID || '',
       Fecha_Inicio_Analisis: aFechaOpcional_(datos.Fecha_Inicio_Analisis),
       Fecha_Fin_Analisis: aFechaOpcional_(datos.Fecha_Fin_Analisis),
@@ -104,6 +113,7 @@ function migrarSolicitud(datos, opciones) {
       Fecha_Ultimo_Cambio: ultimoMovimiento_(datos) || aFechaOpcional_(datos.Fecha_Registro) || new Date()
     };
 
+    validarVersionRoadmap_(registro.Version_Semantica, registro.Plataforma_ID);
     validarRegistro_('Solicitudes', registro, true);
 
     agregarFila_('Solicitudes', registro);

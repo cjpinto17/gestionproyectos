@@ -390,6 +390,35 @@ Google Sites, entonces, no es un requisito técnico sino una decisión de presen
 dirección corta con el nombre de la compañía y permite acompañar la herramienta con
 instrucciones. El paso a paso está en `docs/IMPLEMENTACION.md`, parte 5.1.
 
+### D-40 · La migración usa la misma regla de versión que el resto
+
+El alta manual de solicitudes (Administración → *Migrar solicitud*) escribía la versión a
+mano, mientras que crear y editar ya la elegían del roadmap. Eran dos reglas para el mismo
+dato, y la migración —que es precisamente por donde entra el trabajo viejo— era la que podía
+meter versiones inexistentes.
+
+Ahora el formulario de migración ofrece la misma lista de D-36. Con una diferencia: al crear o
+editar ya se sabe la plataforma, así que la lista se filtra; en la migración la plataforma se
+elige en el mismo formulario, de modo que se ofrecen todas las versiones y **cada opción viene
+rotulada con su plataforma**. Al guardar se aplica `limpiarVersion_()` —queda solo el código—
+y se valida contra la plataforma elegida: si la versión pertenece a otra plataforma, el
+sistema lo dice con nombre propio en lugar de aceptar el dato cruzado.
+
+### D-41 · El bloqueo lleva causal y observación
+
+La causal dice **de qué tipo** es el bloqueo; es un catálogo cerrado y sirve para agrupar y
+medir. Lo que no dice es qué está pasando exactamente: con quién se está esperando, desde
+cuándo, qué se pidió. Esa parte no se puede modelar como catálogo sin volverlo inútil.
+
+Por eso se agrega `Observacion_Bloqueo` a Solicitudes, un texto libre y **opcional** que se
+captura al marcar el bloqueo, se ve en el detalle de la tarjeta bajo la causal y viaja en la
+tarjeta de Chat y en el correo de notificación. La causal sigue siendo obligatoria: la
+observación complementa, no reemplaza.
+
+Al levantar el bloqueo la observación se borra junto con la causal. Describe una situación que
+ya terminó, y dejarla haría creer que la solicitud sigue trabada. La historia del bloqueo no
+se pierde: queda en `Auditoria_Transiciones`, que es donde vive la trazabilidad.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

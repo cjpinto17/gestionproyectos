@@ -805,7 +805,12 @@ function verDetalle(id) {
 
     var alerta = bloq
         ? '<div class="caja-alerta"><strong>&#9888;&#65039; Actividad bloqueada</strong><br>Causal: ' +
-          esc(nombreDeCatalogo(CAT.causales, s.Causal_Bloqueo)) + '</div>'
+          esc(nombreDeCatalogo(CAT.causales, s.Causal_Bloqueo)) +
+          (s.Observacion_Bloqueo
+            ? '<span style="display:block;margin-top:6px">' +
+              esc(s.Observacion_Bloqueo) + '</span>'
+            : '') +
+          '</div>'
         : '';
 
     var enlaces = '';
@@ -845,7 +850,7 @@ function verDetalle(id) {
     }
     if ($('btnLevantarBloqueo')) {
       $('btnLevantarBloqueo').addEventListener('click', function () {
-        api('marcarBloqueo', s.ID_Solicitud, false, '').then(function () {
+        api('marcarBloqueo', s.ID_Solicitud, false, '', '').then(function () {
           toast('Bloqueo levantado.');
           cerrarModal();
           invalidarCacheCliente();
@@ -861,10 +866,17 @@ function formularioBloqueo(id) {
     return '<option value="' + c.id + '">' + esc(c.nombre) + '</option>';
   }).join('');
   abrirModal('Marcar bloqueo', id,
+    '<div class="formulario">' +
     '<label class="campo"><span>Causal del bloqueo</span>' +
-    '<select id="causalBloqueo">' + opciones + '</select></label>',
+    '<select id="causalBloqueo">' + opciones + '</select></label>' +
+    '<label class="campo"><span>Observación</span>' +
+    '<textarea id="observacionBloqueo" rows="3" ' +
+    'placeholder="Qué está trabando la solicitud y qué se está esperando"></textarea></label>' +
+    '<p class="nota" style="margin:0">La observación es opcional y se borra cuando se ' +
+    'levanta el bloqueo.</p></div>',
     function () {
-      return api('marcarBloqueo', id, true, $('causalBloqueo').value).then(function () {
+      return api('marcarBloqueo', id, true, $('causalBloqueo').value,
+                 $('observacionBloqueo').value).then(function () {
         toast('Actividad bloqueada.');
         invalidarCacheCliente();
         cargarGestion(true);
