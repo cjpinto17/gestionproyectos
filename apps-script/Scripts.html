@@ -902,7 +902,8 @@ $('btnNueva').addEventListener('click', function () {
       (DATOS.kanban.versiones || []).map(function (v) {
         return '<option value="' + esc(v.valor) + '">' + esc(v.texto) + '</option>';
       }).join('') + '</select>' +
-      '<small style="color:var(--ink-faint)">Las versiones se administran en el roadmap.</small>' +
+      '<small style="color:var(--ink-faint)">Se listan las versiones del roadmap: ' +
+      'plataforma y versión. En la solicitud queda solo el código.</small>' +
     '</label>' +
     '<label class="campo"><span>Documento de requerimiento (enlace de Drive)</span>' +
       '<input type="url" id="nsDoc" placeholder="https://docs.google.com/…">' +

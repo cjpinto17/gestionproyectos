@@ -533,6 +533,51 @@ function getDetalleSolicitud(idSolicitud) {
 }
 
 /**
+ * Deja en el registro solo el codigo de la version.
+ *
+ * La lista del formulario muestra "Banca Movil · v2.4.0 (Planeada)" para que
+ * la persona sepa cual elegir, pero en la hoja debe quedar unicamente el
+ * codigo. Esto protege el dato si alguna vez llega la etiqueta completa, por
+ * ejemplo pegada desde otra pantalla.
+ *
+ * @param {*} valor
+ * @return {string}
+ * @private
+ */
+function limpiarVersion_(valor) {
+  var texto = String(valor || '').trim();
+  if (!texto) return '';
+  // En la etiqueta el codigo va despues de la plataforma: "Banca Movil · v2.4.0".
+  var partes = texto.split('·');
+  var codigo = partes[partes.length - 1];
+  return codigo.replace(/\s*\(.*\)\s*$/, '').trim();
+}
+
+/**
+ * Comprueba que la version elegida exista en el roadmap.
+ *
+ * Antes se exigia el formato vX.Y.Z, y eso rechazaba versiones que el propio
+ * negocio habia registrado con otra nomenclatura: el sistema le decia que su
+ * parametrizacion estaba mal. El catalogo es la fuente de verdad, asi que lo
+ * que se valida es que la version exista, no como se escribe.
+ *
+ * @param {string} version
+ * @param {string} idPlataforma
+ * @private
+ */
+function validarVersionRoadmap_(version, idPlataforma) {
+  if (!version) return;
+  var disponibles = getVersionesDisponibles(idPlataforma);
+  var existe = disponibles.some(function (v) { return v.valor === version; });
+  if (existe) return;
+
+  var nombrePlataforma = mapaPlataformas()[idPlataforma] || idPlataforma;
+  throw new Error('La version "' + version + '" no esta registrada en el roadmap de ' +
+                  nombrePlataforma + '. Registrela en Administracion > Roadmap de versiones ' +
+                  'y vuelva a intentarlo.');
+}
+
+/**
  * Versiones registradas en el roadmap, para ofrecerlas en el formulario en
  * lugar de que cada quien escriba la suya.
  * @param {string=} idPlataforma Si se indica, solo las de esa plataforma.
@@ -551,7 +596,7 @@ function getVersionesDisponibles(idPlataforma) {
     vistas[clave] = true;
     lista.push({
       valor: v.Numero_Version,
-      texto: v.Numero_Version + ' · ' + (nombrePlataforma[v.Plataforma_ID] || v.Plataforma_ID) +
+      texto: (nombrePlataforma[v.Plataforma_ID] || v.Plataforma_ID) + ' · ' + v.Numero_Version +
              (v.Estado_Release ? ' (' + v.Estado_Release + ')' : '')
     });
   });
@@ -641,11 +686,12 @@ function crearSolicitud(datos) {
       Tiene_Bloqueo: 'NO',
       Causal_Bloqueo: '',
       Link_Taiga: datos.Link_Taiga || '',
-      Version_Semantica: '',
+      Version_Semantica: limpiarVersion_(datos.Version_Semantica),
       Responsable_ID: datos.Responsable_ID || ctx.idUsuario,
       Fecha_Ultimo_Cambio: ahora
     };
     validarRegistro_('Solicitudes', registro, true);
+    validarVersionRoadmap_(registro.Version_Semantica, registro.Plataforma_ID);
 
     // La iniciativa debe existir: toda solicitud es hija de una iniciativa.
     if (!buscarPorPk_('Proyectos', registro.ID_Proyecto)) {
@@ -713,9 +759,10 @@ function actualizarSolicitud(idSolicitud, cambios) {
       throw new Error('Su rol no puede modificar: ' + negados.join(', ') + '.');
     }
 
-    if (cambios.Version_Semantica &&
-        !CONFIG.REGEX_VERSION_SEMANTICA.test(cambios.Version_Semantica)) {
-      throw new Error('La version debe tener el formato vX.Y.Z, por ejemplo v2.4.0.');
+    if (cambios.Version_Semantica !== undefined) {
+      cambios.Version_Semantica = limpiarVersion_(cambios.Version_Semantica);
+      validarVersionRoadmap_(cambios.Version_Semantica,
+                             cambios.Plataforma_ID || actual.Plataforma_ID);
     }
 
     var nuevo = {};
@@ -785,10 +832,8 @@ function actualizarSolicitudCompleta(idSolicitud, datos) {
       if (CAMPOS_NO_EDITABLES.indexOf(k) === -1) nuevo[k] = datos[k];
     });
 
-    if (nuevo.Version_Semantica &&
-        !CONFIG.REGEX_VERSION_SEMANTICA.test(nuevo.Version_Semantica)) {
-      throw new Error('La version debe tener el formato vX.Y.Z, por ejemplo v2.4.0.');
-    }
+    nuevo.Version_Semantica = limpiarVersion_(nuevo.Version_Semantica);
+    validarVersionRoadmap_(nuevo.Version_Semantica, nuevo.Plataforma_ID);
     var bloqueo = String(nuevo.Tiene_Bloqueo || 'NO').toUpperCase().indexOf('S') === 0 ? 'SI' : 'NO';
     nuevo.Tiene_Bloqueo = bloqueo;
     if (bloqueo === 'SI' && !nuevo.Causal_Bloqueo) {

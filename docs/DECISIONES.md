@@ -355,10 +355,19 @@ trazabilidad no puede depender de por dónde se hizo el cambio. `ID_Solicitud`,
 `Fecha_Registro` y `Carpeta_Drive_URL` no son editables, porque son la identidad y la historia
 del registro.
 
-### D-36 · La versión se elige, no se escribe
-El campo de versión pasa a ser una lista con las versiones registradas en `Roadmap_Versiones`,
-mostrando plataforma y estado del release. Escribirla a mano producía variantes del mismo
-número (`v2.4`, `V2.4.0`, `2.4.0`) que rompían el agrupamiento del roadmap.
+### D-36 · La versión se elige, y el catálogo manda
+El campo de versión es una lista con las versiones registradas en `Roadmap_Versiones`. La
+opción se muestra como **plataforma · versión (estado)** —*"Banca Movil · v2.4.0 (Planeada)"*—
+para saber cuál elegir, pero en la hoja de Solicitudes queda **solo el código**.
+
+**Corrección posterior:** la primera versión de esta regla exigía el formato `vX.Y.Z` y
+rechazaba versiones que el propio negocio había registrado con otra nomenclatura — el sistema
+le decía al usuario que su parametrización estaba mal. Ahora no se valida la forma sino la
+**existencia**: la versión debe estar en el roadmap, se escriba como se escriba. Si no está,
+el mensaje indica dónde registrarla en lugar de exigir un formato.
+
+`limpiarVersion_()` recorta la etiqueta al código por si alguna vez llega completa, por
+ejemplo pegada desde otra pantalla.
 
 ### D-37 · El consecutivo continúa la serie de la hoja
 `SOL-AAAAMMDD-###` ya no reinicia el contador cada día: toma el mayor número existente en la

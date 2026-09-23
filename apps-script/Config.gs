@@ -41,7 +41,11 @@ var CONFIG = {
   /** Prefijo del ID de solicitud: SOL-YYYYMMDD-XXX */
   PREFIJO_SOLICITUD: 'SOL',
 
-  /** Expresion que valida la version semantica (ej. v2.4.0). */
+  /**
+   * Formato sugerido de version semantica (ej. v2.4.0). Es una referencia para
+   * quien registra el roadmap, no una regla que bloquee: la version valida es
+   * la que exista en Roadmap_Versiones, se escriba como se escriba.
+   */
   REGEX_VERSION_SEMANTICA: /^v\d+\.\d+\.\d+$/,
 
   /** Paleta corporativa (espejo del tema Tailwind del frontend). */
