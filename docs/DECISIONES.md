@@ -575,6 +575,18 @@ decir, cuando la están usando.
    lee, y corre a nombre del dueño del proyecto, así que no puede llamar a nada que dependa de
    quién pregunta. Consume unos 14 minutos diarios de los 90 que Google concede.
 
+**Resultado medido** sobre los datos reales, después de aplicar las dos medidas:
+
+| Escenario | Total | Qué significa |
+| --- | --- | --- |
+| En frío | 3.859 ms | Nadie entró en mucho rato **y** el calentamiento no corrió |
+| En caliente | 285 ms | Alguien entró hace poco |
+| **Después de una escritura** | **579 ms** | **Alguien acaba de mover una tarjeta** |
+
+El tercer caso es el que se vivía todo el día y costaba lo mismo que el primero: unos cuatro
+segundos. Ahora cuesta medio. Y con el calentamiento programado, el primer escenario deja de
+tocarle a una persona.
+
 **Cómo se comprueba.** `medirRendimiento()` tiene tres corridas, no dos: en frío, en caliente
 y **después de una escritura** — que es el caso que de verdad vive el equipo y el que las otras
 dos no alcanzan a ver, porque empiezan botando toda la caché. La tercera no escribe nada en las
