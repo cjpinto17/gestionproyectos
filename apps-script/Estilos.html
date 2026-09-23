@@ -265,6 +265,12 @@
   .eq-tablero{display:flex;gap:10px;overflow:hidden}
   .eq-columna{flex:1 0 220px;height:320px}
 
+  /* Pie de pagina: quien la hizo, que version y de cuando */
+  .pie{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 14px;
+       padding:18px 16px 24px;font-size:11.5px;color:var(--ink-faint);text-align:center}
+  .pie span:empty{display:none}
+  .pie span+span:not(:empty)::before{content:'·';margin-right:14px;color:var(--line)}
+
   .sin-clasificar{background:var(--surface);border:1px dashed var(--line);border-radius:var(--radio);padding:14px;margin-top:12px}
   .sin-clasificar h3{font-size:13px;font-weight:700;margin-bottom:4px}
 

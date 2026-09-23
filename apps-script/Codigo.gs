@@ -442,9 +442,13 @@ function refrescarDatos() {
  */
 function getArranque(meses) {
   var contexto = getContextoUsuario();
-  if (!contexto.autorizado) return { contexto: contexto };
+  // La version viaja tambien cuando el acceso se niega: el pie de pagina es
+  // justo lo que hay que mirar para saber que version esta viendo quien
+  // reporta un problema.
+  if (!contexto.autorizado) return { contexto: contexto, version: getVersionApp() };
   return {
     contexto: contexto,
+    version: getVersionApp(),
     catalogos: getCatalogos(),
     metricas: getMetricasHome(meses || 12)
   };
@@ -1403,8 +1407,7 @@ function cuerpoCorreo_(solicitud, evento) {
   return '<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;' +
          'border:1px solid #EDF1F8;border-radius:12px;overflow:hidden">' +
          '<div style="background:#00306E;color:#fff;padding:16px 20px">' +
-         '<div style="font-size:16px;font-weight:bold">' + CONFIG.APP_NOMBRE + '</div>' +
-         '<div style="font-size:12px;color:#AFC3E4">' + CONFIG.APP_SUBTITULO + '</div></div>' +
+         '<div style="font-size:16px;font-weight:bold">' + CONFIG.APP_NOMBRE + '</div></div>' +
          '<div style="padding:20px">' +
          '<p style="font-size:14px;color:#0D1F3C">' + (mensajes[evento] || '') + '</p>' +
          '<table style="width:100%;border-collapse:collapse">' + filas + '</table>' +
@@ -1660,8 +1663,7 @@ function cuerpoBienvenida_(usuario, rol, url, ctx) {
     'border:1px solid #EDF1F8;border-radius:12px;overflow:hidden">' +
 
     '<div style="background:#00306E;color:#fff;padding:20px">' +
-    '<div style="font-size:18px;font-weight:bold">' + CONFIG.APP_NOMBRE + '</div>' +
-    '<div style="font-size:12px;color:#AFC3E4">' + CONFIG.APP_SUBTITULO + '</div></div>' +
+    '<div style="font-size:18px;font-weight:bold">' + CONFIG.APP_NOMBRE + '</div></div>' +
 
     '<div style="padding:22px">' +
 

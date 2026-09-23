@@ -1578,8 +1578,24 @@ $('btnActualizar').addEventListener('click', function () {
 });
 
 // Un solo viaje al servidor para sesion, catalogos e indicadores del Home.
+/**
+ * Pie de pagina: quien construyo la herramienta, que version esta corriendo y
+ * de cuando es. Lo primero que hay que preguntar cuando alguien reporta algo
+ * raro es que version esta viendo; que lo diga la propia pagina ahorra ese ida
+ * y vuelta.
+ */
+function pintarPie(v) {
+  if (!v) return;
+  $('pieAutor').textContent = v.autor ? 'Hecho por ' + v.autor : '';
+  $('pieVersion').textContent = v.numero ? 'Versión ' + v.numero : '';
+  $('pieActualizacion').textContent = v.publicada
+      ? 'Actualizada el ' + fechaHora(v.publicada)
+      : 'Versión sin sellar';
+}
+
 $('ventanaMeses').value = String(VENTANA_INICIAL);
 api('getArranque', VENTANA_INICIAL).then(function (r) {
+  pintarPie(r.version);
   CTX = r.contexto;
   if (!CTX.autorizado) {
     $('usuarioNombre').textContent = CTX.correo || 'Sin sesión';

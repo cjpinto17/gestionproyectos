@@ -24,6 +24,9 @@ var CONFIG = {
   APP_NOMBRE: 'Gestion de Plataformas Digitales',
   APP_SUBTITULO: 'Gestion de Proyectos, Iniciativas y Demandas Digitales',
 
+  /** Quien construyo la herramienta. Aparece en el pie de pagina. */
+  APP_AUTOR: 'Gerencia de Desarrollo de Plataformas Digitales',
+
   /** Zona horaria y formatos. Decision tomada: America/Bogota. */
   ZONA_HORARIA: 'America/Bogota',
   FORMATO_FECHA_HORA: 'dd/MM/yyyy HH:mm',

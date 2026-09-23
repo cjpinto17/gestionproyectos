@@ -87,6 +87,35 @@ jobs:
           echo "Archivos que se van a publicar:"
           ls -1 apps-script
 
+      - name: Sellar la version con la fecha del despliegue
+        run: |
+          # El pie de pagina muestra cuando se publico de verdad. Si esto se
+          # dejara a mano, tarde o temprano mostraria una fecha falsa.
+          numero=$(grep -o "numero: '[^']*'" apps-script/Version.gs | head -1 | cut -d"'" -f2)
+          publicada=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          cat > apps-script/Version.gs <<EOF
+          /**
+           * Version.gs — generado por el flujo de despliegue. No editar a mano:
+           * el proximo despliegue lo reescribe. El numero de version se cura en
+           * el repositorio, en la copia versionada de este archivo.
+           */
+          var VERSION_APP = {
+            numero: '${numero}',
+            publicada: '${publicada}',
+            commit: '${{ github.sha }}'
+          };
+
+          function getVersionApp() {
+            return {
+              numero: VERSION_APP.numero,
+              publicada: VERSION_APP.publicada,
+              commit: VERSION_APP.commit,
+              autor: CONFIG.APP_AUTOR
+            };
+          }
+          EOF
+          echo "Sellado: version ${numero}, publicada ${publicada}"
+
       - name: Subir los archivos
         run: |
           set +e
