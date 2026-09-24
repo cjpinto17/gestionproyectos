@@ -295,23 +295,29 @@ Hay dos formas de identificarse, y la aplicación elige sola:
 
 - **Gente de la compañía.** Google la reconoce por el dominio y entra directo, sin escribir
   nada. Igual que siempre.
-- **Gente de fuera** (la fábrica de software). Escribe su correo, recibe un **código de 6
-  dígitos en ese buzón**, lo escribe y entra. El código vence en 10 minutos, sirve una sola vez
-  y admite 3 intentos.
+- **Gente de fuera.** Escribe su correo, recibe un **código de 6 dígitos en ese buzón**, lo
+  escribe y entra. El código vence en 10 minutos, sirve una sola vez y admite 3 intentos.
 
 En los dos casos **la hoja de Usuarios sigue mandando**: quien no esté registrado y activo no
 entra, aunque Google lo reconozca o acierte el código.
 
-### Lo que hay que hacer al publicar
+> **Hoy el segundo camino está dormido.** El Workspace de la compañía prohíbe publicar
+> aplicaciones accesibles a cuentas externas, así que la aplicación sigue restringida al
+> dominio y la fábrica de software no puede llegar a la pantalla de ingreso. El mecanismo está
+> construido y probado; se activa cambiando una línea el día que TI levante la restricción o
+> se decida darle cuentas corporativas a la fábrica (ver D-53).
 
-1. La aplicación debe quedar publicada con **Ejecutar como: yo** y **Quién tiene acceso:
-   cualquier usuario con una cuenta de Google**. El despliegue automático ya lo configura; si
-   lo hace a mano, revíselo.
-2. **Cada persona de fuera necesita una cuenta de Google** asociada a su correo. Si su empresa
-   no usa Google, puede crear una gratis con ese mismo correo en
-   [accounts.google.com](https://accounts.google.com/signup).
-3. Regístrelas en **Administración → Usuarios** con su rol y su correo, y use el botón
-   **Bienvenida** para invitarlas.
+### Cerrar las hojas de cálculo
+
+El cambio de código **habilita** cerrarlas, pero no las cierra. Mientras sigan compartidas con
+todo el dominio, cualquiera puede abrirlas y editar datos por fuera de la aplicación: sin
+control de roles, sin validaciones y sin bitácora.
+
+Para cerrarlas, en Drive, sobre **cada uno de los dos archivos** (`Parametrizacion_...` y
+`Gestion_Proyectos_...`): **Compartir** → quite el acceso general del dominio y déjelo en
+**Restringido**. Solo la cuenta que publica la aplicación necesita seguir con acceso de editor.
+
+Hágalo **después** de confirmar que la aplicación funciona con la publicación nueva, no antes.
 
 ### Si necesita sacar a alguien
 

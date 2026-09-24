@@ -724,15 +724,45 @@ el editor, o un administrador identificado.
 
 **Lo que se aceptó a sabiendas:**
 
-- **La dirección queda abierta a internet.** El control de acceso de Google se sustituye por el
-  nuestro. Es defendible y es práctica común, pero es una sustitución, no un refuerzo.
 - **Se publica con la cuenta personal corporativa del responsable del proyecto**, contra la
   recomendación de usar una cuenta de área. Si esa cuenta se desactiva, la aplicación deja de
   funcionar para todos y los documentos creados quedan a su nombre.
-- **Ya no se filtra por dominio corporativo**: admitir otros dominios es justamente el objetivo,
-  y quien decide es la hoja de Usuarios.
+- **Ya no se filtra por dominio corporativo en el código**: admitir otros dominios era el
+  objetivo, y quien decide es la hoja de Usuarios.
 - La decisión se tomó el 24 de septiembre de 2026 sin revisión previa del área de seguridad de
   la información, que sí se sugirió.
+
+### D-53 · La política del dominio bloqueó la mitad del plan
+
+Al publicar, Google respondió:
+
+> `ANYONE access has been disabled by your domain administrator.`
+
+El Workspace de la compañía **prohíbe publicar aplicaciones accesibles a cuentas externas**.
+No es una falla de configuración: es un control que TI puso a nivel de dominio, y que existe
+precisamente para evitar el escenario que estábamos construyendo. La política de la propia
+compañía respondió la pregunta que el área de seguridad no alcanzó a responder.
+
+El código nuevo alcanzó a subir al proyecto (versión 14) pero la publicación no se actualizó,
+así que la aplicación en uso siguió intacta y nadie lo noto.
+
+**Lo que se publicó entonces** es la mitad que no depende de esa política: la arquitectura
+nueva —aplicación a nombre de su dueño, identidad resuelta en un solo punto, funciones internas
+cerradas— **con el acceso restringido al dominio**, como estaba antes.
+
+Qué se gana igual:
+
+- **Las hojas de cálculo dejan de ser necesarias para los usuarios.** Nadie tiene que tener
+  permiso sobre los archivos para usar la aplicación, así que se pueden cerrar y con eso
+  desaparece el camino para editar datos por fuera del flujo y de la bitácora. *Cerrarlas es
+  una acción manual en Drive: el cambio de código la habilita, no la ejecuta.*
+- **Las funciones internas dejan de estar al alcance del navegador**, que era un hueco real
+  incluso con la aplicación restringida al dominio.
+
+Qué queda pendiente: **la fábrica de software no puede entrar todavía**. El ingreso por correo
+y código está construido y probado, pero duerme hasta que el acceso externo sea posible. Las
+dos salidas son pedirle a TI que levante la restricción, o darle cuentas corporativas a la
+fábrica — que es hacia donde apunta la política actual de la compañía.
 
 ## Supuestos abiertos
 
