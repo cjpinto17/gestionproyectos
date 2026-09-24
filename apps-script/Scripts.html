@@ -525,13 +525,17 @@ function pintarListadoIniciativas() {
   var columnas = ['Iniciativa', 'LEN', 'Vertical', 'Estado', 'Plataforma', 'Business Owner'];
 
   $('listadoIni').innerHTML =
-    '<thead><tr>' + columnas.map(function (c) {
+    '<thead><tr><th style="width:26px"></th>' + columnas.map(function (c) {
       return '<th>' + esc(c) + '</th>';
     }).join('') + '</tr></thead><tbody>' +
     (visibles.length
       ? visibles.map(function (i) {
           var estado = nombreDeCatalogo(r.estados, i.estado);
-          return '<tr>' +
+          var abierta = INI_ABIERTAS[i.idProyecto];
+          return '<tr class="ini-fila' + (abierta ? ' ini-abierta' : '') +
+              '" data-ini="' + esc(i.idProyecto) + '" role="button" tabindex="0"' +
+              ' aria-expanded="' + (abierta ? 'true' : 'false') + '">' +
+            '<td class="ini-flecha">' + (abierta ? '&#9662;' : '&#9656;') + '</td>' +
             '<td style="font-weight:600">' + esc(i.nombre) + '</td>' +
             '<td>' + (i.lenId ? esc(nombreDeCatalogo(r.lineas, i.lenId)) : sinDato('sin LEN')) + '</td>' +
             '<td>' + (i.verticalId ? esc(nombreDeCatalogo(r.verticales, i.verticalId))
@@ -542,11 +546,168 @@ function pintarListadoIniciativas() {
                        : sinDato('sin estado')) + '</td>' +
             '<td>' + (i.plataforma ? esc(i.plataforma) : sinDato('sin plataforma')) + '</td>' +
             '<td>' + (i.bo ? esc(i.bo) : sinDato('sin asignar')) + '</td>' +
-          '</tr>';
+          '</tr>' +
+          (abierta
+            ? '<tr class="ini-abierta"><td></td><td colspan="' + columnas.length +
+              '" style="padding-top:0">' + detalleIniciativa(i.idProyecto) + '</td></tr>'
+            : '');
         }).join('')
-      : '<tr><td colspan="' + columnas.length + '" style="color:var(--ink-faint);text-align:center">' +
-        'Ninguna iniciativa coincide con los filtros.</td></tr>') +
+      : '<tr><td colspan="' + (columnas.length + 1) + '" style="color:var(--ink-faint);' +
+        'text-align:center">Ninguna iniciativa coincide con los filtros.</td></tr>') +
     '</tbody>';
+}
+
+/** Iniciativas desplegadas en el listado, por ID. */
+var INI_ABIERTAS = {};
+
+$('listadoIni').addEventListener('click', function (e) {
+  var fila = e.target.closest('.ini-fila[data-ini]');
+  if (fila) alternarIniciativa(fila.dataset.ini);
+});
+$('listadoIni').addEventListener('keydown', function (e) {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  var fila = e.target.closest('.ini-fila[data-ini]');
+  if (!fila) return;
+  e.preventDefault();
+  alternarIniciativa(fila.dataset.ini);
+});
+
+function alternarIniciativa(idProyecto) {
+  if (INI_ABIERTAS[idProyecto]) {
+    delete INI_ABIERTAS[idProyecto];
+    pintarListadoIniciativas();
+    return;
+  }
+  INI_ABIERTAS[idProyecto] = true;
+
+  // Las solicitudes ya viajan al navegador para el tablero de Gestion, y la
+  // precarga en segundo plano suele haberlas traido. Si todavia no, se piden
+  // una sola vez y de ahi en adelante desplegar es instantaneo.
+  if (DATOS.kanban) { pintarListadoIniciativas(); return; }
+  pintarListadoIniciativas();
+  api('getDatosKanban', {}).then(function (r) {
+    if (!r) return;
+    DATOS.kanban = r;
+    prepararFiltrosKanban(r);
+    pintarListadoIniciativas();
+  }).catch(fallo);
+}
+
+/**
+ * Las solicitudes de una iniciativa, con su avance por el embudo.
+ *
+ * Responde "como va cada tema" sin salir del listado: hasta donde llego cada
+ * solicitud, si esta trabada y cuando se espera que salga, que es la fecha
+ * planeada de la version que tiene asignada.
+ */
+function detalleIniciativa(idProyecto) {
+  if (!DATOS.kanban) {
+    return '<div class="sol-cab">Cargando las solicitudes…</div>';
+  }
+
+  var solicitudes = DATOS.kanban.solicitudes.filter(function (s) {
+    return s.ID_Proyecto === idProyecto;
+  }).sort(function (a, b) {
+    // Orden del backlog: el que la iniciativa definio. Lo que no tenga orden
+    // va al final, no al principio por valer cero.
+    var oa = Number(a.Orden_Iniciativa) || 9999;
+    var ob = Number(b.Orden_Iniciativa) || 9999;
+    if (oa !== ob) return oa - ob;
+    return String(a.ID_Solicitud).localeCompare(String(b.ID_Solicitud), 'es');
+  });
+
+  if (!solicitudes.length) {
+    return '<div class="sol-cab">Esta iniciativa todavía no tiene solicitudes.</div>';
+  }
+
+  var bloqueadas = 0, vencidas = 0;
+  solicitudes.forEach(function (s) {
+    if (estaBloqueada(s)) bloqueadas++;
+    else if (estaVencida(s)) vencidas++;
+  });
+
+  var resumen = solicitudes.length + (solicitudes.length === 1 ? ' solicitud' : ' solicitudes') +
+      (bloqueadas ? ' · ' + bloqueadas + (bloqueadas === 1 ? ' bloqueada' : ' bloqueadas') : '') +
+      (vencidas ? ' · ' + vencidas + (vencidas === 1 ? ' vencida' : ' vencidas') + ' en su fase' : '');
+
+  return '<div class="sol-cab">' + esc(resumen) + '</div>' +
+         solicitudes.map(filaSolicitud).join('');
+}
+
+function estaBloqueada(s) {
+  return String(s.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0;
+}
+function estaVencida(s) {
+  return s.Sla_Fase && s.Dias_En_Fase !== null && s.Dias_En_Fase > s.Sla_Fase;
+}
+
+/** Una solicitud dentro del desplegable de su iniciativa. */
+function filaSolicitud(s) {
+  var bloqueada = estaBloqueada(s);
+  var vencida = !bloqueada && estaVencida(s);
+  var alerta = bloqueada ? 'bloqueada' : (vencida ? 'vencida' : '');
+
+  // La barra: una casilla por fase del embudo, llenas hasta donde va.
+  var indice = 0;
+  CAT.fases.forEach(function (f, i) { if (f.id === s.Fase_Actual) indice = i + 1; });
+  var barra = CAT.fases.map(function (f, i) {
+    if (i + 1 < indice) return '<i class="hecha"></i>';
+    if (i + 1 === indice) {
+      return '<i class="actual' + (bloqueada ? ' mal' : (vencida ? ' ojo' : '')) + '"></i>';
+    }
+    return '<i></i>';
+  }).join('');
+
+  var version = versionDeSolicitud(s);
+
+  return '<div class="sol ' + alerta + '">' +
+    '<span class="sol-id">' + esc(s.ID_Solicitud) + '</span>' +
+    '<span class="sol-nombre">' + esc(s.Nombre_Solicitud) +
+      (bloqueada
+        ? '<div class="causal">&#9888;&#65039; ' +
+          esc(nombreDeCatalogo(CAT.causales, s.Causal_Bloqueo)) +
+          (s.Observacion_Bloqueo ? ' · ' + esc(s.Observacion_Bloqueo) : '') + '</div>'
+        : '') +
+      (vencida
+        ? '<div class="causal ambar">' + s.Dias_En_Fase + ' días hábiles en esta fase, ' +
+          'el objetivo son ' + s.Sla_Fase + '</div>'
+        : '') +
+    '</span>' +
+    '<span class="fases">' + barra + '</span>' +
+    '<span class="sol-fase">' + esc(nombreFase(s.Fase_Actual)) + ' · ' +
+      '<span class="badge ' + (CLASE_ESTADO[s.Estado_Actual] || 'e-por-iniciar') + '">' +
+      esc(nombreEstado(s.Estado_Actual)) + '</span></span>' +
+    '<span class="sol-quien">' +
+      (s.Nombre_Responsable ? esc(s.Nombre_Responsable) : sinAsignarTexto()) + '</span>' +
+    '<span class="sol-ver">' + version + '</span>' +
+  '</div>';
+}
+
+function sinAsignarTexto() {
+  return '<span style="color:var(--ink-faint)">sin asignar</span>';
+}
+
+/**
+ * Version de la solicitud y cuando se espera que salga. La fecha sale del
+ * roadmap: es el unico dato de plan que existe hoy, y responde la pregunta sin
+ * pedirle al equipo que registre fechas una por una.
+ */
+function versionDeSolicitud(s) {
+  if (!s.Version_Semantica) {
+    return '<b style="color:var(--ink-faint)">—</b><br>' +
+           '<span style="color:var(--ink-faint)">sin versión</span>';
+  }
+  var v = null;
+  (DATOS.kanban.versiones || []).forEach(function (x) {
+    if (x.valor === s.Version_Semantica &&
+        (!x.plataformaId || x.plataformaId === s.Plataforma_ID)) v = x;
+  });
+
+  var pie = 'sin fecha en el roadmap';
+  if (v && v.fechaReal) pie = 'salió ' + fecha(v.fechaReal);
+  else if (v && v.fechaPlaneada) pie = 'planeada ' + fecha(v.fechaPlaneada);
+
+  return '<b>' + esc(s.Version_Semantica) + '</b><br>' + esc(pie);
 }
 
 /**

@@ -223,6 +223,36 @@
   .mz-conteo{position:sticky;top:-7px;z-index:2;background:#EDF1F8;font-family:var(--display);font-weight:700;
              font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);
              padding:2px 2px 6px;margin:-2px 0 -3px}
+  /* Listado de iniciativas: cada una se despliega con sus solicitudes */
+  .ini-fila{cursor:pointer}
+  .ini-fila:hover td,.ini-fila:focus-visible td{background:#F8FAFE}
+  .ini-fila:focus-visible{outline:none}
+  .ini-flecha{color:var(--ink-faint);width:26px}
+  .ini-abierta td{background:#F8FAFE}
+  .ini-abierta .ini-flecha{color:var(--navy)}
+  .sol-cab{font-family:var(--display);font-weight:700;font-size:10.5px;text-transform:uppercase;
+           letter-spacing:.06em;color:var(--ink-faint);padding:10px 0 8px}
+  .sol{display:grid;grid-template-columns:86px 1fr 132px 158px 116px 132px;gap:12px;
+       align-items:center;padding:8px 0;border-top:1px solid var(--line-soft);font-size:12.5px}
+  .sol-id{font-family:var(--display);font-weight:700;color:var(--navy);font-size:11.5px}
+  .sol-nombre{overflow-wrap:anywhere}
+  .sol.bloqueada{background:#FEF2F2;margin:0 -8px;padding-left:8px;padding-right:8px;
+                 border-left:3px solid var(--rojo)}
+  .sol.vencida{background:#FFFBEB;margin:0 -8px;padding-left:8px;padding-right:8px;
+               border-left:3px solid var(--alerta-line)}
+  .fases{display:flex;gap:2px}
+  .fases i{height:7px;flex:1;border-radius:2px;background:#DFE6F2}
+  .fases i.hecha{background:var(--navy)}
+  .fases i.actual{background:var(--esmeralda)}
+  .fases i.actual.mal{background:var(--rojo)}
+  .fases i.actual.ojo{background:var(--alerta-line)}
+  .sol-fase{font-size:11.5px;color:var(--ink-muted)}
+  .sol-quien{font-size:11.5px;color:var(--ink-muted)}
+  .sol-ver{font-size:11px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+  .sol-ver b{color:var(--navy);font-family:var(--display);font-size:11.5px}
+  .causal{font-size:10.5px;color:var(--rojo);margin-top:2px}
+  .causal.ambar{color:var(--alerta)}
+
   /* Selector de vista del portafolio: matriz o columnas por prioridad */
   .vista-toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;
                 overflow:hidden;background:var(--surface)}
@@ -382,6 +412,10 @@
     /* Matriz: celdas mas angostas para que quepan mas verticales */
     .matriz-scroll{max-height:calc(100vh - 260px)}
     .mz-celda{max-height:340px}
+    /* El desplegable de la iniciativa, en una columna */
+    .sol{grid-template-columns:1fr;gap:4px;padding:10px 0}
+    .fases{max-width:180px}
+
     /* Por prioridad: una columna debajo de otra, sin scroll interno */
     .pr-col{max-height:none}
     .vista-toggle{width:100%}

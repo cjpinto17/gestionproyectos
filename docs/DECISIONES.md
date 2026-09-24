@@ -807,6 +807,40 @@ Dos cuidados en la implementación:
   Está verificado en el navegador: el lápiz edita sin abrir, la fila abre sin editar, y sin el
   permiso no aparece ninguno de los dos.
 
+### D-56 · El cronograma que se puede hacer con los datos que hay
+
+En el listado, cada iniciativa se despliega y muestra sus solicitudes: hasta dónde llegó cada
+una en el embudo de ocho fases, su estado, quién la tiene, y **cuándo se espera que salga**.
+
+Se evaluaron dos formas de responder *"cómo va cada tema"*:
+
+| | Qué muestra | Qué necesita |
+| --- | --- | --- |
+| **Avance por fase** *(la elegida)* | Barra de 8 casillas hasta la fase actual, estado, responsable, versión con su fecha | Nada nuevo: todo existe |
+| Línea de tiempo (Gantt) | Una barra por solicitud entre su inicio y su fin | Fechas de inicio y fin **planeadas** por solicitud, que no existen en el modelo |
+
+La segunda se descartó por una razón de datos, no de gusto: el sistema guarda **cuándo cada
+fase se cumplió de verdad**, no cuándo se planeó que ocurriera. Un Gantt sobre eso dibuja el
+pasado, no el plan, y capturar fechas planeadas por solicitud es una disciplina diaria que hoy
+no existe. Se le mostraron al negocio las dos maquetas con datos de ejemplo antes de decidir.
+
+**La fecha esperada sale del roadmap.** Cada solicitud tiene una versión asignada, y esa
+versión sí tiene fecha planeada (D-55). Así se responde *"¿cuándo sale esto?"* sin pedirle al
+equipo que registre una fecha por solicitud: si la versión ya salió dice *"salió el 18/06"*, y
+si no, *"planeada 30/10"*.
+
+**Los días hábiles se calculan en el servidor.** El navegador no puede: dependen de los
+festivos colombianos, que viven en `Festivos.gs`. El tablero recibe cada solicitud con sus días
+en fase y el SLA de esa fase ya resueltos, y la pantalla solo compara.
+
+**No hay consulta nueva al servidor.** Las solicitudes ya viajaban para el tablero de Gestión y
+la precarga en segundo plano (D-45) suele haberlas traído antes de que alguien despliegue nada.
+Si todavía no llegaron, se piden una vez y de ahí en adelante desplegar es instantáneo.
+
+El orden dentro de cada iniciativa es el del **backlog** (`Orden_Iniciativa`), que es el que el
+negocio definió para decir qué se trabaja primero; lo que no tenga orden va al final y no al
+principio por valer cero.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

@@ -579,10 +579,20 @@ function armarDatosKanban_(filtros) {
   proyectos.forEach(function (p) { nombreProyecto[p.ID_Proyecto] = p.Nombre_Proyecto; });
   usuarios.forEach(function (u) { nombreUsuario[u.ID_Usuario] = u.Nombre_Completo; });
 
+  // Los dias habiles no se pueden calcular en el navegador: dependen de los
+  // festivos, que viven en el servidor. Se envian resueltos, junto al SLA de la
+  // fase, para que la pantalla solo tenga que comparar.
+  var sla = mapaSla_(leerTabla_('SLA_Fases'));
+  var ahora = new Date();
+
   var solicitudes = getSolicitudes_(filtros).map(function (s) {
     s.Nombre_Iniciativa = nombreProyecto[s.ID_Proyecto] || s.ID_Proyecto;
     s.Nombre_Responsable = nombreUsuario[s.Responsable_ID] || '';
     s.Nombre_Plataforma = nombrePlataforma[s.Plataforma_ID] || s.Plataforma_ID;
+
+    var desde = aFecha_(s.Fecha_Ultimo_Cambio) || aFecha_(s.Fecha_Registro);
+    s.Dias_En_Fase = desde ? diasHabilesEntre(desde, ahora) : null;
+    s.Sla_Fase = sla[s.Fase_Actual] || null;
     return s;
   });
 
@@ -710,7 +720,13 @@ function getVersionesDisponibles_(idPlataforma) {
     lista.push({
       valor: v.Numero_Version,
       texto: (nombrePlataforma[v.Plataforma_ID] || v.Plataforma_ID) + ' · ' + v.Numero_Version +
-             (v.Estado_Release ? ' (' + v.Estado_Release + ')' : '')
+             (v.Estado_Release ? ' (' + v.Estado_Release + ')' : ''),
+      // Estas tres viajan para poder decir cuando se espera que salga cada
+      // solicitud sin tener que pedir el roadmap aparte.
+      plataformaId: v.Plataforma_ID || '',
+      estadoRelease: v.Estado_Release || '',
+      fechaPlaneada: v.Fecha_Planeada || null,
+      fechaReal: v.Fecha_Despliegue_Real || null
     });
   });
 
