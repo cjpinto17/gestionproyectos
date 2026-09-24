@@ -16,6 +16,7 @@ var PROP_KEYS = {
   PLANTILLA_REQUERIMIENTO: 'ID_PLANTILLA_REQUERIMIENTO',
   CHAT_WEBHOOK_URL: 'CHAT_WEBHOOK_URL',
   DOMINIO_CORPORATIVO: 'DOMINIO_CORPORATIVO',
+  DOMINIOS_ALIADOS: 'DOMINIOS_ALIADOS',
   URL_APLICACION: 'URL_APLICACION'
 };
 
@@ -26,6 +27,21 @@ var CONFIG = {
 
   /** Quien construyo la herramienta. Aparece en el pie de pagina. */
   APP_AUTOR: 'Gerencia de Desarrollo de Plataformas Digitales',
+
+  /**
+   * Dominios de fuera de la casa que pueden entrar.
+   *
+   * El dominio propio NO se escribe aqui: se deduce de la cuenta que publica la
+   * aplicacion, de modo que no hay forma de equivocarse al teclearlo ni de
+   * dejar a toda la compania por fuera con una errata.
+   *
+   * Esta lista es una segunda cerradura, no la principal: quien decide quien
+   * entra sigue siendo la hoja de Usuarios. Sirve para que un correo registrado
+   * por error —uno personal, por ejemplo— no alcance a entrar, y para poder
+   * decirle a seguridad que la aplicacion rechaza por diseno cualquier correo
+   * que no sea de estos dominios.
+   */
+  DOMINIOS_ALIADOS: ['hexasolutions.co'],
 
   /** Zona horaria y formatos. Decision tomada: America/Bogota. */
   ZONA_HORARIA: 'America/Bogota',
@@ -195,6 +211,51 @@ function configurarUrlAplicacion(url) {
 /** @return {string} Dominio corporativo autorizado ('' = sin restriccion). */
 function getDominioCorporativo_() {
   return getProp_(PROP_KEYS.DOMINIO_CORPORATIVO, false);
+}
+
+/**
+ * Dominios cuyos correos pueden entrar: el de la casa mas los aliados.
+ *
+ * El de la casa sale de la cuenta que publica la aplicacion. Si por alguna
+ * razon no se puede leer, la funcion devuelve lista vacia y quien la usa deja
+ * pasar: es una cerradura secundaria —la principal es la hoja de Usuarios— y
+ * dejar a toda la compania afuera por un dato que no se pudo leer seria peor
+ * que el riesgo que cubre.
+ *
+ * @return {!Array<string>} Vacia si no se pudo determinar el dominio propio.
+ */
+function getDominiosPermitidos_() {
+  var dueno = '';
+  try {
+    dueno = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  } catch (e) { /* sin permiso para saberlo */ }
+  if (!dueno || dueno.indexOf('@') === -1) return [];
+
+  var lista = [dueno.split('@')[1]];
+
+  (CONFIG.DOMINIOS_ALIADOS || []).forEach(function (d) {
+    var limpio = String(d || '').trim().toLowerCase().replace(/^@/, '');
+    if (limpio && lista.indexOf(limpio) === -1) lista.push(limpio);
+  });
+
+  // La propiedad permite sumar un aliado sin publicar una version nueva.
+  String(getProp_(PROP_KEYS.DOMINIOS_ALIADOS, false) || '').split(',').forEach(function (d) {
+    var limpio = String(d || '').trim().toLowerCase().replace(/^@/, '');
+    if (limpio && lista.indexOf(limpio) === -1) lista.push(limpio);
+  });
+
+  return lista;
+}
+
+/**
+ * @param {string} correo
+ * @return {boolean} true si el correo es de un dominio admitido.
+ */
+function dominioAdmitido_(correo) {
+  var permitidos = getDominiosPermitidos_();
+  if (!permitidos.length) return true;            // ver getDominiosPermitidos_
+  var partes = String(correo || '').toLowerCase().split('@');
+  return partes.length === 2 && permitidos.indexOf(partes[1]) !== -1;
 }
 
 /**

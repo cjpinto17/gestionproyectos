@@ -118,9 +118,10 @@ function usuarioPorCorreo_(correo) {
  * ese buzon—. Aqui solo se resuelve si existe, si esta activo y que puede
  * hacer.
  *
- * Ya no se filtra por dominio corporativo: la aplicacion admite a proposito
- * gente de otros dominios (la fabrica de software), y quien decide quien entra
- * es la hoja de Usuarios, no el dominio del correo.
+ * El filtro por dominio dejo de ser uno solo y paso a ser una lista: la
+ * aplicacion admite a proposito gente de fuera (la fabrica de software), pero
+ * no de cualquier parte. Quien decide quien entra sigue siendo la hoja de
+ * Usuarios; el dominio es una comprobacion adicional.
  *
  * @param {string} correo
  * @param {string} via 'google' o 'codigo'. Queda en el contexto para saber por
@@ -129,6 +130,15 @@ function usuarioPorCorreo_(correo) {
  * @private
  */
 function contextoDeCorreo_(correo, via) {
+  // Segunda cerradura: aunque el correo este en la hoja, tiene que ser de un
+  // dominio admitido. Cubre el caso de un correo registrado por error —uno
+  // personal, por ejemplo— y hace la regla explicita para quien la audite.
+  if (!dominioAdmitido_(correo)) {
+    return { autorizado: false, correo: correo, requiereIngreso: true,
+             motivo: 'Su correo no pertenece a un dominio autorizado para esta ' +
+                     'aplicacion. Hable con el administrador.' };
+  }
+
   var usuario = usuarioPorCorreo_(correo);
   if (!usuario) {
     return { autorizado: false, correo: correo, requiereIngreso: true,

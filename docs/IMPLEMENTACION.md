@@ -299,7 +299,17 @@ Hay dos formas de identificarse, y la aplicación elige sola:
   escribe y entra. El código vence en 10 minutos, sirve una sola vez y admite 3 intentos.
 
 En los dos casos **la hoja de Usuarios sigue mandando**: quien no esté registrado y activo no
-entra, aunque Google lo reconozca o acierte el código.
+entra, aunque Google lo reconozca o acierte el código. Y hay una segunda condición: el correo
+debe ser **del dominio de la compañía o de un dominio aliado** (hoy, `hexasolutions.co`). Un
+correo personal registrado por error en la hoja no entra.
+
+Para sumar un aliado sin publicar una versión nueva, ejecute desde el editor:
+
+```javascript
+function agregarAliado() {
+  guardarConfiguracion_({ DOMINIOS_ALIADOS: 'hexasolutions.co,otroproveedor.com' });
+}
+```
 
 > **Hoy el segundo camino está dormido.** El Workspace de la compañía prohíbe publicar
 > aplicaciones accesibles a cuentas externas, así que la aplicación sigue restringida al

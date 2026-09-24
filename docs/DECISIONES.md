@@ -764,6 +764,28 @@ y código está construido y probado, pero duerme hasta que el acceso externo se
 dos salidas son pedirle a TI que levante la restricción, o darle cuentas corporativas a la
 fábrica — que es hacia donde apunta la política actual de la compañía.
 
+### D-54 · Dos dominios, y el propio no se escribe a mano
+
+La fábrica de software es **hexasolutions.co**, y ya tenía acceso a los documentos de la
+compañía. Saber el dominio no levanta la restricción de TI —Apps Script solo ofrece *"mi
+dominio"* o *"cualquier cuenta de Google"*, no existe una lista de dominios autorizados en la
+plataforma—, pero sí permite poner una segunda cerradura en el código.
+
+Ahora un correo, además de estar en la hoja de Usuarios y activo, tiene que ser de un dominio
+admitido. Cubre el caso de un correo registrado por error —uno personal, por ejemplo— que hoy
+habría entrado con todos sus permisos, y convierte el argumento para seguridad en algo
+verificable: la aplicación rechaza por diseño cualquier correo que no sea de esos dominios.
+
+**El dominio propio no se escribe en ninguna parte:** se deduce de la cuenta que publica la
+aplicación. Escribirlo a mano habría sido una errata a un carácter de dejar a toda la compañía
+por fuera, y además tendría que mantenerse si algún día cambia. Los aliados sí van listados,
+en `CONFIG.DOMINIOS_ALIADOS`, y se les puede sumar uno por propiedad del script sin publicar
+una versión nueva.
+
+**Si no se puede leer el dominio propio, la comprobación deja pasar.** Es una decisión
+deliberada: esta es la cerradura secundaria —la principal es la hoja de Usuarios— y dejar a
+toda la compañía afuera por un dato que no se pudo leer sería peor que el riesgo que cubre.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

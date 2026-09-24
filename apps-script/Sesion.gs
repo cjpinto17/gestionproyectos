@@ -112,6 +112,9 @@ function solicitarCodigoAcceso(correo) {
   // La respuesta sigue siendo la misma, para no revelar que existe.
   var usuario = usuarioPorCorreo_(destino);
   if (!usuario || String(usuario.Activo).toUpperCase() === 'NO') return respuesta;
+  // Tampoco se manda codigo a un dominio que no admitimos: seria enviarle un
+  // secreto a alguien que de todos modos no va a poder entrar.
+  if (!dominioAdmitido_(destino)) return respuesta;
 
   var props = PropertiesService.getScriptProperties();
   var clave = 'cod_' + huella_(destino);
