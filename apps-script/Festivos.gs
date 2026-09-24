@@ -124,7 +124,7 @@ function mapaFestivos_(anio) {
     festivosColombia(anio).forEach(function (f) { mapa[claveDia_(f)] = true; });
     // Dias no laborables adicionales definidos por la compania, si la hoja existe.
     try {
-      leerTabla('Festivos').forEach(function (fila) {
+      leerTabla_('Festivos').forEach(function (fila) {
         var d = aFecha_(fila.Fecha);
         if (d && d.getFullYear() === anio) mapa[claveDia_(d)] = true;
       });

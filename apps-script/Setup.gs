@@ -20,6 +20,7 @@
  * @return {!Object} Resumen con las URLs de los artefactos creados.
  */
 function setupInicial() {
+  exigirOperador_();
   var resumen = { creado: [], reutilizado: [] };
 
   var libroParam = abrirOCrearLibro_(
@@ -50,7 +51,7 @@ function setupInicial() {
  * @private
  */
 function abrirOCrearLibro_(propKey, nombre, resumen) {
-  var id = getProp(propKey, false);
+  var id = getProp_(propKey, false);
   if (id) {
     try {
       var existente = SpreadsheetApp.openById(id);
@@ -64,7 +65,7 @@ function abrirOCrearLibro_(propKey, nombre, resumen) {
   var libro = SpreadsheetApp.create(nombre);
   libro.setSpreadsheetTimeZone(CONFIG.ZONA_HORARIA);
   moverAUnidadCompartida_(libro.getId());
-  guardarConfiguracion(defineProp_(propKey, libro.getId()));
+  guardarConfiguracion_(defineProp_(propKey, libro.getId()));
   resumen.creado.push(nombre + ' (' + libro.getId() + ')');
   return libro;
 }
@@ -203,7 +204,7 @@ function sembrarSiVacio_(libro, nombreHoja, filas) {
  * @private
  */
 function asegurarPlantillaRequerimiento_(resumen) {
-  var id = getProp(PROP_KEYS.PLANTILLA_REQUERIMIENTO, false);
+  var id = getProp_(PROP_KEYS.PLANTILLA_REQUERIMIENTO, false);
   if (id) {
     try {
       DriveApp.getFileById(id);
@@ -232,7 +233,7 @@ function asegurarPlantillaRequerimiento_(resumen) {
   doc.saveAndClose();
 
   moverAUnidadCompartida_(doc.getId());
-  guardarConfiguracion(defineProp_(PROP_KEYS.PLANTILLA_REQUERIMIENTO, doc.getId()));
+  guardarConfiguracion_(defineProp_(PROP_KEYS.PLANTILLA_REQUERIMIENTO, doc.getId()));
   resumen.creado.push(CONFIG.NOMBRE_PLANTILLA_REQUERIMIENTO + ' (' + doc.getId() + ')');
 }
 
@@ -242,10 +243,10 @@ function asegurarPlantillaRequerimiento_(resumen) {
  */
 function pendientesDeConfiguracion_() {
   var pendientes = [];
-  if (!getChatWebhookUrl()) {
-    pendientes.push('Webhook de Google Chat: registrar con guardarConfiguracion().');
+  if (!getChatWebhookUrl_()) {
+    pendientes.push('Webhook de Google Chat: registrar con guardarConfiguracion_().');
   }
-  if (!getDominioCorporativo()) {
+  if (!getDominioCorporativo_()) {
     pendientes.push('Dominio corporativo: sin restriccion de dominio activa.');
   }
   return pendientes;
@@ -270,10 +271,11 @@ function defineProp_(clave, valor) {
  * @return {!Object} Reporte de hojas OK y hojas con diferencias.
  */
 function validarInstalacion() {
+  exigirOperador_();
   var reporte = { ok: [], problemas: [] };
 
-  [[getIdLibroParametrizacion(), ESQUEMA_PARAMETRIZACION],
-   [getIdLibroTransaccional(), ESQUEMA_TRANSACCIONAL]].forEach(function (par) {
+  [[getIdLibroParametrizacion_(), ESQUEMA_PARAMETRIZACION],
+   [getIdLibroTransaccional_(), ESQUEMA_TRANSACCIONAL]].forEach(function (par) {
     var libro = SpreadsheetApp.openById(par[0]);
     var esquema = par[1];
     Object.keys(esquema).forEach(function (nombreHoja) {
@@ -316,13 +318,25 @@ function validarInstalacion() {
  * @return {!Object} Resultado legible de lo que hizo.
  */
 function registrarmeComoAdministrador() {
+  // Esta funcion otorga el rol de Administrador, asi que es la mas delicada del
+  // proyecto: solo la puede ejecutar el dueno de la aplicacion, desde el editor.
+  var correo = correoDeGoogle_();
+  var dueno = '';
+  try {
+    dueno = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  } catch (e) { /* sin permiso para saberlo */ }
+  if (!correo || correo !== dueno) {
+    throw new Error('Solo el dueno de la aplicacion puede ejecutar esto, y desde el ' +
+                    'editor de Apps Script.');
+  }
+
   var correo = (Session.getActiveUser().getEmail() || '').toLowerCase();
   if (!correo) {
     throw new Error('No se pudo leer el correo de la sesion. Ejecute la funcion ' +
                     'desde el editor, con su cuenta corporativa.');
   }
 
-  var usuarios = leerTabla('Usuarios');
+  var usuarios = leerTabla_('Usuarios');
   var existente = null;
   usuarios.forEach(function (u) {
     if (String(u.Correo_ID || '').toLowerCase() === correo) existente = u;
@@ -389,6 +403,7 @@ function registrarmeComoAdministrador() {
  * @return {!Object} Que se agrego en cada catalogo.
  */
 function sincronizarCatalogos() {
+  exigirOperador_();
   var catalogos = [
     { hoja: 'Fases', lista: FASES, fila: function (x) { return [x.id, x.nombre, x.orden]; } },
     { hoja: 'Estados', lista: ESTADOS, fila: function (x) { return [x.id, x.nombre]; } },
@@ -402,7 +417,7 @@ function sincronizarCatalogos() {
     { hoja: 'Verticales', lista: VERTICALES, fila: function (x) { return [x.id, x.nombre, x.orden]; } }
   ];
 
-  var libro = SpreadsheetApp.openById(getIdLibroParametrizacion());
+  var libro = SpreadsheetApp.openById(getIdLibroParametrizacion_());
   var resumen = { agregados: [], sinCambios: [] };
 
   catalogos.forEach(function (cat) {
@@ -410,7 +425,7 @@ function sincronizarCatalogos() {
     if (!hoja) return;
     var pk = getDefinicionTabla(cat.hoja).def.pk;
     var existentes = {};
-    leerTabla(cat.hoja).forEach(function (f) { existentes[String(f[pk])] = true; });
+    leerTabla_(cat.hoja).forEach(function (f) { existentes[String(f[pk])] = true; });
 
     var nuevos = cat.lista.filter(function (x) { return !existentes[x.id]; });
     if (!nuevos.length) { resumen.sinCambios.push(cat.hoja); return; }

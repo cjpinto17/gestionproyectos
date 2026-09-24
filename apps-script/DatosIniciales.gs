@@ -161,7 +161,8 @@ var INICIATIVAS_REALES = [
  * @return {!Object} Resumen de lo cargado y lo omitido.
  */
 function cargarDatosIniciales() {
-  var libro = SpreadsheetApp.openById(getIdLibroParametrizacion());
+  exigirOperador_();
+  var libro = SpreadsheetApp.openById(getIdLibroParametrizacion_());
   var resumen = { cargado: [], omitido: [] };
 
   cargarSiVacio_(libro, 'Plataforma_Digital', PLATAFORMAS_REALES.map(function (p) {

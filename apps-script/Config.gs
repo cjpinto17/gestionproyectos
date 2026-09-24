@@ -112,12 +112,12 @@ var CONFIG = {
  * @param {boolean} obligatoria Si es true lanza error cuando no esta configurada.
  * @return {string}
  */
-function getProp(clave, obligatoria) {
+function getProp_(clave, obligatoria) {
   var valor = PropertiesService.getScriptProperties().getProperty(clave);
   if (!valor && obligatoria) {
     throw new Error(
       'Configuracion faltante: "' + clave + '". Ejecute setupInicial() o ' +
-      'registre el valor con guardarConfiguracion().'
+      'registre el valor con guardarConfiguracion_().'
     );
   }
   return valor || '';
@@ -127,28 +127,28 @@ function getProp(clave, obligatoria) {
  * Guarda uno o varios valores de configuracion.
  * @param {!Object<string,string>} valores Mapa clave (PROP_KEYS) -> valor.
  */
-function guardarConfiguracion(valores) {
+function guardarConfiguracion_(valores) {
   PropertiesService.getScriptProperties().setProperties(valores, false);
 }
 
 /** @return {string} ID del libro de parametrizacion (maestros). */
-function getIdLibroParametrizacion() {
-  return getProp(PROP_KEYS.LIBRO_PARAMETRIZACION, true);
+function getIdLibroParametrizacion_() {
+  return getProp_(PROP_KEYS.LIBRO_PARAMETRIZACION, true);
 }
 
 /** @return {string} ID del libro transaccional (solicitudes/auditoria). */
-function getIdLibroTransaccional() {
-  return getProp(PROP_KEYS.LIBRO_TRANSACCIONAL, true);
+function getIdLibroTransaccional_() {
+  return getProp_(PROP_KEYS.LIBRO_TRANSACCIONAL, true);
 }
 
 /** @return {string} ID del Google Doc plantilla de requerimiento. */
-function getIdPlantillaRequerimiento() {
-  return getProp(PROP_KEYS.PLANTILLA_REQUERIMIENTO, true);
+function getIdPlantillaRequerimiento_() {
+  return getProp_(PROP_KEYS.PLANTILLA_REQUERIMIENTO, true);
 }
 
 /** @return {string} URL del webhook de Google Chat ('' si no esta configurado). */
-function getChatWebhookUrl() {
-  return getProp(PROP_KEYS.CHAT_WEBHOOK_URL, false);
+function getChatWebhookUrl_() {
+  return getProp_(PROP_KEYS.CHAT_WEBHOOK_URL, false);
 }
 
 /**
@@ -161,8 +161,8 @@ function getChatWebhookUrl() {
  *
  * @return {string} '' si no hay ninguna disponible.
  */
-function getUrlAplicacion() {
-  var propia = getProp(PROP_KEYS.URL_APLICACION, false);
+function getUrlAplicacion_() {
+  var propia = getProp_(PROP_KEYS.URL_APLICACION, false);
   if (propia) return propia;
   try {
     return ScriptApp.getService().getUrl() || '';
@@ -178,13 +178,14 @@ function getUrlAplicacion() {
  * @return {!Object}
  */
 function configurarUrlAplicacion(url) {
+  exigirOperador_();
   var limpia = String(url || '').trim();
   if (!/^https:\/\//.test(limpia)) {
     throw new Error('Escriba la direccion completa, empezando por https://');
   }
   var valores = {};
   valores[PROP_KEYS.URL_APLICACION] = limpia;
-  guardarConfiguracion(valores);
+  guardarConfiguracion_(valores);
   var resultado = { ok: true, url: limpia,
                     mensaje: 'Los correos de bienvenida enviaran a esta direccion.' };
   Logger.log(JSON.stringify(resultado, null, 2));
@@ -192,8 +193,8 @@ function configurarUrlAplicacion(url) {
 }
 
 /** @return {string} Dominio corporativo autorizado ('' = sin restriccion). */
-function getDominioCorporativo() {
-  return getProp(PROP_KEYS.DOMINIO_CORPORATIVO, false);
+function getDominioCorporativo_() {
+  return getProp_(PROP_KEYS.DOMINIO_CORPORATIVO, false);
 }
 
 /**
@@ -201,6 +202,7 @@ function getDominioCorporativo() {
  * @return {!Object} Diagnostico legible de que esta y que falta.
  */
 function diagnosticoConfiguracion() {
+  exigirOperador_();
   var props = PropertiesService.getScriptProperties().getProperties();
   var idParam = props[PROP_KEYS.LIBRO_PARAMETRIZACION] || null;
   var idTrans = props[PROP_KEYS.LIBRO_TRANSACCIONAL] || null;

@@ -222,7 +222,7 @@ function refrescarFilaEnCache_(tabla, numeroFila, columnas) {
 }
 
 /**
- * Lee una sola fila de la hoja y la arma igual que lo haria leerTabla().
+ * Lee una sola fila de la hoja y la arma igual que lo haria leerTabla_().
  * @return {?Object} null si la fila quedo vacia.
  * @private
  */
@@ -341,6 +341,17 @@ function conResultadoEnCache_(nombre, calcular) {
  * @return {!Object}
  */
 function limpiarCache() {
+  exigirOperador_();
+  return limpiarCache_();
+}
+
+/**
+ * El vaciado de verdad, sin guardia: lo usan por dentro el boton Actualizar
+ * —que ya comprobo la sesion— y la medicion de rendimiento.
+ * @return {!Object}
+ * @private
+ */
+function limpiarCache_() {
   var tablas = Object.keys(ESQUEMA_PARAMETRIZACION).concat(Object.keys(ESQUEMA_TRANSACCIONAL));
   tablas.forEach(invalidarTabla_);
   nuevaVersionDatos_();
@@ -360,13 +371,14 @@ function limpiarCache() {
  * @return {!Object} Tiempos en milisegundos.
  */
 function medirRendimiento() {
+  exigirOperador_();
   function medir(nombre, fn) {
     var t = new Date().getTime();
     try { fn(); } catch (e) { return { consulta: nombre, error: e.message }; }
     return { consulta: nombre, ms: new Date().getTime() - t };
   }
 
-  limpiarCache();
+  limpiarCache_();
   var frio = [
     medir('getCatalogos', function () { return getCatalogos(); }),
     medir('getMatrizIniciativas', function () { return getMatrizIniciativas(); }),
@@ -482,6 +494,7 @@ function calentarCache() {
  * @return {!Object}
  */
 function instalarCalentamiento() {
+  exigirOperador_();
   var previos = 0;
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'calentarCache') {
@@ -507,6 +520,7 @@ function instalarCalentamiento() {
  * @return {!Object}
  */
 function desinstalarCalentamiento() {
+  exigirOperador_();
   var borrados = 0;
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'calentarCache') {

@@ -265,6 +265,21 @@
   .eq-tablero{display:flex;gap:10px;overflow:hidden}
   .eq-columna{flex:1 0 220px;height:320px}
 
+  /* Pantalla de ingreso */
+  .ingreso{display:flex;align-items:flex-start;justify-content:center;padding:48px 16px}
+  .ingreso[hidden]{display:none}
+  .ingreso-caja{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+                padding:28px;width:100%;max-width:390px;
+                box-shadow:0 10px 30px rgba(0,48,110,.07)}
+  .ingreso-caja h2{font-family:var(--display);font-size:19px;font-weight:800;color:var(--navy);
+                   margin-bottom:6px}
+  .ingreso-sub{font-size:13px;color:var(--ink-muted);line-height:1.5;margin-bottom:18px}
+  .ingreso-btn{width:100%;justify-content:center;margin-top:14px}
+  .ingreso-codigo{font-family:var(--display);font-size:22px;font-weight:700;
+                  letter-spacing:8px;text-align:center}
+  .ingreso-error{margin-top:14px;background:var(--rojo-bg);color:var(--rojo);
+                 border-radius:8px;padding:10px 12px;font-size:12.5px}
+
   /* Pie de pagina: quien la hizo, que version y de cuando */
   .pie{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 14px;
        padding:18px 16px 24px;font-size:11.5px;color:var(--ink-faint);text-align:center}

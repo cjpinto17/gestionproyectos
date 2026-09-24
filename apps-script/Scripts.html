@@ -76,13 +76,59 @@ function toast(msg, esError) {
   tToast = setTimeout(function () { el.hidden = true; }, esError ? 7000 : 4500);
 }
 
-/** Envuelve google.script.run en una promesa, para poder encadenar llamadas. */
+/**
+ * Identificador de la sesion abierta con codigo. Los de la compania no lo
+ * necesitan: a ellos los reconoce Google.
+ */
+var TOKEN_SESION = '';
+var CLAVE_TOKEN = 'sesionPlataformasDigitales';
+
+function leerTokenGuardado() {
+  try { return localStorage.getItem(CLAVE_TOKEN) || ''; } catch (e) { return ''; }
+}
+function guardarToken(token) {
+  TOKEN_SESION = token || '';
+  try {
+    if (token) localStorage.setItem(CLAVE_TOKEN, token);
+    else localStorage.removeItem(CLAVE_TOKEN);
+  } catch (e) { /* navegador sin almacenamiento: la sesion dura lo que la pestana */ }
+}
+
+/**
+ * Envuelve google.script.run en una promesa.
+ *
+ * Todas las operaciones entran por el despachador del servidor, que establece
+ * la identidad una sola vez y la deja fija. Por eso el token viaja en cada
+ * llamada: es lo unico que el servidor tiene para saber quien pregunta cuando
+ * Google no lo dice.
+ */
 function api(metodo) {
   var args = Array.prototype.slice.call(arguments, 1);
   return new Promise(function (resolve, reject) {
     google.script.run
         .withSuccessHandler(resolve)
-        .withFailureHandler(function (err) { reject(err); })[metodo].apply(null, args);
+        .withFailureHandler(function (err) {
+          var msg = (err && err.message) ? err.message : String(err);
+          if (msg.indexOf('SESION_INVALIDA') !== -1) {
+            // La sesion vencio o nunca existio: se pide el ingreso de nuevo en
+            // lugar de dejar un error suelto en pantalla.
+            guardarToken('');
+            mostrarIngreso(msg.replace(/^.*SESION_INVALIDA:\s*/, ''));
+            return;
+          }
+          reject(err);
+        })
+        .llamar(TOKEN_SESION, metodo, args);
+  });
+}
+
+/** Llamadas que ocurren ANTES de tener identidad, sin pasar por el despachador. */
+function apiPublica(metodo) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function (resolve, reject) {
+    google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(reject)[metodo].apply(null, args);
   });
 }
 
@@ -1704,29 +1750,117 @@ function pintarPie(v) {
       : 'Versión sin sellar';
 }
 
-$('ventanaMeses').value = String(VENTANA_INICIAL);
-api('getArranque', VENTANA_INICIAL).then(function (r) {
-  pintarPie(r.version);
-  CTX = r.contexto;
-  if (!CTX.autorizado) {
-    $('usuarioNombre').textContent = CTX.correo || 'Sin sesión';
-    $('avisoAccesoMotivo').textContent = CTX.motivo || '';
-    $('avisoAcceso').hidden = false;
-    $('btnActualizar').hidden = true;
-    return;
-  }
-  CAT = r.catalogos;
-  DATOS.home = {};
-  DATOS.home[VENTANA_INICIAL] = r.metricas;
+/* ================= Ingreso ================= */
 
-  $('usuarioNombre').textContent = CTX.nombre;
-  $('usuarioRol').textContent = CTX.rolNombre;
-  if (!CTX.esAdmin) $('tabAdmin').hidden = true;
-  $('contenido').hidden = false;
-  navegar(PAGINA_INICIAL || 'home');
-  precargarEnSegundoPlano();
-}).catch(function (err) {
-  $('avisoAccesoMotivo').textContent = (err && err.message) ? err.message : String(err);
-  $('avisoAcceso').hidden = false;
+/** Muestra la pantalla de ingreso y esconde la aplicacion. */
+function mostrarIngreso(motivo) {
+  $('contenido').hidden = true;
+  $('avisoAcceso').hidden = true;
+  $('ingreso').hidden = false;
+  $('btnActualizar').hidden = true;
+  $('usuarioNombre').textContent = 'Sin sesión';
+  $('usuarioRol').textContent = '';
+  if (motivo) $('ingresoMotivo').textContent = motivo;
+  $('pasoCodigo').hidden = true;
+  $('pasoCorreo').hidden = false;
+  errorIngreso('');
+}
+
+function errorIngreso(texto) {
+  var caja = $('ingresoError');
+  caja.textContent = texto || '';
+  caja.hidden = !texto;
+}
+
+function ocupado(boton, texto, activo) {
+  boton.disabled = activo;
+  boton.textContent = texto;
+}
+
+$('btnPedirCodigo').addEventListener('click', function () {
+  var correo = $('ingCorreo').value.trim();
+  if (!correo) { errorIngreso('Escriba su correo.'); return; }
+  errorIngreso('');
+  var b = this;
+  ocupado(b, 'Enviando…', true);
+  apiPublica('solicitarCodigoAcceso', correo).then(function (r) {
+    $('ingresoEnviadoA').textContent = r.mensaje;
+    $('pasoCorreo').hidden = true;
+    $('pasoCodigo').hidden = false;
+    $('ingCodigo').focus();
+  }).catch(function (err) {
+    errorIngreso((err && err.message) ? err.message : String(err));
+  }).then(function () { ocupado(b, 'Enviarme un código', false); });
 });
+
+$('btnEntrar').addEventListener('click', function () {
+  var codigo = $('ingCodigo').value.trim();
+  if (!codigo) { errorIngreso('Escriba el código que le llegó.'); return; }
+  errorIngreso('');
+  var b = this;
+  ocupado(b, 'Entrando…', true);
+  apiPublica('validarCodigoAcceso', $('ingCorreo').value.trim(), codigo).then(function (r) {
+    guardarToken(r.token);
+    $('ingreso').hidden = true;
+    arrancar();
+  }).catch(function (err) {
+    errorIngreso((err && err.message) ? err.message : String(err));
+    ocupado(b, 'Entrar', false);
+  });
+});
+
+$('btnOtroCorreo').addEventListener('click', function () {
+  $('ingCodigo').value = '';
+  $('pasoCodigo').hidden = true;
+  $('pasoCorreo').hidden = false;
+  errorIngreso('');
+});
+
+// Enter en cualquiera de los dos campos avanza, que es lo que la gente espera.
+$('ingCorreo').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') $('btnPedirCodigo').click();
+});
+$('ingCodigo').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') $('btnEntrar').click();
+});
+
+/* ================= Arranque ================= */
+
+function arrancar() {
+  $('ventanaMeses').value = String(VENTANA_INICIAL);
+  api('getArranque', VENTANA_INICIAL).then(function (r) {
+    if (!r) return;                       // la sesion se pidio de nuevo
+    pintarPie(r.version);
+    CTX = r.contexto;
+    if (!CTX.autorizado) {
+      // Identidad establecida pero sin permiso: no sirve volver a pedir el
+      // codigo, hay que hablar con el administrador.
+      $('ingreso').hidden = true;
+      $('usuarioNombre').textContent = CTX.correo || 'Sin sesión';
+      $('avisoAccesoMotivo').textContent = CTX.motivo || '';
+      $('avisoAcceso').hidden = false;
+      $('btnActualizar').hidden = true;
+      return;
+    }
+    CAT = r.catalogos;
+    DATOS.home = {};
+    DATOS.home[VENTANA_INICIAL] = r.metricas;
+
+    $('ingreso').hidden = true;
+    $('avisoAcceso').hidden = true;
+    $('btnActualizar').hidden = false;
+    $('usuarioNombre').textContent = CTX.nombre;
+    $('usuarioRol').textContent = CTX.rolNombre;
+    if (!CTX.esAdmin) $('tabAdmin').hidden = true;
+    $('contenido').hidden = false;
+    navegar(PAGINA_INICIAL || 'home');
+    precargarEnSegundoPlano();
+  }).catch(function (err) {
+    $('avisoAccesoMotivo').textContent = (err && err.message) ? err.message : String(err);
+    $('avisoAcceso').hidden = false;
+  });
+}
+
+TOKEN_SESION = leerTokenGuardado();
+arrancar();
 </script>

@@ -683,6 +683,57 @@ funciona con teclado además de con el ratón.
 *El filtro por plataforma de esa página ya existía desde el principio y funciona; no hubo que
 agregarlo.*
 
+### D-52 · La aplicación deja de correr a nombre de cada persona
+
+Para que la fábrica de software entre sin cuenta corporativa había tres puertas que cambiar, y
+la tercera era la que importaba: la aplicación corría **a nombre de cada usuario**, así que
+todos necesitaban permiso sobre las hojas de cálculo. Dárselo a un proveedor externo habría
+significado que pudiera abrir la hoja y editar lo que quisiera, saltándose los roles, el flujo
+de fases y la bitácora. Todo el control vive en la aplicación, no en el archivo.
+
+Ahora la aplicación corre **a nombre de su dueño** y las hojas quedan cerradas para todos. El
+precio es que Google ya no identifica a quien viene de otro dominio, y esa identidad hay que
+establecerla aquí.
+
+**Cómo se establece.** Dos caminos, y la aplicación elige solo:
+
+1. **Google**, para quien es del mismo dominio del dueño. Entra sin escribir nada.
+2. **Correo más código de un solo uso**, para los demás. El código llega **al buzón registrado
+   en la hoja**, así que escribir el correo de otro no sirve de nada.
+
+La propuesta inicial era admitir a quien escribiera un correo que estuviera en la tabla. Eso no
+es autenticación: con la aplicación abierta a internet, cualquiera que conociera un correo
+—y los corporativos siguen un patrón predecible— habría entrado como esa persona, incluido el
+Administrador. El código es lo que convierte "dice ser" en "es".
+
+**Una sola puerta de entrada.** Antes cada operación era una función suelta que el navegador
+podía invocar, y cada una preguntaba por su cuenta quién era el usuario. Ahora todas pasan por
+`llamar()`, que resuelve la identidad **una vez** y la deja fija para la ejecución. Ninguna
+operación puede olvidarse de comprobarla, porque ya no tiene cómo llegar sin pasar por ahí. La
+lista de operaciones permitidas es explícita: despachar con `globalThis[metodo]` sin lista
+dejaría al alcance de cualquiera las funciones de instalación y mantenimiento.
+
+**El hueco que esto destapó.** Con la aplicación abierta a internet, *toda* función global del
+proyecto quedaba invocable desde el navegador de un desconocido: `leerTabla('Solicitudes')`
+devolvía la base entera, `registrarmeComoAdministrador()` regalaba el rol, `guardarConfiguracion()`
+reescribía la configuración. Se cerró de dos formas: las funciones de datos y de configuración
+pasaron a **privadas** —Apps Script no deja invocar desde el navegador ninguna que termine en
+guion bajo, y esa protección no depende de que nosotros nos acordemos de ponerla—, y las de
+instalación y mantenimiento llevan `exigirOperador_()`, que exige ser el dueño ejecutando desde
+el editor, o un administrador identificado.
+
+**Lo que se aceptó a sabiendas:**
+
+- **La dirección queda abierta a internet.** El control de acceso de Google se sustituye por el
+  nuestro. Es defendible y es práctica común, pero es una sustitución, no un refuerzo.
+- **Se publica con la cuenta personal corporativa del responsable del proyecto**, contra la
+  recomendación de usar una cuenta de área. Si esa cuenta se desactiva, la aplicación deja de
+  funcionar para todos y los documentos creados quedan a su nombre.
+- **Ya no se filtra por dominio corporativo**: admitir otros dominios es justamente el objetivo,
+  y quien decide es la hoja de Usuarios.
+- La decisión se tomó el 24 de septiembre de 2026 sin revisión previa del área de seguridad de
+  la información, que sí se sugirió.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

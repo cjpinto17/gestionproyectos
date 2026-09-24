@@ -114,12 +114,12 @@ function contarPor_(lista, fn) {
  */
 function cargarDatos_() {
   return {
-    solicitudes: leerTabla('Solicitudes'),
-    auditoria: leerTabla('Auditoria_Transiciones'),
-    proyectos: leerTabla('Proyectos'),
-    usuarios: leerTabla('Usuarios'),
-    roadmap: leerTabla('Roadmap_Versiones'),
-    sla: leerTabla('SLA_Fases')
+    solicitudes: leerTabla_('Solicitudes'),
+    auditoria: leerTabla_('Auditoria_Transiciones'),
+    proyectos: leerTabla_('Proyectos'),
+    usuarios: leerTabla_('Usuarios'),
+    roadmap: leerTabla_('Roadmap_Versiones'),
+    sla: leerTabla_('SLA_Fases')
   };
 }
 

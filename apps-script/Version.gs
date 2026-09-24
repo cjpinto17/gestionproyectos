@@ -26,7 +26,7 @@ var VERSION_APP = {
  * Datos de version para el pie de pagina.
  * @return {!Object} { numero, publicada, commit, autor }
  */
-function getVersionApp() {
+function getVersionApp_() {
   return {
     numero: VERSION_APP.numero,
     publicada: VERSION_APP.publicada,

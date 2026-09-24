@@ -31,7 +31,37 @@
     </div>
   </header>
 
-  <!-- Pantalla de acceso denegado: reemplaza la aplicacion, no la decora -->
+  <!-- Pantalla de ingreso: reemplaza la aplicacion, no la decora -->
+  <div id="ingreso" class="ingreso" hidden>
+    <div class="ingreso-caja">
+      <h2>Identif&iacute;quese para entrar</h2>
+      <p class="ingreso-sub" id="ingresoMotivo">Si su correo es de la compa&ntilde;&iacute;a,
+      entrar&aacute; solo. Si no, le enviamos un c&oacute;digo a su buz&oacute;n.</p>
+
+      <div id="pasoCorreo">
+        <label class="campo"><span>Correo registrado</span>
+          <input type="email" id="ingCorreo" autocomplete="email"
+                 placeholder="nombre@empresa.com"></label>
+        <button class="btn-primario ingreso-btn" id="btnPedirCodigo">Enviarme un c&oacute;digo</button>
+      </div>
+
+      <div id="pasoCodigo" hidden>
+        <p class="ingreso-sub" id="ingresoEnviadoA"></p>
+        <label class="campo"><span>C&oacute;digo de 6 d&iacute;gitos</span>
+          <input type="text" id="ingCodigo" inputmode="numeric" maxlength="6"
+                 autocomplete="one-time-code" class="ingreso-codigo" placeholder="000000"></label>
+        <button class="btn-primario ingreso-btn" id="btnEntrar">Entrar</button>
+        <button class="btn-sec ingreso-btn" id="btnOtroCorreo"
+                style="margin-top:8px">Usar otro correo</button>
+      </div>
+
+      <p class="ingreso-error" id="ingresoError" hidden></p>
+      <p class="nota" style="margin-top:18px">El c&oacute;digo vence en 10 minutos y sirve una
+      sola vez. Si usted no lo pidi&oacute; y le lleg&oacute; uno, av&iacute;sele al administrador.</p>
+    </div>
+  </div>
+
+  <!-- Acceso denegado con identidad ya establecida (usuario inactivo, sin registrar) -->
   <div id="avisoAcceso" class="sin-clasificar" hidden
        style="max-width:620px;margin:40px auto;border-style:solid">
     <h3>No fue posible abrir la aplicaci&oacute;n</h3>

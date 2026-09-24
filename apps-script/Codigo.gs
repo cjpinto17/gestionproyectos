@@ -59,41 +59,91 @@ function include(archivo) {
 /* ================================================================== */
 
 /**
- * Identifica al usuario autenticado por SSO y resuelve su rol.
+ * Identifica a quien esta usando la aplicacion y resuelve su rol.
+ *
+ * Si el despachador ya resolvio la identidad para esta ejecucion, la reutiliza.
+ * Si no —por ejemplo cuando la funcion se ejecuta a mano desde el editor—,
+ * pregunta a Google.
+ *
  * @return {!Object}
  */
 function getContextoUsuario() {
-  var correo = (Session.getActiveUser().getEmail() || '').toLowerCase();
-  var dominio = getDominioCorporativo();
-
+  if (SESION_ACTUAL) return SESION_ACTUAL;
+  var correo = correoDeGoogle_();
   if (!correo) {
-    return { autorizado: false, motivo: 'No se pudo identificar la sesion de Google.' };
+    return { autorizado: false, requiereIngreso: true,
+             motivo: 'Identifiquese para entrar.' };
   }
-  if (dominio && correo.indexOf('@' + dominio.replace('@', '')) === -1) {
-    return { autorizado: false, correo: correo, motivo: 'Correo fuera del dominio corporativo.' };
-  }
+  return contextoDeCorreo_(correo, 'google');
+}
 
-  // El correo es opcional en la tabla Usuarios: alguien puede existir y ser
-  // asignable (por ejemplo como Business Owner) antes de tener cuenta
-  // corporativa. Solo quien tenga correo registrado puede iniciar sesion.
-  var usuarios = leerTabla('Usuarios');
-  var usuario = null;
-  for (var i = 0; i < usuarios.length; i++) {
-    var registrado = String(usuarios[i].Correo_ID || '').toLowerCase();
-    if (registrado && registrado === correo) { usuario = usuarios[i]; break; }
+/**
+ * Correo que Google nos deja ver, o '' si no nos deja.
+ *
+ * Desde que la aplicacion corre a nombre de su dueno, Google solo revela la
+ * identidad de quien pertenece al mismo dominio. Para los demas devuelve vacio,
+ * y de ahi el ingreso por codigo.
+ *
+ * @return {string}
+ * @private
+ */
+function correoDeGoogle_() {
+  try {
+    return String(Session.getActiveUser().getEmail() || '').toLowerCase();
+  } catch (e) {
+    return '';
   }
+}
+
+/**
+ * Busca a una persona por su correo en la hoja de Usuarios.
+ * @param {string} correo Ya normalizado a minusculas.
+ * @return {?Object}
+ * @private
+ */
+function usuarioPorCorreo_(correo) {
+  var usuarios = leerTabla_('Usuarios');
+  for (var i = 0; i < usuarios.length; i++) {
+    var registrado = String(usuarios[i].Correo_ID || '').trim().toLowerCase();
+    if (registrado && registrado === correo) return usuarios[i];
+  }
+  return null;
+}
+
+/**
+ * Arma el contexto de trabajo a partir de un correo YA COMPROBADO.
+ *
+ * Quien llama a esta funcion ya establecio que el correo es de quien dice ser
+ * —porque lo dijo Google, o porque la persona escribio el codigo que llego a
+ * ese buzon—. Aqui solo se resuelve si existe, si esta activo y que puede
+ * hacer.
+ *
+ * Ya no se filtra por dominio corporativo: la aplicacion admite a proposito
+ * gente de otros dominios (la fabrica de software), y quien decide quien entra
+ * es la hoja de Usuarios, no el dominio del correo.
+ *
+ * @param {string} correo
+ * @param {string} via 'google' o 'codigo'. Queda en el contexto para saber por
+ *     donde entro cada quien.
+ * @return {!Object}
+ * @private
+ */
+function contextoDeCorreo_(correo, via) {
+  var usuario = usuarioPorCorreo_(correo);
   if (!usuario) {
-    return { autorizado: false, correo: correo,
+    return { autorizado: false, correo: correo, requiereIngreso: true,
              motivo: 'Su correo no esta asociado a ningun usuario del sistema. ' +
                      'Solicite al administrador que lo registre.' };
   }
   if (String(usuario.Activo).toUpperCase() === 'NO') {
-    return { autorizado: false, correo: correo, motivo: 'Usuario inactivo.' };
+    return { autorizado: false, correo: correo, requiereIngreso: true,
+             motivo: 'Usuario inactivo.' };
   }
 
   var permisos = getPermisos(usuario.Rol_ID);
   return {
     autorizado: true,
+    via: via,
     correo: correo,
     idUsuario: usuario.ID_Usuario,
     nombre: usuario.Nombre_Completo,
@@ -111,8 +161,12 @@ function getContextoUsuario() {
 }
 
 /**
- * Igual que getContextoUsuario, pero lanza error si no esta autorizado.
- * Lo usan todas las operaciones de escritura.
+ * Devuelve el contexto de quien esta operando, o falla.
+ *
+ * Es la guardia que usan todas las operaciones de negocio. Desde que existe el
+ * despachador, la identidad ya viene resuelta en SESION_ACTUAL; esta funcion
+ * sigue siendo el punto unico donde se comprueba, y el que falla si no hay.
+ *
  * @return {!Object}
  * @private
  */
@@ -120,6 +174,31 @@ function exigirSesion_() {
   var ctx = getContextoUsuario();
   if (!ctx.autorizado) throw new Error(ctx.motivo || 'Sesion no autorizada.');
   return ctx;
+}
+
+/**
+ * Exige que quien ejecuta sea el dueno de la aplicacion —desde el editor o
+ * desde un disparador— o un administrador identificado.
+ *
+ * Las funciones de instalacion, mantenimiento y diagnostico no se usan desde la
+ * pantalla: se ejecutan a mano desde el editor de Apps Script. Pero al estar
+ * declaradas como funciones sueltas, google.script.run podria invocarlas desde
+ * el navegador de cualquiera, y ahora la aplicacion esta abierta a internet.
+ * Esta guardia es lo que impide que un desconocido borre la memoria, renumere
+ * las solicitudes o lea la configuracion.
+ *
+ * @return {!Object}
+ * @private
+ */
+function exigirOperador_() {
+  var correo = correoDeGoogle_();
+  var dueno = '';
+  try {
+    dueno = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  } catch (e) { /* sin permiso para saberlo */ }
+
+  if (correo && dueno && correo === dueno) return { correo: correo, esDueno: true };
+  return exigirAdministrador_();
 }
 
 /** @private */
@@ -139,8 +218,8 @@ function getHoja_(tabla) {
   var info = getDefinicionTabla(tabla);
   if (!info) throw new Error('Tabla desconocida: ' + tabla);
   var id = info.libro === 'PARAMETRIZACION'
-      ? getIdLibroParametrizacion()
-      : getIdLibroTransaccional();
+      ? getIdLibroParametrizacion_()
+      : getIdLibroTransaccional_();
   // getLibro_ abre cada archivo una sola vez por ejecucion (ver Cache.gs).
   var hoja = getLibro_(id).getSheetByName(tabla);
   if (!hoja) throw new Error('La hoja "' + tabla + '" no existe. Ejecute setupInicial().');
@@ -152,7 +231,7 @@ function getHoja_(tabla) {
  * @param {string} tabla
  * @return {!Array<!Object>}
  */
-function leerTabla(tabla) {
+function leerTabla_(tabla) {
   if (MEMO_TABLAS[tabla]) return MEMO_TABLAS[tabla];
 
   var enCache = leerDeCache_(tabla);
@@ -203,7 +282,7 @@ function normalizarValor_(valor) {
 function buscarPorPk_(tabla, valorPk) {
   var info = getDefinicionTabla(tabla);
   var pk = info.def.pk;
-  var filas = leerTabla(tabla);
+  var filas = leerTabla_(tabla);
   for (var i = 0; i < filas.length; i++) {
     if (String(filas[i][pk]) === String(valorPk)) return filas[i];
   }
@@ -402,9 +481,9 @@ function conBloqueo_(operacion) {
  */
 function getCatalogos() {
   return {
-    proyectos: leerTabla('Proyectos'),
+    proyectos: leerTabla_('Proyectos'),
     plataformas: PLATAFORMAS,
-    usuarios: leerTabla('Usuarios'),
+    usuarios: leerTabla_('Usuarios'),
     fases: FASES,
     estados: ESTADOS,
     estadosIniciativa: ESTADOS_INICIATIVA,
@@ -426,7 +505,7 @@ function getCatalogos() {
  */
 function refrescarDatos() {
   exigirSesion_();
-  limpiarCache();
+  limpiarCache_();
   return { ok: true };
 }
 
@@ -445,10 +524,10 @@ function getArranque(meses) {
   // La version viaja tambien cuando el acceso se niega: el pie de pagina es
   // justo lo que hay que mirar para saber que version esta viendo quien
   // reporta un problema.
-  if (!contexto.autorizado) return { contexto: contexto, version: getVersionApp() };
+  if (!contexto.autorizado) return { contexto: contexto, version: getVersionApp_() };
   return {
     contexto: contexto,
-    version: getVersionApp(),
+    version: getVersionApp_(),
     catalogos: getCatalogos(),
     metricas: getMetricasHome(meses || 12)
   };
@@ -482,14 +561,14 @@ function getDatosKanban(filtros) {
  * @private
  */
 function armarDatosKanban_(filtros) {
-  var proyectos = leerTabla('Proyectos');
-  var usuarios = leerTabla('Usuarios');
+  var proyectos = leerTabla_('Proyectos');
+  var usuarios = leerTabla_('Usuarios');
   var nombrePlataforma = mapaPlataformas();
   var nombreProyecto = {}, nombreUsuario = {};
   proyectos.forEach(function (p) { nombreProyecto[p.ID_Proyecto] = p.Nombre_Proyecto; });
   usuarios.forEach(function (u) { nombreUsuario[u.ID_Usuario] = u.Nombre_Completo; });
 
-  var solicitudes = getSolicitudes(filtros).map(function (s) {
+  var solicitudes = getSolicitudes_(filtros).map(function (s) {
     s.Nombre_Iniciativa = nombreProyecto[s.ID_Proyecto] || s.ID_Proyecto;
     s.Nombre_Responsable = nombreUsuario[s.Responsable_ID] || '';
     s.Nombre_Plataforma = nombrePlataforma[s.Plataforma_ID] || s.Plataforma_ID;
@@ -506,7 +585,7 @@ function armarDatosKanban_(filtros) {
     tipos: TIPOS_SOLICITUD,
     prioridades: PRIORIDADES,
     causales: CAUSALES_BLOQUEO,
-    versiones: getVersionesDisponibles()
+    versiones: getVersionesDisponibles_()
   };
 }
 
@@ -515,9 +594,9 @@ function armarDatosKanban_(filtros) {
  * @param {!Object=} filtros { idProyecto, plataforma, responsable, texto }
  * @return {!Array<!Object>}
  */
-function getSolicitudes(filtros) {
+function getSolicitudes_(filtros) {
   var f = filtros || {};
-  return leerTabla('Solicitudes').filter(function (s) {
+  return leerTabla_('Solicitudes').filter(function (s) {
     if (f.idProyecto && s.ID_Proyecto !== f.idProyecto) return false;
     if (f.plataforma && s.Plataforma_ID !== f.plataforma) return false;
     if (f.responsable && s.Responsable_ID !== f.responsable) return false;
@@ -540,14 +619,14 @@ function getDetalleSolicitud(idSolicitud) {
   if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
 
   var nombreProyecto = {}, nombreUsuario = {};
-  leerTabla('Proyectos').forEach(function (p) { nombreProyecto[p.ID_Proyecto] = p.Nombre_Proyecto; });
-  leerTabla('Usuarios').forEach(function (u) { nombreUsuario[u.ID_Usuario] = u.Nombre_Completo; });
+  leerTabla_('Proyectos').forEach(function (p) { nombreProyecto[p.ID_Proyecto] = p.Nombre_Proyecto; });
+  leerTabla_('Usuarios').forEach(function (u) { nombreUsuario[u.ID_Usuario] = u.Nombre_Completo; });
 
   s.Nombre_Iniciativa = nombreProyecto[s.ID_Proyecto] || s.ID_Proyecto;
   s.Nombre_Responsable = nombreUsuario[s.Responsable_ID] || '';
   s.Nombre_Solicitante = nombreUsuario[s.Solicitante_ID] || '';
   s.Nombre_Plataforma = mapaPlataformas()[s.Plataforma_ID] || s.Plataforma_ID;
-  s.Historial = leerTabla('Auditoria_Transiciones')
+  s.Historial = leerTabla_('Auditoria_Transiciones')
       .filter(function (a) { return a.ID_Solicitud === idSolicitud; })
       .sort(function (a, b) {
         return String(b.Fecha_Hora_Cambio).localeCompare(String(a.Fecha_Hora_Cambio));
@@ -590,7 +669,7 @@ function limpiarVersion_(valor) {
  */
 function validarVersionRoadmap_(version, idPlataforma) {
   if (!version) return;
-  var disponibles = getVersionesDisponibles(idPlataforma);
+  var disponibles = getVersionesDisponibles_(idPlataforma);
   var existe = disponibles.some(function (v) { return v.valor === version; });
   if (existe) return;
 
@@ -606,12 +685,12 @@ function validarVersionRoadmap_(version, idPlataforma) {
  * @param {string=} idPlataforma Si se indica, solo las de esa plataforma.
  * @return {!Array<{valor: string, texto: string}>}
  */
-function getVersionesDisponibles(idPlataforma) {
+function getVersionesDisponibles_(idPlataforma) {
   var nombrePlataforma = mapaPlataformas();
   var vistas = {};
   var lista = [];
 
-  leerTabla('Roadmap_Versiones').forEach(function (v) {
+  leerTabla_('Roadmap_Versiones').forEach(function (v) {
     if (!v.Numero_Version) return;
     if (idPlataforma && v.Plataforma_ID !== idPlataforma) return;
     var clave = v.Plataforma_ID + '|' + v.Numero_Version;
@@ -648,7 +727,7 @@ function getVersionesDisponibles(idPlataforma) {
  */
 function generarIdSolicitud_() {
   var maximo = 0;
-  leerTabla('Solicitudes').forEach(function (s) {
+  leerTabla_('Solicitudes').forEach(function (s) {
     maximo = Math.max(maximo, consecutivoDeId_(s.ID_Solicitud));
   });
   return formatearIdSolicitud_(maximo + 1);
@@ -693,7 +772,7 @@ function formatearIdSolicitud_(numero) {
  */
 function siguienteOrdenIniciativa_(idProyecto) {
   var maximo = 0;
-  leerTabla('Solicitudes').forEach(function (s) {
+  leerTabla_('Solicitudes').forEach(function (s) {
     if (s.ID_Proyecto !== idProyecto) return;
     var n = Number(s.Orden_Iniciativa);
     if (!isNaN(n)) maximo = Math.max(maximo, n);
@@ -774,7 +853,7 @@ function crearSolicitud(datos) {
 
     agregarFila_('Solicitudes', registro);
 
-    registrarTransicionAudit({
+    registrarTransicionAudit_({
       idSolicitud: id,
       faseOrigen: '',
       faseDestino: 'FAS-01',
@@ -852,7 +931,7 @@ function getFormularioSolicitud(idSolicitud) {
     return CAMPOS_NO_EDITABLES.indexOf(c.campo) === -1;
   });
   var opciones = opcionesDeReferencia_(columnas);
-  opciones.Version_Semantica = getVersionesDisponibles(s.Plataforma_ID);
+  opciones.Version_Semantica = getVersionesDisponibles_(s.Plataforma_ID);
 
   return { idSolicitud: idSolicitud, columnas: columnas, opciones: opciones, valores: s };
 }
@@ -952,7 +1031,7 @@ function actualizarSolicitudCompleta(idSolicitud, datos) {
     escribirFila_('Solicitudes', actual._fila, nuevo);
 
     if (cambioFase || cambioEstado) {
-      registrarTransicionAudit({
+      registrarTransicionAudit_({
         idSolicitud: idSolicitud,
         faseOrigen: actual.Fase_Actual,
         faseDestino: nuevo.Fase_Actual,
@@ -1006,7 +1085,7 @@ function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino) {
 
     escribirFila_('Solicitudes', s._fila, nuevo);
 
-    registrarTransicionAudit({
+    registrarTransicionAudit_({
       idSolicitud: idSolicitud,
       faseOrigen: faseOrigen,
       faseDestino: faseDestino,
@@ -1091,7 +1170,7 @@ function marcarBloqueo(idSolicitud, bloqueada, idCausal, observacion) {
 
     // El bloqueo tambien se audita: de ahi sale el tiempo bloqueado que
     // descuenta la eficiencia de flujo.
-    registrarTransicionAudit({
+    registrarTransicionAudit_({
       idSolicitud: idSolicitud,
       faseOrigen: s.Fase_Actual,
       faseDestino: s.Fase_Actual,
@@ -1117,7 +1196,7 @@ function sincronizarRoadmap_(solicitud) {
   if (!version || !plataforma) return;
 
   var existente = null;
-  leerTabla('Roadmap_Versiones').forEach(function (v) {
+  leerTabla_('Roadmap_Versiones').forEach(function (v) {
     if (v.Numero_Version === version && v.Plataforma_ID === plataforma) existente = v;
   });
 
@@ -1158,7 +1237,7 @@ function sincronizarRoadmap_(solicitud) {
  *                          estadoDestino, desde, correoUsuario }
  * @return {string} ID de auditoria generado.
  */
-function registrarTransicionAudit(datos) {
+function registrarTransicionAudit_(datos) {
   var ahora = new Date();
   var desde = datos.desde ? aFecha_(datos.desde) : null;
   var horas = desde ? (ahora.getTime() - desde.getTime()) / 3600000 : 0;
@@ -1205,7 +1284,7 @@ function crearContenedorDrive_(idSolicitud, idPlataforma, nombreSolicitud) {
   var carpeta = raiz.createFolder(nombreCarpeta);
 
   var docUrl = '';
-  var idPlantilla = getProp(PROP_KEYS.PLANTILLA_REQUERIMIENTO, false);
+  var idPlantilla = getProp_(PROP_KEYS.PLANTILLA_REQUERIMIENTO, false);
   if (idPlantilla) {
     var copia = DriveApp.getFileById(idPlantilla)
         .makeCopy('Requerimiento_' + idSolicitud, carpeta);
@@ -1244,7 +1323,7 @@ function limpiarNombre_(texto) {
  */
 function notificar_(solicitud, evento) {
   var avisos = [];
-  if (CONFIG.NOTIFICAR_CHAT && getChatWebhookUrl()) {
+  if (CONFIG.NOTIFICAR_CHAT && getChatWebhookUrl_()) {
     try { notificarChat_(solicitud, evento); }
     catch (e) { avisos.push('No se pudo publicar en Google Chat: ' + e.message); }
   }
@@ -1317,7 +1396,7 @@ function notificarChat_(solicitud, evento) {
     }]
   };
 
-  UrlFetchApp.fetch(getChatWebhookUrl(), {
+  UrlFetchApp.fetch(getChatWebhookUrl_(), {
     method: 'post',
     contentType: 'application/json',
     payload: JSON.stringify(payload),
@@ -1433,7 +1512,7 @@ function adminCargarTabla(tabla) {
     pk: info.def.pk,
     columnas: info.def.columnas,
     opciones: opcionesDeReferencia_(info.def.columnas),
-    filas: leerTabla(tabla)
+    filas: leerTabla_(tabla)
   };
 }
 
@@ -1462,7 +1541,7 @@ function opcionesDeReferencia_(columnas) {
     if (!info) return;
     var pk = info.def.pk;
     var etiqueta = info.def.columnas[1] ? info.def.columnas[1].campo : pk;
-    opciones[col.campo] = leerTabla(col.fk).map(function (f) {
+    opciones[col.campo] = leerTabla_(col.fk).map(function (f) {
       return { valor: f[pk], texto: f[etiqueta] || f[pk] };
     });
   });
@@ -1548,7 +1627,7 @@ function referenciasA_(tabla, valorPk) {
     Object.keys(esquema).forEach(function (otra) {
       esquema[otra].columnas.forEach(function (col) {
         if (col.fk !== tabla) return;
-        var enUso = leerTabla(otra).some(function (fila) {
+        var enUso = leerTabla_(otra).some(function (fila) {
           return String(fila[col.campo]) === String(valorPk);
         });
         if (enUso && usos.indexOf(esquema[otra].etiqueta) === -1) {
@@ -1568,7 +1647,7 @@ function siguienteId_(tabla, pk) {
   var prefijos = { Usuarios: 'USR', Proyectos: 'INI', Plataforma_Digital: 'PL' };
   var prefijo = prefijos[tabla] || tabla.substring(0, 3).toUpperCase();
   var maximo = 0;
-  leerTabla(tabla).forEach(function (f) {
+  leerTabla_(tabla).forEach(function (f) {
     var m = String(f[pk] || '').match(/(\d+)$/);
     if (m) maximo = Math.max(maximo, Number(m[1]));
   });
@@ -1610,7 +1689,7 @@ function enviarCorreoBienvenida(idUsuario) {
                     'corporativo. Registrelo primero en la ficha del usuario.');
   }
 
-  var url = getUrlAplicacion();
+  var url = getUrlAplicacion_();
   if (!url) {
     throw new Error('No hay una direccion de acceso configurada. Ejecute ' +
                     'configurarUrlAplicacion("https://...") desde el editor de Apps Script ' +
@@ -1715,3 +1794,99 @@ function escapeHtml_(texto) {
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+
+/* ================================================================== */
+/* 13. Puerta unica: el despachador                                    */
+/* ================================================================== */
+
+/**
+ * Operaciones que el navegador puede pedir, y solo esas.
+ *
+ * La lista es explicita a proposito. Despachar con this[metodo] dejaria al
+ * alcance de cualquiera TODAS las funciones del proyecto, incluidas las de
+ * instalacion, mantenimiento y reparacion. Lo que no este nombrado aqui no se
+ * puede invocar desde afuera.
+ */
+var METODOS_PUBLICOS = {
+  getArranque: true,
+  getCatalogos: true,
+  getMetricasHome: true,
+  getMatrizIniciativas: true,
+  getDatosKanban: true,
+  getDetalleSolicitud: true,
+  getFormularioSolicitud: true,
+  getRoadmapVersiones: true,
+  getReportes: true,
+  crearSolicitud: true,
+  actualizarSolicitudCompleta: true,
+  cambiarFaseSolicitud: true,
+  marcarBloqueo: true,
+  refrescarDatos: true,
+  adminCargarTabla: true,
+  adminCrearRegistro: true,
+  adminActualizarRegistro: true,
+  adminEliminarRegistro: true,
+  enviarCorreoBienvenida: true,
+  getFormularioMigracion: true,
+  migrarSolicitud: true
+};
+
+/**
+ * Unica puerta de entrada desde el navegador.
+ *
+ * Antes cada operacion era una funcion suelta que google.script.run podia
+ * llamar directamente, y cada una preguntaba por su cuenta quien era el
+ * usuario. Ahora la identidad se establece UNA vez, aqui, y queda fija para el
+ * resto de la ejecucion: ninguna operacion puede olvidarse de comprobarla,
+ * porque ya no tiene como llegar sin pasar por este punto.
+ *
+ * @param {string} token Identificador de sesion, o '' si entra por Google.
+ * @param {string} metodo Nombre de la operacion.
+ * @param {!Array} args Argumentos de la operacion.
+ * @return {*}
+ */
+function llamar(token, metodo, args) {
+  if (!METODOS_PUBLICOS[metodo]) {
+    throw new Error('Operacion no reconocida: ' + metodo);
+  }
+
+  SESION_ACTUAL = null;
+  var ctx = resolverIdentidad_(token);
+  if (!ctx.autorizado) {
+    // El prefijo lo reconoce el navegador para volver a pedir el ingreso en
+    // lugar de mostrar un error suelto.
+    throw new Error('SESION_INVALIDA: ' + (ctx.motivo || 'Identifiquese para entrar.'));
+  }
+  SESION_ACTUAL = ctx;
+
+  // Se resuelve en el ambito global y no con this: cuando la funcion llega por
+  // google.script.run, this no es de fiar, y de ahi saldria un error confuso
+  // en vez de la operacion pedida.
+  var fn = globalThis[metodo];
+  if (typeof fn !== 'function') {
+    throw new Error('La operacion ' + metodo + ' no esta disponible.');
+  }
+
+  try {
+    return fn.apply(null, args || []);
+  } finally {
+    SESION_ACTUAL = null;
+  }
+}
+
+/**
+ * Resuelve quien esta del otro lado: primero Google, y si Google no lo sabe,
+ * la sesion abierta con codigo.
+ * @private
+ */
+function resolverIdentidad_(token) {
+  var correoGoogle = correoDeGoogle_();
+  if (correoGoogle) return contextoDeCorreo_(correoGoogle, 'google');
+
+  var correoSesion = correoDeSesion_(token);
+  if (correoSesion) return contextoDeCorreo_(correoSesion, 'codigo');
+
+  return { autorizado: false, requiereIngreso: true,
+           motivo: 'Identifiquese para entrar.' };
+}
+

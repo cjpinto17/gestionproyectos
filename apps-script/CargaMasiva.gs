@@ -22,7 +22,8 @@ var CARGA_MAXIMO_POR_EJECUCION = 25;
  * @return {!Object}
  */
 function prepararCargaMasiva() {
-  var libro = SpreadsheetApp.openById(getIdLibroTransaccional());
+  exigirOperador_();
+  var libro = SpreadsheetApp.openById(getIdLibroTransaccional_());
   var hoja = libro.getSheetByName('Carga_Solicitudes');
   if (!hoja) hoja = libro.insertSheet('Carga_Solicitudes');
 
@@ -58,14 +59,14 @@ function prepararCargaMasiva() {
  */
 function aplicarListas_(hoja, def, filas) {
   var catalogos = {
-    Proyectos: leerTabla('Proyectos').map(function (p) { return p.ID_Proyecto; }),
+    Proyectos: leerTabla_('Proyectos').map(function (p) { return p.ID_Proyecto; }),
     Plataforma_Digital: PLATAFORMAS.map(function (p) { return p.id; }),
     Tipos_Solicitud: TIPOS_SOLICITUD.map(function (t) { return t.id; }),
     Prioridad: PRIORIDADES.map(function (p) { return p.id; }),
     Fases: FASES.map(function (f) { return f.id; }),
     Estados: ESTADOS.map(function (e) { return e.id; }),
     Causales_Bloqueo: CAUSALES_BLOQUEO.map(function (c) { return c.id; }),
-    Usuarios: leerTabla('Usuarios').map(function (u) { return u.ID_Usuario; })
+    Usuarios: leerTabla_('Usuarios').map(function (u) { return u.ID_Usuario; })
   };
 
   def.columnas.forEach(function (c, i) {
@@ -126,7 +127,7 @@ function prepararCargaServicioRecaudo() {
 function asegurarUsuario_(nombre, rol, cargo) {
   var buscado = nombre.trim().toLowerCase();
   var encontrado = null;
-  leerTabla('Usuarios').forEach(function (u) {
+  leerTabla_('Usuarios').forEach(function (u) {
     if (String(u.Nombre_Completo || '').trim().toLowerCase() === buscado) encontrado = u;
   });
   if (encontrado) return encontrado;
@@ -159,7 +160,7 @@ function asegurarUsuario_(nombre, rol, cargo) {
  * @private
  */
 function sembrarTableroRecaudo_(idResponsable) {
-  var libro = SpreadsheetApp.openById(getIdLibroTransaccional());
+  var libro = SpreadsheetApp.openById(getIdLibroTransaccional_());
   var hoja = libro.getSheetByName('Carga_Solicitudes');
   if (!hoja) throw new Error('Falta la hoja Carga_Solicitudes.');
   if (hoja.getLastRow() > 1) return 0;   // no pisa lo que alguien ya escribio
@@ -210,7 +211,7 @@ function sembrarTableroRecaudo_(idResponsable) {
  */
 function procesarCargaMasiva() {
   var ctx = exigirSesion_();
-  var libro = SpreadsheetApp.openById(getIdLibroTransaccional());
+  var libro = SpreadsheetApp.openById(getIdLibroTransaccional_());
   var hoja = libro.getSheetByName('Carga_Solicitudes');
   if (!hoja) throw new Error('No existe la hoja Carga_Solicitudes. Ejecute prepararCargaMasiva().');
 
@@ -319,7 +320,7 @@ function crearSolicitudDesdeCarga_(datos, ctx) {
     agregarFila_('Solicitudes', registro);
 
     // Una sola linea de auditoria que deja constancia de como entro al sistema.
-    registrarTransicionAudit({
+    registrarTransicionAudit_({
       idSolicitud: id,
       faseOrigen: '',
       faseDestino: fase,

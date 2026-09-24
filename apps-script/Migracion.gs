@@ -31,7 +31,7 @@ function getFormularioMigracion() {
   // escribe. Aqui todavia no se sabe la plataforma (se elige en el mismo
   // formulario), asi que se ofrecen todas y cada opcion viene rotulada con su
   // plataforma; al guardar se valida contra la plataforma elegida.
-  opciones.Version_Semantica = getVersionesDisponibles();
+  opciones.Version_Semantica = getVersionesDisponibles_();
 
   return {
     columnas: columnas,
@@ -119,7 +119,7 @@ function migrarSolicitud(datos, opciones) {
     agregarFila_('Solicitudes', registro);
 
     // Queda constancia de que la solicitud entro migrada y en que fase lo hizo.
-    registrarTransicionAudit({
+    registrarTransicionAudit_({
       idSolicitud: id,
       faseOrigen: '',
       faseDestino: registro.Fase_Actual,

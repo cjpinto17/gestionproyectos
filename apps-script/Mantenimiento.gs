@@ -18,6 +18,7 @@
  * @return {!Object} Reporte por tabla.
  */
 function verificarEstructura() {
+  exigirOperador_();
   var reporte = { revisadas: [], ajustadas: [], sobrantes: [] };
 
   [ESQUEMA_PARAMETRIZACION, ESQUEMA_TRANSACCIONAL].forEach(function (esquema) {
@@ -52,7 +53,8 @@ function verificarEstructura() {
  * @return {!Object}
  */
 function diagnosticarSolicitudes() {
-  var filas = leerTabla('Solicitudes');
+  exigirOperador_();
+  var filas = leerTabla_('Solicitudes');
   var problemas = [];
 
   filas.forEach(function (s) {
@@ -92,6 +94,7 @@ function diagnosticarSolicitudes() {
  * @return {!Object}
  */
 function repararSolicitudesDesalineadas() {
+  exigirOperador_();
   return conBloqueo_(function () {
     var hoja = getHoja_('Solicitudes');
     var columnas = asegurarColumnas_('Solicitudes');
@@ -177,6 +180,7 @@ function repararSolicitudesDesalineadas() {
  * @return {!Object} Reporte.
  */
 function renumerarSolicitudes(aplicar) {
+  exigirOperador_();
   return conBloqueo_(function () {
     var columnas = asegurarColumnas_('Solicitudes');
     var iId = columnas.indexOf('ID_Solicitud');

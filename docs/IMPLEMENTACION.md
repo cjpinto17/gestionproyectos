@@ -175,14 +175,14 @@ Todo esto se hace desde el editor de Apps Script, con el código ya cargado.
    flecha junto al nombre del espacio → **Apps y integraciones** → **Webhooks** →
    **Agregar webhook** → nómbralo `Plataformas Digitales` → **Guardar** → copia la URL.
 2. En el editor de Apps Script, abre el archivo **`Config.gs`**, y **sin modificar nada**,
-   ve a la lista de funciones, elige **`guardarConfiguracion`**… *no*: esta función necesita
+   ve a la lista de funciones, elige **`guardarConfiguracion_`**… *no*: esta función necesita
    datos. Hazlo así de simple:
    - Menú **+ Archivo → Secuencia de comandos**, nómbralo `Temporal`.
    - Pega esto, reemplazando los dos valores por los tuyos:
 
      ```javascript
      function configurar() {
-       guardarConfiguracion({
+       guardarConfiguracion_({
          CHAT_WEBHOOK_URL: 'PEGA_AQUI_LA_URL_DEL_WEBHOOK',
          DOMINIO_CORPORATIVO: 'tuempresa.com.co'
        });
@@ -283,6 +283,43 @@ Y si aun así no se deja, hay dos caminos que **no pasan por ese botón**:
   se entera. Esta es la razón de fondo para montar el sitio aunque la URL hoy sea estable: es
   lo único que hace que un error de implementación no cueste reenviarle el enlace a todo el
   mundo.
+
+## Parte 5.2 · Quién puede entrar, y cómo
+
+La aplicación **no corre a nombre de cada persona sino de la cuenta que la publica**. Eso
+significa que nadie más necesita —ni tiene— acceso a las hojas de cálculo: se entra por la
+aplicación o no se entra. Es lo que permite dar acceso a gente de fuera de la compañía sin
+abrirles los archivos.
+
+Hay dos formas de identificarse, y la aplicación elige sola:
+
+- **Gente de la compañía.** Google la reconoce por el dominio y entra directo, sin escribir
+  nada. Igual que siempre.
+- **Gente de fuera** (la fábrica de software). Escribe su correo, recibe un **código de 6
+  dígitos en ese buzón**, lo escribe y entra. El código vence en 10 minutos, sirve una sola vez
+  y admite 3 intentos.
+
+En los dos casos **la hoja de Usuarios sigue mandando**: quien no esté registrado y activo no
+entra, aunque Google lo reconozca o acierte el código.
+
+### Lo que hay que hacer al publicar
+
+1. La aplicación debe quedar publicada con **Ejecutar como: yo** y **Quién tiene acceso:
+   cualquier usuario con una cuenta de Google**. El despliegue automático ya lo configura; si
+   lo hace a mano, revíselo.
+2. **Cada persona de fuera necesita una cuenta de Google** asociada a su correo. Si su empresa
+   no usa Google, puede crear una gratis con ese mismo correo en
+   [accounts.google.com](https://accounts.google.com/signup).
+3. Regístrelas en **Administración → Usuarios** con su rol y su correo, y use el botón
+   **Bienvenida** para invitarlas.
+
+### Si necesita sacar a alguien
+
+Póngalo en **Activo = NO** en la hoja de Usuarios. No podrá entrar ni recibir códigos. Si
+además quiere cortar las sesiones que ya estén abiertas, ejecute
+**`cerrarTodasLasSesiones`** desde el editor: todos tendrán que identificarse de nuevo.
+
+---
 
 ## Parte 6 · Dar de alta a las personas (5 min)
 
