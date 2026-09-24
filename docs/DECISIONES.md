@@ -786,6 +786,27 @@ una versión nueva.
 deliberada: esta es la cerradura secundaria —la principal es la hoja de Usuarios— y dejar a
 toda la compañía afuera por un dato que no se pudo leer sería peor que el riesgo que cubre.
 
+### D-55 · Las versiones se administran desde el Roadmap, no desde Administración
+
+El **Líder de proyecto de Fábrica (RO-11)** necesita crear y editar versiones. La salida fácil
+habría sido darle acceso a la página de Administración, pero ahí viven todos los catálogos
+maestros —usuarios, roles, fases, SLA—: para que pudiera tocar el roadmap habría podido tocar
+también quién entra y con qué permisos.
+
+Las versiones se gestionan entonces **desde el propio Roadmap**, que además es donde uno las
+está mirando cuando quiere cambiarlas: un botón *Nueva versión* en el encabezado y un lápiz en
+cada fila, visibles solo para los roles que las gestionan (`RO-08` y `RO-11`). El permiso es
+suyo: `puedeGestionarVersiones()`, aparte del de administrador.
+
+Dos cuidados en la implementación:
+
+- **No se permiten dos versiones con el mismo número en la misma plataforma.** El roadmap las
+  identifica por ese par, y duplicarlas haría ambigua la asignación de las solicitudes.
+- **El lápiz no despliega el detalle.** La fila ya respondía al clic abriendo sus actividades
+  (D-51); el manejador comprueba primero el lápiz y sale, para que un gesto no dispare los dos.
+  Está verificado en el navegador: el lápiz edita sin abrir, la fila abre sin editar, y sin el
+  permiso no aparece ninguno de los dos.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

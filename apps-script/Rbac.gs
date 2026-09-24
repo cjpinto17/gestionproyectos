@@ -119,6 +119,23 @@ function puedeEditarSolicitud(rolId) {
 }
 
 /**
+ * Roles que pueden crear y editar versiones del roadmap.
+ *
+ * El roadmap lo arma quien conoce el plan de entrega, y eso incluye al lider de
+ * proyecto de la fabrica: es quien sabe que version se compromete y para cuando.
+ * No hace falta darle toda la Administracion para eso.
+ */
+var ROLES_GESTIONAN_VERSIONES = ['RO-08', 'RO-11'];
+
+/**
+ * @param {string} rolId
+ * @return {boolean}
+ */
+function puedeGestionarVersiones(rolId) {
+  return ROLES_GESTIONAN_VERSIONES.indexOf(rolId) !== -1;
+}
+
+/**
  * @param {string} rolId
  * @return {!Object} Permisos del rol; por defecto, sin acceso.
  */

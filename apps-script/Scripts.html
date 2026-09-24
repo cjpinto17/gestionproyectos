@@ -1236,6 +1236,7 @@ $('btnNueva').addEventListener('click', function () {
 
 /* ================= Roadmap ================= */
 function cargarRoadmap() {
+  $('btnNuevaVersion').hidden = !CTX.puedeGestionarVersiones;
   if (DATOS.roadmap) { pintarRoadmap(); return; }
   cargando('roadmap', 'lista');
   api('getRoadmapVersiones').then(function (r) {
@@ -1297,8 +1298,13 @@ function pintarRoadmap() {
           '<span class="num">' + (v.fechaReal ? esc(fecha(v.fechaReal)) : '<span style="color:var(--ink-faint)">pendiente</span>') + '</span>' +
           '<span class="rm-desvio ' + (d === null ? '' : (d <= 0 ? 'ok' : 'tarde')) + '">' +
             (d === null ? '—' : (d > 0 ? '+' + d + ' d' : d + ' d')) + '</span>' +
-          '<span><span class="badge ' + (v.estadoRelease === 'Planeada' ? 'b-progreso' : 'b-terminada') + '">' +
-            esc(v.estadoRelease === 'Planeada' ? 'Planeada' : 'Producción') + '</span></span>' +
+          '<span class="rm-estado"><span class="badge ' +
+            (v.estadoRelease === 'Planeada' ? 'b-progreso' : 'b-terminada') + '">' +
+            esc(v.estadoRelease === 'Planeada' ? 'Planeada' : 'Producción') + '</span>' +
+            (CTX.puedeGestionarVersiones
+              ? '<button class="lapiz" title="Editar versión" data-editar-version="' +
+                esc(v.idVersion) + '">&#9998;</button>'
+              : '') + '</span>' +
           '</div>' +
           (n ? '<div class="rm-detalle" id="det-' + esc(v.idVersion) + '" hidden>' +
                detalleVersion(v) + '</div>' : '') +
@@ -1336,9 +1342,39 @@ function detalleVersion(v) {
 // Abrir y cerrar el detalle de una version. Se delega en el contenedor porque
 // las filas se vuelven a dibujar con cada cambio de filtro.
 $('roadmap').addEventListener('click', function (e) {
+  var lapiz = e.target.closest('[data-editar-version]');
+  if (lapiz) { formularioVersion(lapiz.dataset.editarVersion); return; }
   var fila = e.target.closest('.rm-fila[data-version]');
   if (fila) alternarDetalleVersion(fila);
 });
+
+$('btnNuevaVersion').addEventListener('click', function () { formularioVersion(''); });
+
+/**
+ * Alta y edicion de una version del roadmap, para los roles que lo gestionan.
+ * Vive aqui y no en Administracion porque quien arma el plan de entrega no es
+ * necesariamente administrador.
+ */
+function formularioVersion(idVersion) {
+  abrirModal(idVersion ? 'Editar versión' : 'Nueva versión', '',
+             '<p class="nota">Cargando…</p>', null);
+  api('getFormularioVersion', idVersion).then(function (f) {
+    var campos = construirCampos(f.columnas, f.opciones, f.valores, null);
+    abrirModal(idVersion ? 'Editar versión' : 'Nueva versión',
+      idVersion ? esc(f.valores.Numero_Version || '') : 'Se agrega al roadmap de la plataforma',
+      '<div class="formulario">' +
+        '<p class="nota" style="margin:0">El número y la plataforma identifican la versión: ' +
+        'no puede haber dos iguales. Las solicitudes la verán en su lista de versiones ' +
+        'disponibles.</p>' + campos + '</div>',
+      function () {
+        return api('guardarVersion', idVersion, leerCampos(f.columnas)).then(function () {
+          toast(idVersion ? 'Versión actualizada.' : 'Versión creada.');
+          DATOS.roadmap = null;
+          cargarRoadmap();
+        });
+      });
+  }).catch(function (err) { cerrarModal(); fallo(err); });
+}
 $('roadmap').addEventListener('keydown', function (e) {
   if (e.key !== 'Enter' && e.key !== ' ') return;
   var fila = e.target.closest('.rm-fila[data-version]');

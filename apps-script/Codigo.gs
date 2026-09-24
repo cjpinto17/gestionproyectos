@@ -164,6 +164,7 @@ function contextoDeCorreo_(correo, via) {
     esAdmin: esAdministrador(usuario.Rol_ID),
     puedeOperarTablero: puedeOperarTablero(usuario.Rol_ID),
     puedeEditarSolicitud: puedeEditarSolicitud(usuario.Rol_ID),
+    puedeGestionarVersiones: puedeGestionarVersiones(usuario.Rol_ID),
     fasesEditables: permisos.fases === TODAS
         ? FASES.map(function (f) { return f.id; })
         : permisos.fases
@@ -1838,7 +1839,9 @@ var METODOS_PUBLICOS = {
   adminEliminarRegistro: true,
   enviarCorreoBienvenida: true,
   getFormularioMigracion: true,
-  migrarSolicitud: true
+  migrarSolicitud: true,
+  getFormularioVersion: true,
+  guardarVersion: true
 };
 
 /**
@@ -1900,3 +1903,102 @@ function resolverIdentidad_(token) {
            motivo: 'Identifiquese para entrar.' };
 }
 
+
+/* ================================================================== */
+/* 14. Versiones del roadmap                                           */
+/* ================================================================== */
+
+/** @private */
+function exigirGestionVersiones_() {
+  var ctx = exigirSesion_();
+  if (!puedeGestionarVersiones(ctx.rolId)) {
+    throw new Error('Su rol no puede crear ni editar versiones del roadmap.');
+  }
+  return ctx;
+}
+
+/**
+ * Formulario de una version del roadmap: nueva si no se pasa el ID.
+ *
+ * Las versiones se administran desde el propio Roadmap y no desde la pagina de
+ * Administracion, porque quien las arma no es necesariamente administrador: es
+ * quien conoce el plan de entrega. Dar toda la Administracion para eso seria
+ * regalar de mas.
+ *
+ * @param {string=} idVersion
+ * @return {!Object} { idVersion, columnas, opciones, valores }
+ */
+function getFormularioVersion(idVersion) {
+  exigirGestionVersiones_();
+
+  var info = getDefinicionTabla('Roadmap_Versiones');
+  // La llave la pone el sistema, como en el resto de las tablas.
+  var columnas = info.def.columnas.filter(function (c) { return c.campo !== 'ID_Version'; });
+
+  var valores = {};
+  if (idVersion) {
+    var actual = buscarPorPk_('Roadmap_Versiones', idVersion);
+    if (!actual) throw new Error('No existe la version ' + idVersion + '.');
+    valores = actual;
+  }
+
+  return {
+    idVersion: idVersion || '',
+    columnas: columnas,
+    opciones: opcionesDeReferencia_(columnas),
+    valores: valores
+  };
+}
+
+/**
+ * Crea o actualiza una version del roadmap.
+ * @param {string} idVersion '' para crear una nueva.
+ * @param {!Object} datos
+ * @return {!Object} { ok, idVersion }
+ */
+function guardarVersion(idVersion, datos) {
+  exigirGestionVersiones_();
+
+  return conBloqueo_(function () {
+    var numero = String(datos.Numero_Version || '').trim();
+    var plataforma = String(datos.Plataforma_ID || '').trim();
+    if (!numero) throw new Error('Escriba el numero de la version.');
+    if (!plataforma) throw new Error('Elija la plataforma digital.');
+
+    // El roadmap identifica cada version por plataforma y numero: dos filas con
+    // el mismo par harian ambigua la asignacion de las solicitudes.
+    var repetida = null;
+    leerTabla_('Roadmap_Versiones').forEach(function (v) {
+      if (v.Plataforma_ID === plataforma && String(v.Numero_Version).trim() === numero &&
+          v.ID_Version !== idVersion) {
+        repetida = v;
+      }
+    });
+    if (repetida) {
+      throw new Error('La version ' + numero + ' ya existe para esa plataforma.');
+    }
+
+    var registro = {
+      Plataforma_ID: plataforma,
+      Numero_Version: numero,
+      Estado_Release: datos.Estado_Release || 'Planeada',
+      Fecha_Planeada: aFechaDeFormulario_(datos.Fecha_Planeada),
+      Fecha_Despliegue_Real: aFechaDeFormulario_(datos.Fecha_Despliegue_Real)
+    };
+
+    if (idVersion) {
+      var actual = buscarPorPk_('Roadmap_Versiones', idVersion);
+      if (!actual) throw new Error('No existe la version ' + idVersion + '.');
+      registro.ID_Version = idVersion;
+      validarRegistro_('Roadmap_Versiones', registro, false);
+      escribirFila_('Roadmap_Versiones', actual._fila, registro);
+      return { ok: true, idVersion: idVersion };
+    }
+
+    // Mismo formato que usa sincronizarRoadmap_ cuando crea una version sola.
+    registro.ID_Version = 'VER-' + new Date().getTime();
+    validarRegistro_('Roadmap_Versiones', registro, true);
+    agregarFila_('Roadmap_Versiones', registro);
+    return { ok: true, idVersion: registro.ID_Version };
+  });
+}
