@@ -284,6 +284,22 @@
   .rm-desvio{font-weight:700;font-variant-numeric:tabular-nums}
   .rm-desvio.ok{color:var(--verde)}
   .rm-desvio.tarde{color:var(--alerta)}
+  /* Detalle de lo que salio en cada version */
+  .rm-fila.desplegable{cursor:pointer}
+  .rm-fila.desplegable:hover,.rm-fila.desplegable:focus-visible{background:#F8FAFE;outline:none}
+  .rm-cuenta{display:inline-flex;align-items:center;gap:5px;color:var(--navy);font-weight:700}
+  .rm-cuenta.vacia{color:var(--ink-faint);font-weight:400}
+  .rm-flecha{font-size:10px;color:var(--ink-faint);transition:transform .15s ease}
+  .rm-fila.abierta .rm-flecha{transform:rotate(90deg)}
+  .rm-detalle{background:#F8FAFE;border-top:1px solid var(--line-soft);padding:4px 16px 10px}
+  .rm-detalle-cab{font-family:var(--display);font-weight:700;font-size:10.5px;
+                  text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);
+                  padding:8px 0 6px}
+  .rm-act{display:grid;grid-template-columns:110px 1fr 150px 108px;gap:12px;align-items:center;
+          padding:6px 0;border-top:1px solid var(--line-soft);font-size:12.5px}
+  .rm-act-id{font-family:var(--display);font-weight:700;color:var(--navy);font-size:11.5px}
+  .rm-act-nombre{overflow-wrap:anywhere}
+  .rm-act-fase{color:var(--ink-muted);font-size:11.5px}
 
   .velo{position:fixed;inset:0;background:rgba(6,18,38,.5);display:grid;place-items:center;padding:16px;z-index:60}
   .velo[hidden]{display:none!important}
@@ -364,6 +380,7 @@
     .formulario{max-height:56vh}
     .rm-fila{grid-template-columns:1fr 1fr;gap:6px}
     .rm-fila.encab{display:none}
+    .rm-act{grid-template-columns:1fr;gap:3px;padding:8px 0}
     .cap{flex-wrap:wrap}
   }
 

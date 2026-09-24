@@ -742,7 +742,8 @@ function getRoadmapVersiones() {
       actividades: datos.solicitudes.filter(function (s) {
         return s.Version_Semantica === v.Numero_Version && s.Plataforma_ID === idPlat;
       }).map(function (s) {
-        return { id: s.ID_Solicitud, nombre: s.Nombre_Solicitud, fase: s.Fase_Actual };
+        return { id: s.ID_Solicitud, nombre: s.Nombre_Solicitud, fase: s.Fase_Actual,
+                 estado: s.Estado_Actual, responsable: s.Responsable_ID };
       })
     });
   });

@@ -433,17 +433,74 @@ $('vistaIni').addEventListener('click', function (e) {
 });
 
 function pintarIniciativas() {
-  var esMatriz = VISTA_INI === 'matriz';
-  $('vistaMatriz').hidden = !esMatriz;
-  $('prioridades').hidden = esMatriz;
-  $('subMatriz').hidden = !esMatriz;
-  $('subPrioridad').hidden = esMatriz;
-  $('notaMatriz').hidden = !esMatriz;
-  $('notaPrioridad').hidden = esMatriz;
-  // La caja de "sin clasificar" la llena la matriz. En la vista por prioridad
-  // esas iniciativas ya salen en su columna, asi que se recoge.
-  if (!esMatriz) $('sinClasificar').hidden = true;
-  if (esMatriz) pintarMatriz(); else pintarPorPrioridad();
+  var vista = VISTA_INI;
+  [['vistaMatriz', 'matriz'], ['prioridades', 'prioridad'], ['vistaListado', 'listado'],
+   ['subMatriz', 'matriz'], ['subPrioridad', 'prioridad'], ['subListado', 'listado'],
+   ['notaMatriz', 'matriz'], ['notaPrioridad', 'prioridad'], ['notaListado', 'listado']
+  ].forEach(function (par) {
+    $(par[0]).hidden = (par[1] !== vista);
+  });
+  // La caja de "sin clasificar" la llena la matriz. En las otras vistas esas
+  // iniciativas ya aparecen entre las demas, asi que se recoge.
+  if (vista !== 'matriz') $('sinClasificar').hidden = true;
+
+  if (vista === 'matriz') pintarMatriz();
+  else if (vista === 'prioridad') pintarPorPrioridad();
+  else pintarListadoIniciativas();
+}
+
+/**
+ * Todas las iniciativas del portafolio en una sola tabla.
+ *
+ * La matriz responde donde estamos invirtiendo y las columnas por prioridad
+ * que es lo mas urgente. Esta vista responde la pregunta mas simple de todas,
+ * y la que ninguna de las dos contesta bien: cuales son, todas, en una lista
+ * que se pueda recorrer de arriba abajo y buscar con los ojos.
+ */
+function pintarListadoIniciativas() {
+  var r = DATOS.matriz;
+  if (!r) return;
+  var pasa = filtroIniciativas();
+
+  var todas = [];
+  Object.keys(r.celdas).forEach(function (k) { todas = todas.concat(r.celdas[k]); });
+  var visibles = todas.filter(pasa).sort(function (a, b) {
+    return String(a.nombre).localeCompare(String(b.nombre), 'es');
+  });
+
+  $('tituloListado').textContent = visibles.length === 1
+      ? '1 iniciativa'
+      : visibles.length + ' iniciativas';
+
+  var sinDato = function (texto) {
+    return '<span style="color:var(--ink-faint)">' + texto + '</span>';
+  };
+
+  var columnas = ['Iniciativa', 'LEN', 'Vertical', 'Estado', 'Plataforma', 'Business Owner'];
+
+  $('listadoIni').innerHTML =
+    '<thead><tr>' + columnas.map(function (c) {
+      return '<th>' + esc(c) + '</th>';
+    }).join('') + '</tr></thead><tbody>' +
+    (visibles.length
+      ? visibles.map(function (i) {
+          var estado = nombreDeCatalogo(r.estados, i.estado);
+          return '<tr>' +
+            '<td style="font-weight:600">' + esc(i.nombre) + '</td>' +
+            '<td>' + (i.lenId ? esc(nombreDeCatalogo(r.lineas, i.lenId)) : sinDato('sin LEN')) + '</td>' +
+            '<td>' + (i.verticalId ? esc(nombreDeCatalogo(r.verticales, i.verticalId))
+                                   : sinDato('sin vertical')) + '</td>' +
+            '<td>' + (i.estado
+                       ? '<span class="badge ' + (CLASE_ESTADO_INI[i.estado] || 'e-cancelada') +
+                         '">' + esc(estado) + '</span>'
+                       : sinDato('sin estado')) + '</td>' +
+            '<td>' + (i.plataforma ? esc(i.plataforma) : sinDato('sin plataforma')) + '</td>' +
+            '<td>' + (i.bo ? esc(i.bo) : sinDato('sin asignar')) + '</td>' +
+          '</tr>';
+        }).join('')
+      : '<tr><td colspan="' + columnas.length + '" style="color:var(--ink-faint);text-align:center">' +
+        'Ninguna iniciativa coincide con los filtros.</td></tr>') +
+    '</tbody>';
 }
 
 /**
@@ -1181,22 +1238,76 @@ function pintarRoadmap() {
         '<span>Fecha planeada</span><span>Fecha real</span><span>Desvío</span><span>Estado</span></div>' +
       versiones.map(function (v) {
         var d = v.desvioDias;
-        return '<div class="rm-fila">' +
+        var n = v.actividades.length;
+        return '<div class="rm-version">' +
+          '<div class="rm-fila' + (n ? ' desplegable' : '') + '"' +
+            (n ? ' data-version="' + esc(v.idVersion) + '" role="button" tabindex="0"' +
+                 ' aria-expanded="false"' : '') + '>' +
           '<span class="rm-ver num">' + esc(v.numeroVersion) + '</span>' +
           '<span>' + esc(v.plataforma) + '</span>' +
-          '<span class="num" style="color:var(--ink-muted)">' + v.actividades.length + '</span>' +
+          '<span class="num rm-cuenta' + (n ? '' : ' vacia') + '">' + n +
+            (n ? '<span class="rm-flecha">&#9656;</span>' : '') + '</span>' +
           '<span class="num">' + (v.fechaPlaneada ? esc(fecha(v.fechaPlaneada)) : '<span style="color:var(--ink-faint)">sin fecha</span>') + '</span>' +
           '<span class="num">' + (v.fechaReal ? esc(fecha(v.fechaReal)) : '<span style="color:var(--ink-faint)">pendiente</span>') + '</span>' +
           '<span class="rm-desvio ' + (d === null ? '' : (d <= 0 ? 'ok' : 'tarde')) + '">' +
             (d === null ? '—' : (d > 0 ? '+' + d + ' d' : d + ' d')) + '</span>' +
           '<span><span class="badge ' + (v.estadoRelease === 'Planeada' ? 'b-progreso' : 'b-terminada') + '">' +
             esc(v.estadoRelease === 'Planeada' ? 'Planeada' : 'Producción') + '</span></span>' +
+          '</div>' +
+          (n ? '<div class="rm-detalle" id="det-' + esc(v.idVersion) + '" hidden>' +
+               detalleVersion(v) + '</div>' : '') +
         '</div>';
       }).join('') + '</div>';
   }).join('');
 
   $('roadmap').innerHTML = html ||
       '<div class="panel" style="text-align:center;color:var(--ink-faint)">Todavía no hay versiones registradas.</div>';
+}
+
+/**
+ * Lo que salio en una version: cada actividad con su codigo, su nombre y en
+ * que fase quedo.
+ *
+ * Es la pregunta que se hace despues de cada despliegue —"que entro en la
+ * 2.4?"— y hasta ahora la pagina solo respondia "siete cosas", sin decir
+ * cuales.
+ */
+function detalleVersion(v) {
+  return '<div class="rm-detalle-cab">Actividades de la versión ' + esc(v.numeroVersion) + '</div>' +
+    v.actividades.slice().sort(function (a, b) {
+      return String(a.id).localeCompare(String(b.id), 'es');
+    }).map(function (a) {
+      return '<div class="rm-act">' +
+        '<span class="rm-act-id">' + esc(a.id) + '</span>' +
+        '<span class="rm-act-nombre">' + esc(a.nombre) + '</span>' +
+        '<span class="rm-act-fase">' + esc(nombreFase(a.fase)) + '</span>' +
+        '<span><span class="badge ' + (CLASE_ESTADO[a.estado] || 'e-por-iniciar') + '">' +
+          esc(nombreEstado(a.estado)) + '</span></span>' +
+      '</div>';
+    }).join('');
+}
+
+// Abrir y cerrar el detalle de una version. Se delega en el contenedor porque
+// las filas se vuelven a dibujar con cada cambio de filtro.
+$('roadmap').addEventListener('click', function (e) {
+  var fila = e.target.closest('.rm-fila[data-version]');
+  if (fila) alternarDetalleVersion(fila);
+});
+$('roadmap').addEventListener('keydown', function (e) {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  var fila = e.target.closest('.rm-fila[data-version]');
+  if (!fila) return;
+  e.preventDefault();
+  alternarDetalleVersion(fila);
+});
+
+function alternarDetalleVersion(fila) {
+  var detalle = $('det-' + fila.dataset.version);
+  if (!detalle) return;
+  var abierto = !detalle.hidden;
+  detalle.hidden = abierto;
+  fila.setAttribute('aria-expanded', String(!abierto));
+  fila.classList.toggle('abierta', !abierto);
 }
 
 /* ================= Reportes ================= */

@@ -656,6 +656,33 @@ Las tildes del correo van como entidades HTML. El resto de los archivos `.gs` es
 así el mensaje se lee bien escrito sin que el código dependa de cómo viaje la codificación
 hasta Apps Script.
 
+### D-50 · Tercera vista del portafolio: el listado
+
+La matriz responde *dónde estamos invirtiendo* (D-11) y las columnas por prioridad *qué es lo
+más urgente* (D-44). Faltaba la pregunta más simple, que ninguna de las dos contesta bien:
+**cuáles son todas**, en una lista que se recorra de arriba abajo y se busque con los ojos.
+
+Se agrega la vista **Listado** al mismo selector: una fila por iniciativa, en orden alfabético,
+con nombre, LEN, vertical, estado, plataforma y Business Owner. Comparte el predicado de
+filtros con las otras dos (`filtroIniciativas()`), así que lo que se ve en una es lo mismo
+reagrupado. Y como la vista por prioridad, incluye las iniciativas sin LEN o sin vertical: en
+una lista no hay razón para esconderlas.
+
+### D-51 · El roadmap dice qué salió en cada versión
+
+La página mostraba cuántas actividades llevaba cada versión — *"7"* — pero no cuáles. La
+pregunta que se hace después de cada despliegue es justamente la otra: *"¿qué entró en la
+2.4?"*. Ahora cada versión con actividades se despliega al hacer clic y muestra el código, el
+nombre, la fase y el estado de cada una. Las versiones sin actividades no se despliegan: no
+tendría nada que mostrar.
+
+El dato ya viajaba desde el servidor (`getRoadmapVersiones` ya armaba la lista para poder
+contarla); solo se le agregó el estado de cada actividad y se puso a la vista. La apertura
+funciona con teclado además de con el ratón.
+
+*El filtro por plataforma de esa página ya existía desde el principio y funciona; no hubo que
+agregarlo.*
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
