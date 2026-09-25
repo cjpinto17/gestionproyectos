@@ -278,7 +278,58 @@ $('btnGuardarModal').addEventListener('click', function () {
 });
 
 /* ================= Router ================= */
+/**
+ * Si el rol tiene un permiso. Es la misma pregunta que hace el servidor, con la
+ * misma respuesta: los permisos llegan resueltos en el arranque.
+ *
+ * Esconder aqui es cortesia, no seguridad. Cada operacion se vuelve a
+ * comprobar al guardar, porque las llamadas del navegador se pueden escribir a
+ * mano y un boton escondido no detiene a nadie.
+ */
+function permiso(nombre) {
+  return !!(CTX.permisos && CTX.permisos[nombre]);
+}
+
+/** Permiso de menu que corresponde a cada pagina. Gemelo de PERMISO_DE_PAGINA. */
+var PERMISO_DE_PAGINA = {
+  home: 'Ver_Home', iniciativas: 'Ver_Iniciativas', gestion: 'Ver_Gestion',
+  roadmap: 'Ver_Roadmap', reportes: 'Ver_Reportes', admin: 'Administrar'
+};
+
+/** Esconde del menu las pestanas que el rol no puede abrir. */
+function aplicarPermisosDeMenu() {
+  document.querySelectorAll('.tab').forEach(function (t) {
+    t.hidden = !permiso(PERMISO_DE_PAGINA[t.dataset.pagina]);
+  });
+  // Botones de accion que dependen de un permiso y viven fuera de su pagina.
+  if ($('btnNueva')) $('btnNueva').hidden = !permiso('Crear_Solicitud');
+  if ($('btnMigrar')) $('btnMigrar').hidden = !permiso('Migrar_Solicitud');
+}
+
+/** La primera pagina que el rol si puede abrir. */
+function primeraPaginaPermitida() {
+  for (var i = 0; i < PAGINAS.length; i++) {
+    if (permiso(PERMISO_DE_PAGINA[PAGINAS[i]])) return PAGINAS[i];
+  }
+  return null;
+}
+
 function navegar(pagina) {
+  // Un enlace guardado (?page=roadmap) puede apuntar a una pagina que el rol ya
+  // no tiene: se cae a la primera que si pueda abrir, en vez de dejar la
+  // pantalla en blanco.
+  if (!permiso(PERMISO_DE_PAGINA[pagina])) {
+    var alternativa = primeraPaginaPermitida();
+    if (!alternativa) {
+      $('contenido').hidden = true;
+      $('avisoAccesoMotivo').textContent =
+          'Su rol no tiene acceso a ninguna sección de la aplicación. ' +
+          'Escriba al administrador para que le habilite lo que necesita.';
+      $('avisoAcceso').hidden = false;
+      return;
+    }
+    pagina = alternativa;
+  }
   PAGINAS.forEach(function (p) { $('pg-' + p).hidden = (p !== pagina); });
   document.querySelectorAll('.tab').forEach(function (t) {
     if (t.dataset.pagina === pagina) t.setAttribute('aria-current', 'page');
@@ -1305,22 +1356,42 @@ function solicitudPorId(id) {
   return DATOS.kanban.solicitudes.filter(function (s) { return s.ID_Solicitud === id; })[0];
 }
 
-/** Espejo de validarTransicion() del backend, para dar respuesta inmediata. */
+/**
+ * Espejo de validarTransicion() del backend, para dar respuesta inmediata al
+ * arrastrar. Tiene que decir lo mismo que el servidor: si aqui se permite algo
+ * que alla se rechaza, la tarjeta se mueve y vuelve sola, que es peor que no
+ * dejarla mover. Las dos reglas se prueban juntas (pruebaPermisos.js).
+ */
 function validarTransicionCliente(origen, destino) {
-  if (!CTX.puedeOperarTablero) {
+  if (!permiso('Mover_Fase')) {
     return { permitido: false,
-             motivo: 'Solo el Product Owner y el Administrador pueden mover tarjetas.' };
+             motivo: 'Su rol no puede mover solicitudes de fase: el tablero es de consulta.' };
   }
-  if (CTX.esAdmin) return { permitido: true, motivo: '' };
   var a = ordenDeFase(origen), b = ordenDeFase(destino);
   if (a === b) return { permitido: false, motivo: 'La actividad ya está en esa fase.' };
-  var puede = function (f) { return CTX.fasesEditables.indexOf(f) !== -1; };
+  var opera = function (f) { return (CTX.fasesEditables || []).indexOf(f) !== -1; };
+
   if (b > a) {
-    if (b - a > 1) return { permitido: false, motivo: 'No se permite saltar fases. Solo el Administrador puede hacerlo.' };
-    if (!puede(origen)) return { permitido: false, motivo: 'Su rol no tiene permiso sobre la fase de origen.' };
+    if (b - a > 1 && !permiso('Saltar_Fases')) {
+      return { permitido: false,
+               motivo: 'Su rol no puede saltar fases: mueva la solicitud de una en una.' };
+    }
+    if (!opera(origen)) {
+      return { permitido: false,
+               motivo: 'Su rol no opera la fase "' + nombreFase(origen) + '".' };
+    }
     return { permitido: true, motivo: '' };
   }
-  if (!puede(destino)) return { permitido: false, motivo: 'Su rol no tiene permiso sobre la fase de destino.' };
+
+  if (!permiso('Retroceder_Fase')) {
+    return { permitido: false,
+             motivo: 'Su rol no puede devolver una solicitud a una fase anterior.' };
+  }
+  if (!opera(destino)) {
+    return { permitido: false,
+             motivo: 'Su rol no opera la fase "' + nombreFase(destino) + '", que es a donde ' +
+                     'se estaría devolviendo.' };
+  }
   return { permitido: true, motivo: '' };
 }
 
@@ -2103,6 +2174,103 @@ function formularioRegistro(valorPk) {
 }
 
 /* --- Migracion de solicitudes (solo Administrador) --- */
+/* --- Permisos por rol --- */
+$('btnPermisos').addEventListener('click', abrirPermisos);
+
+/**
+ * La cuadricula de permisos: una fila por permiso, una columna por rol.
+ *
+ * Va asi y no al reves porque los permisos son muchos mas que los roles: una
+ * tabla de 17 filas y 11 columnas se recorre; una de 11 filas y 17 columnas
+ * obliga a desplazarse a lo ancho para comparar dos roles, que es justo lo que
+ * uno hace aqui.
+ */
+function abrirPermisos() {
+  abrirModal('Permisos por rol', '', '<p class="nota">Cargando…</p>', null);
+  api('getMatrizPermisos').then(function (r) {
+    PERMISOS_EDIT = { valores: {}, fases: {} };
+    r.roles.forEach(function (rol) {
+      PERMISOS_EDIT.valores[rol.id] = {};
+      r.permisos.forEach(function (pm) {
+        PERMISOS_EDIT.valores[rol.id][pm.campo] = !!(r.valores[rol.id] || {})[pm.campo];
+      });
+      PERMISOS_EDIT.fases[rol.id] = (r.fasesPorRol[rol.id] || []).slice();
+    });
+
+    abrirModal('Permisos por rol',
+      r.enHoja ? '' : 'Todavía no se han guardado: lo que ve es la configuración de fábrica',
+      cuerpoPermisos(r),
+      function () {
+        return api('guardarPermisos', PERMISOS_EDIT.valores, PERMISOS_EDIT.fases)
+            .then(function () {
+              toast('Permisos guardados. Cada persona los verá al volver a entrar.');
+              invalidarCacheCliente();
+            });
+      });
+
+    $('tablaPermisos').addEventListener('change', function (e) {
+      var c = e.target.closest('input[type=checkbox][data-rol]');
+      if (!c) return;
+      if (c.dataset.permiso) {
+        PERMISOS_EDIT.valores[c.dataset.rol][c.dataset.permiso] = c.checked;
+      } else if (c.dataset.fase) {
+        var fases = PERMISOS_EDIT.fases[c.dataset.rol];
+        var i = fases.indexOf(c.dataset.fase);
+        if (c.checked && i === -1) fases.push(c.dataset.fase);
+        if (!c.checked && i !== -1) fases.splice(i, 1);
+      }
+    });
+  }).catch(function (err) { cerrarModal(); fallo(err); });
+}
+
+/** Lo que se esta editando en la ventana de permisos. */
+var PERMISOS_EDIT = { valores: {}, fases: {} };
+
+function cuerpoPermisos(r) {
+  var encabezado = '<thead><tr><th class="pm-fija">Permiso</th>' +
+    r.roles.map(function (rol) {
+      return '<th class="pm-rol" title="' + esc(rol.id + ' · ' + rol.nombre) + '"><span>' +
+             esc(rol.nombre) + '</span></th>';
+    }).join('') + '</tr></thead>';
+
+  var grupo = '';
+  var filas = r.permisos.map(function (pm) {
+    var cabecera = '';
+    if (pm.grupo !== grupo) {
+      grupo = pm.grupo;
+      cabecera = '<tr class="pm-grupo"><td class="pm-fija" colspan="' +
+                 (r.roles.length + 1) + '">' + esc(grupo) + '</td></tr>';
+    }
+    return cabecera + '<tr><td class="pm-fija">' + esc(pm.nombre) + '</td>' +
+      r.roles.map(function (rol) {
+        return celdaPermiso(rol.id, 'permiso', pm.campo,
+                            !!(r.valores[rol.id] || {})[pm.campo]);
+      }).join('') + '</tr>';
+  }).join('');
+
+  var filasFase = '<tr class="pm-grupo"><td class="pm-fija" colspan="' + (r.roles.length + 1) +
+      '">Fases del embudo que puede mover</td></tr>' +
+    r.fases.map(function (f) {
+      return '<tr><td class="pm-fija">' + esc(f.nombre) + '</td>' +
+        r.roles.map(function (rol) {
+          return celdaPermiso(rol.id, 'fase', f.id,
+                              (r.fasesPorRol[rol.id] || []).indexOf(f.id) !== -1);
+        }).join('') + '</tr>';
+    }).join('');
+
+  return '<p class="nota" style="margin:0 0 10px">Marque lo que cada rol puede hacer. ' +
+    'Las fases solo cuentan para los roles que además tengan <b>Mover de fase</b>: sin esa ' +
+    'llave, marcar fases no habilita nada. Los cambios aplican a cada persona la próxima vez ' +
+    'que entre.</p>' +
+    '<div class="pm-caja"><table id="tablaPermisos" class="pm-tabla">' +
+    encabezado + '<tbody>' + filas + filasFase + '</tbody></table></div>';
+}
+
+function celdaPermiso(rolId, tipo, valor, marcado) {
+  return '<td class="pm-celda"><label><input type="checkbox" data-rol="' + esc(rolId) + '" ' +
+         'data-' + tipo + '="' + esc(valor) + '"' + (marcado ? ' checked' : '') + '></label></td>';
+}
+
 $('btnMigrar').addEventListener('click', function () {
   abrirModal('Migrar solicitud', 'Cargando formulario…', '<p class="nota">Un momento…</p>', null);
   api('getFormularioMigracion').then(function (f) {
@@ -2333,7 +2501,7 @@ function arrancar() {
     $('btnActualizar').hidden = false;
     $('usuarioNombre').textContent = CTX.nombre;
     $('usuarioRol').textContent = CTX.rolNombre;
-    if (!CTX.esAdmin) $('tabAdmin').hidden = true;
+    aplicarPermisosDeMenu();
     $('contenido').hidden = false;
     navegar(PAGINA_INICIAL || 'home');
     precargarEnSegundoPlano();

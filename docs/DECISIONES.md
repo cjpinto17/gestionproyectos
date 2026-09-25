@@ -1094,6 +1094,64 @@ combos, incluidos los filtros del tablero.
 Los demás campos del formulario siguen siendo desplegables: son listas cortas (plataformas, tipos,
 prioridades) donde ver todas las opciones de un vistazo es mejor que escribir.
 
+### D-68 · Los permisos pasan a ser dato, y por fin hacen lo que dicen
+
+**Lo que había, y por qué no se entendía.** El control de accesos vivía repartido en seis sitios
+de `Rbac.gs`: una matriz por rol (qué fases opera, qué campos edita) y cinco listas planas. Al
+auditarlo para este cambio resultó que **la matriz era decorativa**:
+
+- La regla de fases solo se consultaba *después* de un portero que dejaba pasar únicamente a
+  Product Owner y Administrador, y los dos tenían todas las fases. Los permisos de fase del
+  Analista QA, el Desarrollador, UAT y el Comité CAB nunca se evaluaban.
+- La regla de campos vivía en `actualizarSolicitud()`, una función que **nadie llamaba** y que no
+  estaba expuesta al navegador. El único camino real de edición comprobaba solo "¿está tu rol en
+  la lista?" y luego dejaba tocar todo.
+
+Así que quien leía el código veía un modelo de permisos fino y detallado, y la aplicación se
+comportaba según cinco listas escritas en otra parte. Esa función muerta se eliminó.
+
+**Lo que hay ahora.** Una sola pregunta —`tienePermiso(rol, permiso)`— y dos hojas que se editan
+desde Administración: `Permisos_Rol` (17 permisos, SI/NO por rol) y `Permisos_Fase` (la cuadrícula
+rol × fase). Todo lo demás son atajos con nombre sobre esa pregunta.
+
+**El día uno nada cambia.** Si las hojas no existen todavía, se usan valores de fábrica que
+reproducen exactamente el comportamiento anterior, incluidas dos cosas que no estaban restringidas
+en absoluto y se dejaron abiertas para no quitarle a nadie algo que ya usa: **crear solicitudes** y
+**comentar**. Quien quiera cerrarlas, lo hace desde Administración.
+
+**Las fases de fábrica vienen de la matriz original**, la que nunca se aplicó. Describían bien
+quién trabaja en qué parte del embudo, así que se conservan: marcarle *Mover de fase* al Analista
+QA lo deja operando su fase y ninguna otra, sin armar la cuadrícula desde cero.
+
+**Reglas de movimiento entre fases**, ahora explícitas y todas configurables:
+- Sin *Mover de fase*, el tablero es de consulta.
+- Avanzar exige operar la fase **de origen**: se saca de donde uno es dueño.
+- Devolver exige además *Devolver a fase anterior*, y se valida contra la fase **de destino**:
+  devolver de QA a Desarrollo lo decide quien responde por Desarrollo.
+- Saltar más de una fase exige *Saltar fases*.
+
+**Dos seguros contra quedarse afuera.** Guardar se rechaza si ningún rol conserva la
+administración, y también si quien guarda se la quita a su propio rol. Sin el segundo, un clic
+distraído deja a todos fuera de Administración y ya no hay desde dónde volver atrás sin abrir la
+hoja a mano en Drive. Para ceder la administración se cambia de rol al usuario en la tabla
+`Usuarios`, no quitándose el permiso.
+
+**El servidor decide; la pantalla acompaña.** Cada permiso se comprueba al guardar, no solo al
+pintar: una llamada del navegador se puede escribir a mano y un botón escondido no detiene a
+nadie. Las lecturas de cada página (`getMatrizIniciativas`, `getDatosKanban`, `getReportes`,
+`getRoadmapVersiones`, `getMetricasHome`) también exigen el permiso de menú correspondiente, para
+que esconder una pestaña no sea solo cosmético.
+
+**La regla del navegador y la del servidor se prueban juntas.** El tablero valida el arrastre en
+el navegador para responder al instante; si esa copia permitiera algo que el servidor rechaza, la
+tarjeta se movería y volvería sola, que es peor que no dejarla mover. `pruebaPermisos.js` compara
+las dos reglas en los 672 casos de rol × fase origen × fase destino.
+
+**Qué NO quedó configurable, a propósito.** Los roles siguen definidos en código: su identificador
+está amarrado a la lógica y un rol nuevo creado desde la hoja no tendría comportamiento. Tampoco
+los campos editables por fase ni el alcance por plataforma: se propusieron y el negocio decidió
+empezar por lo demás.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

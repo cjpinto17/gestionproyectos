@@ -181,6 +181,19 @@ nada que valga la pena.
 
 Se puede ejecutar las veces que sea: la segunda vez no hace nada.
 
+### Permisos por rol
+
+Se configuran desde la aplicación: **Administración → Configurar permisos**. Es una cuadrícula con
+los permisos en las filas y los roles en las columnas; se marca lo que cada rol puede hacer y se
+guarda.
+
+Mientras no se guarde por primera vez, la aplicación usa los valores de fábrica, que son
+exactamente lo que hacía antes de que esto fuera configurable. La pantalla lo avisa.
+
+Dos cosas que el sistema no deja hacer, a propósito: dejar la aplicación sin ningún rol que
+administre, y quitarle la administración al rol de quien está guardando. Para ceder la
+administración, cambie de rol al usuario en la tabla `Usuarios`.
+
 Cuando además hay que **mover datos** de una columna vieja a una nueva, la versión trae una
 función aparte para eso y se dice al publicar. Hoy hay una: **`unificarAlcanceSolicitudes`**, que
 pasa a `Alcance` lo que estaba escrito en `Objetivo` y `Entregable`. Se ejecuta primero sin nada

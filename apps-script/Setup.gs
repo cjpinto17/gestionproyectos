@@ -262,13 +262,34 @@ function sembrarCatalogos_(libro) {
   }));
 
   sembrarSiVacio_(libro, 'Roles', ROLES.map(function (r) {
-    var permisos = getPermisos(r.id);
+    // Las dos ultimas columnas son un resumen legible de lo que el rol puede
+    // hacer. Lo que manda son las hojas Permisos_Rol y Permisos_Fase; esto es
+    // para quien abre la hoja de Roles y quiere ver de que se trata cada uno.
+    var fases = fasesDeRol(r.id);
     return [
       r.id,
       r.nombre,
-      permisos.fases === TODAS ? 'TODAS' : permisos.fases.join(', '),
-      permisos.override ? 'Control total' : (permisos.campos === TODAS ? 'Edicion completa' : 'Edicion parcial')
+      fases.length === 8 ? 'TODAS' : (fases.join(', ') || 'ninguna'),
+      esAdministrador(r.id) ? 'Administracion'
+        : (puedeOperarTablero(r.id) ? 'Opera el embudo'
+        : (puedeEditarSolicitud(r.id) ? 'Edita solicitudes' : 'Consulta'))
     ];
+  }));
+
+  // Los permisos, uno por rol. Solo si la hoja esta vacia: una vez que el
+  // negocio los ajusta desde Administracion, el instalador no los pisa.
+  sembrarSiVacio_(libro, 'Permisos_Rol', ROLES.map(function (r) {
+    var p = getPermisos(r.id);
+    return [r.id].concat(CATALOGO_PERMISOS.map(function (c) {
+      return p[c.campo] ? 'SI' : 'NO';
+    }));
+  }));
+
+  sembrarSiVacio_(libro, 'Permisos_Fase', ROLES.map(function (r) {
+    var fases = fasesDeRol(r.id);
+    return [r.id].concat(TODAS_LAS_FASES_().map(function (f) {
+      return fases.indexOf(f) !== -1 ? 'SI' : 'NO';
+    }));
   }));
 
   // SLA por fase, en DIAS HABILES. Valores iniciales sugeridos, ajustables

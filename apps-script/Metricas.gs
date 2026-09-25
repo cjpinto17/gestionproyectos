@@ -613,6 +613,7 @@ function calcularDemandaVsEntrega_(solicitudes, meses) {
  * @return {!Object}
  */
 function getMetricasHome(meses) {
+  exigirPagina_('home');
   var n = meses || 12;
   return conResultadoEnCache_('metricasHome_' + n, function () {
     return calcularMetricasHome_(n);
@@ -717,6 +718,7 @@ function calcularMetricasHome_(n) {
  * @return {!Object}
  */
 function getReportes(meses) {
+  exigirPagina_('reportes');
   var n = meses || 12;
   return conResultadoEnCache_('reportes_' + n, function () {
     return calcularReportes_(n);
@@ -809,6 +811,7 @@ function calcularReportes_(n) {
  * @return {!Object}
  */
 function getRoadmapVersiones() {
+  exigirPagina_('roadmap');
   var datos = cargarDatos_();
   var nombrePlataforma = mapaPlataformas();
 
@@ -877,6 +880,7 @@ function normalizarPrioridad_(valor) {
  * @return {!Object}
  */
 function getMatrizIniciativas() {
+  exigirPagina_('iniciativas');
   return conResultadoEnCache_('matrizIniciativas', calcularMatrizIniciativas_);
 }
 

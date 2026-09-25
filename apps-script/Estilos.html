@@ -426,6 +426,28 @@
   .obs-cab span{color:var(--ink-faint);font-variant-numeric:tabular-nums}
   .obs-txt{font-size:13px;margin-top:2px;white-space:pre-wrap;overflow-wrap:anywhere}
   .alcance{font-size:13px;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+
+  /* Cuadricula de permisos: permisos en las filas, roles en las columnas.
+     La primera columna se queda quieta al desplazar a lo ancho, porque sin
+     ella una casilla marcada no dice de que permiso es. */
+  .pm-caja{max-height:58vh;overflow:auto;border:1px solid var(--line-soft);border-radius:8px}
+  .pm-tabla{border-collapse:separate;border-spacing:0;min-width:auto;font-size:12px}
+  .pm-tabla th,.pm-tabla td{padding:0;border:0}
+  .pm-fija{position:sticky;left:0;z-index:2;background:var(--surface);
+           text-align:left;padding:6px 10px;white-space:nowrap;
+           border-right:1px solid var(--line);border-bottom:1px solid var(--line-soft)}
+  thead .pm-fija{z-index:4;background:var(--navy);color:#fff}
+  .pm-tabla thead th{position:sticky;top:0;z-index:3;background:var(--navy);color:#fff}
+  .pm-rol{padding:8px 4px;vertical-align:bottom;min-width:34px}
+  .pm-rol span{display:block;writing-mode:vertical-rl;transform:rotate(180deg);
+               font-size:11px;font-weight:600;white-space:nowrap;margin:0 auto}
+  .pm-grupo td{background:var(--ground);font-family:var(--display);font-weight:700;
+               font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+               color:var(--ink-muted);padding:7px 10px}
+  .pm-celda{text-align:center;border-bottom:1px solid var(--line-soft)}
+  .pm-celda label{display:block;padding:5px 8px;cursor:pointer}
+  .pm-celda input{cursor:pointer;width:15px;height:15px;accent-color:var(--navy)}
+  .pm-tabla tbody tr:hover .pm-celda,.pm-tabla tbody tr:hover .pm-fija{background:#F1F6FF}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
   @media (max-width:820px){
     /* Barra superior: pestanas desplazables en lugar de apiladas */

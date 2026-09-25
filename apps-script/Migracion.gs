@@ -21,7 +21,7 @@ var CAMPOS_NO_MIGRABLES = ['Carpeta_Drive_URL', 'Fecha_Ultimo_Cambio'];
  * @return {!Object}
  */
 function getFormularioMigracion() {
-  exigirAdministrador_();
+  exigirPermiso_('Migrar_Solicitud', 'Su rol no puede migrar solicitudes historicas.');
   var info = getDefinicionTabla('Solicitudes');
   var columnas = info.def.columnas.filter(function (c) {
     return CAMPOS_NO_MIGRABLES.indexOf(c.campo) === -1;
@@ -52,7 +52,8 @@ function getFormularioMigracion() {
  * @return {!Object} { ok, idSolicitud, avisos }
  */
 function migrarSolicitud(datos, opciones) {
-  var ctx = exigirAdministrador_();
+  var ctx = exigirPermiso_('Migrar_Solicitud',
+      'Su rol no puede migrar solicitudes historicas.');
   var op = opciones || {};
 
   return conBloqueo_(function () {

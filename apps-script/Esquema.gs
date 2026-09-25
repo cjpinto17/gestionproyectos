@@ -167,6 +167,68 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'Permisos_Edicion', etiqueta: 'Nivel de autorizacion', tipo: 'text' }
     ]
   },
+  /**
+   * Que puede hacer cada rol. Una fila por rol, una columna por permiso.
+   *
+   * Hasta D-68 esto vivia repartido en cinco listas dentro de Rbac.gs, y buena
+   * parte de lo que decia no se aplicaba en ninguna parte. Ahora es dato: se
+   * edita desde Administracion sin tocar el codigo, y es la unica fuente de la
+   * que sale la respuesta a "este rol, puede?".
+   *
+   * Si la hoja no existe todavia, Rbac.gs usa los valores de fabrica, que
+   * reproducen exactamente el comportamiento anterior.
+   */
+  Permisos_Rol: {
+    etiqueta: 'Permisos por rol',
+    pk: 'Rol_ID',
+    columnas: [
+      { campo: 'Rol_ID', etiqueta: 'Rol', tipo: 'enum', fk: 'Roles', requerido: true },
+      // Menu principal: que paginas ve el rol.
+      { campo: 'Ver_Home', etiqueta: 'Ver Home', tipo: 'boolSN' },
+      { campo: 'Ver_Iniciativas', etiqueta: 'Ver Iniciativas', tipo: 'boolSN' },
+      { campo: 'Ver_Gestion', etiqueta: 'Ver Gestion fabrica', tipo: 'boolSN' },
+      { campo: 'Ver_Roadmap', etiqueta: 'Ver Roadmap', tipo: 'boolSN' },
+      { campo: 'Ver_Reportes', etiqueta: 'Ver Reportes', tipo: 'boolSN' },
+      { campo: 'Administrar', etiqueta: 'Administracion', tipo: 'boolSN' },
+      // Acciones sobre iniciativas.
+      { campo: 'Editar_Iniciativa', etiqueta: 'Editar iniciativa', tipo: 'boolSN' },
+      { campo: 'Comentar_Iniciativa', etiqueta: 'Comentar iniciativa', tipo: 'boolSN' },
+      // Acciones sobre solicitudes.
+      { campo: 'Crear_Solicitud', etiqueta: 'Crear solicitud', tipo: 'boolSN' },
+      { campo: 'Editar_Solicitud', etiqueta: 'Editar solicitud', tipo: 'boolSN' },
+      { campo: 'Mover_Fase', etiqueta: 'Mover de fase', tipo: 'boolSN' },
+      { campo: 'Retroceder_Fase', etiqueta: 'Devolver a una fase anterior', tipo: 'boolSN' },
+      { campo: 'Saltar_Fases', etiqueta: 'Saltar fases', tipo: 'boolSN' },
+      { campo: 'Bloquear_Solicitud', etiqueta: 'Marcar y levantar bloqueos', tipo: 'boolSN' },
+      { campo: 'Comentar_Solicitud', etiqueta: 'Comentar solicitud', tipo: 'boolSN' },
+      { campo: 'Migrar_Solicitud', etiqueta: 'Migrar solicitudes historicas', tipo: 'boolSN' },
+      // Roadmap.
+      { campo: 'Gestionar_Versiones', etiqueta: 'Crear y editar versiones', tipo: 'boolSN' }
+    ]
+  },
+
+  /**
+   * En que fases del embudo puede mover tarjetas cada rol.
+   *
+   * Es la cuadricula rol x fase. Solo cuenta para los roles que ademas tengan
+   * Mover_Fase: sin esa llave maestra, marcar fases aqui no habilita nada.
+   */
+  Permisos_Fase: {
+    etiqueta: 'Fases por rol',
+    pk: 'Rol_ID',
+    columnas: [
+      { campo: 'Rol_ID', etiqueta: 'Rol', tipo: 'enum', fk: 'Roles', requerido: true },
+      { campo: 'FAS_01', etiqueta: 'Gestion de la demanda', tipo: 'boolSN' },
+      { campo: 'FAS_02', etiqueta: 'Backlog', tipo: 'boolSN' },
+      { campo: 'FAS_03', etiqueta: 'Analisis y diseno', tipo: 'boolSN' },
+      { campo: 'FAS_04', etiqueta: 'Desarrollo', tipo: 'boolSN' },
+      { campo: 'FAS_05', etiqueta: 'Pruebas QA', tipo: 'boolSN' },
+      { campo: 'FAS_06', etiqueta: 'Pruebas UAT', tipo: 'boolSN' },
+      { campo: 'FAS_07', etiqueta: 'Aceptacion TI', tipo: 'boolSN' },
+      { campo: 'FAS_08', etiqueta: 'Produccion', tipo: 'boolSN' }
+    ]
+  },
+
   Proyectos: {
     etiqueta: 'Iniciativas',
     pk: 'ID_Proyecto',

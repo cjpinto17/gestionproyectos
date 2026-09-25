@@ -150,7 +150,6 @@ function contextoDeCorreo_(correo, via) {
              motivo: 'Usuario inactivo.' };
   }
 
-  var permisos = getPermisos(usuario.Rol_ID);
   return {
     autorizado: true,
     via: via,
@@ -161,14 +160,18 @@ function contextoDeCorreo_(correo, via) {
     area: usuario.Area,
     rolId: usuario.Rol_ID,
     rolNombre: nombreDeRol_(usuario.Rol_ID),
+    // Todos los permisos del rol, tal como quedaron en Permisos_Rol. La pantalla
+    // los usa para esconder lo que no aplica; el servidor los vuelve a
+    // comprobar en cada operacion, porque esconder un boton no es seguridad.
+    permisos: getPermisos(usuario.Rol_ID),
+    fasesEditables: fasesDeRol(usuario.Rol_ID),
+    // Atajos que el navegador ya usaba. Se conservan para no reescribir cada
+    // pantalla, y salen del mismo sitio que todo lo demas.
     esAdmin: esAdministrador(usuario.Rol_ID),
     puedeOperarTablero: puedeOperarTablero(usuario.Rol_ID),
     puedeEditarSolicitud: puedeEditarSolicitud(usuario.Rol_ID),
     puedeGestionarVersiones: puedeGestionarVersiones(usuario.Rol_ID),
-    puedeEditarIniciativa: puedeEditarIniciativa(usuario.Rol_ID),
-    fasesEditables: permisos.fases === TODAS
-        ? FASES.map(function (f) { return f.id; })
-        : permisos.fases
+    puedeEditarIniciativa: puedeEditarIniciativa(usuario.Rol_ID)
   };
 }
 
@@ -620,6 +623,7 @@ function getArranque(meses) {
  * @return {!Object}
  */
 function getDatosKanban(filtros) {
+  exigirPagina_('gestion');
   // El tablero se abre siempre sin filtros (el filtrado ocurre en el
   // navegador), asi que ese caso —el unico que se repite— vale la pena
   // cachearlo ya armado. Una consulta con filtros es de un solo uso.
@@ -843,7 +847,10 @@ function getObservacionesIniciativa(idProyecto) {
  * @private
  */
 function registrarObservacion_(tabla, campoLlave, tablaDueno, comoSeLlama, id, texto) {
-  var ctx = exigirSesion_();
+  var ctx = exigirPermiso_(
+      tabla === 'Observaciones_Proyecto' ? 'Comentar_Iniciativa' : 'Comentar_Solicitud',
+      'Su rol no puede escribir comentarios en ' +
+      (tabla === 'Observaciones_Proyecto' ? 'las iniciativas.' : 'las solicitudes.'));
   var limpio = String(texto || '').trim();
   if (!limpio) throw new Error('La observacion no puede ir vacia.');
   if (limpio.length > CONFIG.OBSERVACION_MAXIMA) {
@@ -1093,44 +1100,6 @@ function crearSolicitud(datos) {
   });
 }
 
-/**
- * Actualiza campos de una solicitud respetando el RBAC por campo.
- * @param {string} idSolicitud
- * @param {!Object} cambios Mapa campo -> valor nuevo.
- * @return {!Object}
- */
-function actualizarSolicitud(idSolicitud, cambios) {
-  var ctx = exigirSesion_();
-
-  return conBloqueo_(function () {
-    var actual = buscarPorPk_('Solicitudes', idSolicitud);
-    if (!actual) throw new Error('No existe la solicitud ' + idSolicitud + '.');
-
-    var negados = [];
-    Object.keys(cambios).forEach(function (campo) {
-      if (!puedeEditarCampo(ctx.rolId, campo)) negados.push(campo);
-    });
-    if (negados.length) {
-      throw new Error('Su rol no puede modificar: ' + negados.join(', ') + '.');
-    }
-
-    if (cambios.Version_Semantica !== undefined) {
-      cambios.Version_Semantica = limpiarVersion_(cambios.Version_Semantica);
-      validarVersionRoadmap_(cambios.Version_Semantica,
-                             cambios.Plataforma_ID || actual.Plataforma_ID);
-    }
-
-    var nuevo = {};
-    Object.keys(actual).forEach(function (k) { if (k !== '_fila') nuevo[k] = actual[k]; });
-    Object.keys(cambios).forEach(function (k) { nuevo[k] = cambios[k]; });
-
-    validarRegistro_('Solicitudes', nuevo, false);
-    escribirFila_('Solicitudes', actual._fila, nuevo);
-
-    if (cambios.Version_Semantica) sincronizarRoadmap_(nuevo);
-    return { ok: true, idSolicitud: idSolicitud };
-  });
-}
 
 /** Campos que administra el sistema y no se editan a mano. */
 var CAMPOS_NO_EDITABLES = ['ID_Solicitud', 'Carpeta_Drive_URL', 'Fecha_Ultimo_Cambio'];
@@ -1142,10 +1111,7 @@ var CAMPOS_NO_EDITABLES = ['ID_Solicitud', 'Carpeta_Drive_URL', 'Fecha_Ultimo_Ca
  * @return {!Object}
  */
 function getFormularioSolicitud(idSolicitud) {
-  var ctx = exigirSesion_();
-  if (!puedeEditarSolicitud(ctx.rolId)) {
-    throw new Error('Su rol no puede editar solicitudes.');
-  }
+  exigirPermiso_('Editar_Solicitud', 'Su rol no puede editar solicitudes.');
 
   var s = buscarPorPk_('Solicitudes', idSolicitud);
   if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
@@ -1216,10 +1182,7 @@ function mismoDia_(a, b) {
  * @return {!Object}
  */
 function actualizarSolicitudCompleta(idSolicitud, datos) {
-  var ctx = exigirSesion_();
-  if (!puedeEditarSolicitud(ctx.rolId)) {
-    throw new Error('Su rol no puede editar solicitudes.');
-  }
+  var ctx = exigirPermiso_('Editar_Solicitud', 'Su rol no puede editar solicitudes.');
 
   return conBloqueo_(function () {
     var actual = buscarPorPk_('Solicitudes', idSolicitud);
@@ -1369,8 +1332,8 @@ function marcarBloqueo(idSolicitud, bloqueada, idCausal, observacion) {
   return conBloqueo_(function () {
     var s = buscarPorPk_('Solicitudes', idSolicitud);
     if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
-    if (!puedeOperarTablero(ctx.rolId)) {
-      throw new Error('Solo el Product Owner y el Administrador pueden marcar bloqueos.');
+    if (!puedeBloquear(ctx.rolId)) {
+      throw new Error('Su rol no puede marcar ni levantar bloqueos.');
     }
     if (bloqueada && !idCausal) {
       throw new Error('Debe indicar la causal del bloqueo.');
@@ -2032,6 +1995,130 @@ function escapeHtml_(texto) {
  * instalacion, mantenimiento y reparacion. Lo que no este nombrado aqui no se
  * puede invocar desde afuera.
  */
+/* ================================================================== */
+/* Pantalla de permisos                                                */
+/* ================================================================== */
+
+/**
+ * Todo lo que la pantalla de permisos necesita para pintarse: los roles, el
+ * catalogo de permisos agrupado, las fases y el estado actual de cada casilla.
+ *
+ * @return {!Object}
+ */
+function getMatrizPermisos() {
+  var ctx = exigirPermiso_(PERMISO_ADMINISTRAR,
+      'Su rol no puede ver ni cambiar los permisos.');
+
+  return {
+    rolPropio: ctx.rolId,
+    roles: ROLES.map(function (r) { return { id: r.id, nombre: r.nombre }; }),
+    permisos: CATALOGO_PERMISOS,
+    fases: FASES.map(function (f) { return { id: f.id, nombre: f.nombre }; }),
+    valores: mapaDePermisos_(),
+    fasesPorRol: mapaDeFases_(),
+    // Si las hojas aun no existen, lo que se ve son los valores de fabrica y
+    // guardar es lo que las crea. Conviene decirlo en la pantalla.
+    enHoja: !!filaDePermisos_('Permisos_Rol', ROLES[0].id)
+  };
+}
+
+/** @return {!Object<string,!Object<string,boolean>>} rol -> permiso -> si/no. @private */
+function mapaDePermisos_() {
+  var mapa = {};
+  ROLES.forEach(function (r) { mapa[r.id] = getPermisos(r.id); });
+  return mapa;
+}
+
+/** @return {!Object<string,!Array<string>>} rol -> fases. @private */
+function mapaDeFases_() {
+  var mapa = {};
+  ROLES.forEach(function (r) { mapa[r.id] = fasesDeRol(r.id); });
+  return mapa;
+}
+
+/**
+ * Guarda la matriz completa de permisos.
+ *
+ * Se recibe entera y no cambio por cambio: asi lo que queda en la hoja es
+ * exactamente lo que la persona vio en pantalla, sin estados intermedios donde
+ * alguien podria quedar a medio camino entre dos configuraciones.
+ *
+ * @param {!Object<string,!Object<string,boolean>>} valores rol -> permiso -> bool.
+ * @param {!Object<string,!Array<string>>} fasesPorRol rol -> lista de fases.
+ * @return {!Object}
+ */
+function guardarPermisos(valores, fasesPorRol) {
+  var ctx = exigirPermiso_(PERMISO_ADMINISTRAR,
+      'Su rol no puede cambiar los permisos.');
+
+  valores = valores || {};
+  fasesPorRol = fasesPorRol || {};
+
+  // Dos seguros contra dejar el sistema sin duena. El segundo es el que de
+  // verdad importa: sin el, un clic distraido deja a TODOS por fuera de
+  // Administracion y ya no hay desde donde volver atras sin abrir la hoja a
+  // mano en Drive.
+  if (!valores[ctx.rolId] || !valores[ctx.rolId][PERMISO_ADMINISTRAR]) {
+    throw new Error('No puede quitarle la administracion a su propio rol (' +
+                    nombreDeRol_(ctx.rolId) + '): quedaria sin forma de volver ' +
+                    'a entrar aqui. Si va a ceder la administracion, primero ' +
+                    'cambie su usuario de rol en la tabla Usuarios.');
+  }
+  var conAdmin = ROLES.filter(function (r) {
+    return valores[r.id] && valores[r.id][PERMISO_ADMINISTRAR];
+  });
+  if (!conAdmin.length) {
+    throw new Error('Al menos un rol tiene que conservar la administracion.');
+  }
+
+  return conBloqueo_(function () {
+    escribirMatriz_('Permisos_Rol', CATALOGO_PERMISOS.map(function (c) { return c.campo; }),
+      function (rolId, campo) {
+        return valores[rolId] && valores[rolId][campo];
+      });
+
+    escribirMatriz_('Permisos_Fase', TODAS_LAS_FASES_().map(function (f) {
+      return f.replace('-', '_');
+    }), function (rolId, columna) {
+      var fases = fasesPorRol[rolId] || [];
+      return fases.indexOf(columna.replace('_', '-')) !== -1;
+    });
+
+    return { ok: true, roles: ROLES.length };
+  });
+}
+
+/**
+ * Reescribe una hoja de permisos: una fila por rol, SI o NO en cada columna.
+ *
+ * @param {string} tabla
+ * @param {!Array<string>} columnas Las de permisos, sin Rol_ID.
+ * @param {function(string, string): boolean} marcada
+ * @private
+ */
+function escribirMatriz_(tabla, columnas, marcada) {
+  var hoja = getHoja_(tabla);
+  var encabezados = asegurarColumnas_(tabla);
+
+  var filas = ROLES.map(function (r) {
+    return encabezados.map(function (c) {
+      if (c === 'Rol_ID') return r.id;
+      if (columnas.indexOf(c) === -1) return '';        // columna que no es nuestra
+      return marcada(r.id, c) ? 'SI' : 'NO';
+    });
+  });
+
+  // Se limpia lo que hubiera de mas: un rol retirado del codigo no puede
+  // quedarse con una fila fantasma que nadie ve pero el sistema si lee.
+  var ultima = hoja.getLastRow();
+  if (ultima > filas.length + 1) {
+    hoja.getRange(filas.length + 2, 1, ultima - filas.length - 1, encabezados.length)
+        .clearContent();
+  }
+  hoja.getRange(2, 1, filas.length, encabezados.length).setValues(filas);
+  invalidarTabla_(tabla);
+}
+
 var METODOS_PUBLICOS = {
   getArranque: true,
   getCatalogos: true,
@@ -2060,7 +2147,9 @@ var METODOS_PUBLICOS = {
   guardarIniciativa: true,
   agregarObservacion: true,
   agregarObservacionIniciativa: true,
-  getObservacionesIniciativa: true
+  getObservacionesIniciativa: true,
+  getMatrizPermisos: true,
+  guardarPermisos: true
 };
 
 /**
@@ -2129,9 +2218,38 @@ function resolverIdentidad_(token) {
 
 /** @private */
 function exigirGestionVersiones_() {
+  return exigirPermiso_('Gestionar_Versiones',
+                        'Su rol no puede crear ni editar versiones del roadmap.');
+}
+
+/**
+ * Guardia generica: exige sesion y un permiso concreto.
+ *
+ * Es la contraparte en el servidor de lo que la pantalla esconde. Esconder un
+ * boton evita el error; esto evita la operacion, que es lo que importa: las
+ * llamadas del navegador se pueden escribir a mano.
+ *
+ * @param {string} permiso Campo de CATALOGO_PERMISOS.
+ * @param {string} mensaje Que decirle a quien no lo tiene.
+ * @return {!Object} El contexto del usuario.
+ * @private
+ */
+function exigirPermiso_(permiso, mensaje) {
   var ctx = exigirSesion_();
-  if (!puedeGestionarVersiones(ctx.rolId)) {
-    throw new Error('Su rol no puede crear ni editar versiones del roadmap.');
+  if (!tienePermiso(ctx.rolId, permiso)) throw new Error(mensaje);
+  return ctx;
+}
+
+/**
+ * Exige poder abrir una pagina del menu.
+ * @param {string} pagina
+ * @return {!Object}
+ * @private
+ */
+function exigirPagina_(pagina) {
+  var ctx = exigirSesion_();
+  if (!puedeVerPagina(ctx.rolId, pagina)) {
+    throw new Error('Su rol no tiene acceso a esta seccion.');
   }
   return ctx;
 }
@@ -2228,11 +2346,7 @@ function guardarVersion(idVersion, datos) {
 
 /** @private */
 function exigirEdicionIniciativa_() {
-  var ctx = exigirSesion_();
-  if (!puedeEditarIniciativa(ctx.rolId)) {
-    throw new Error('Su rol no puede editar iniciativas.');
-  }
-  return ctx;
+  return exigirPermiso_('Editar_Iniciativa', 'Su rol no puede editar iniciativas.');
 }
 
 /**
