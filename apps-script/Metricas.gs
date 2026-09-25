@@ -25,6 +25,93 @@ var FASES_EN_VUELO = ['FAS-01', 'FAS-02', 'FAS-03', 'FAS-04', 'FAS-05', 'FAS-06'
 var MS_HORA = 3600000;
 var MS_DIA = 86400000;
 
+/** Estado de solicitud que cuenta como trabajo terminado. */
+var ESTADO_TERMINADA = 'EST-06';
+/** Estado de solicitud que se descuenta del avance: ya nadie la va a hacer. */
+var ESTADO_CANCELADA = 'EST-05';
+
+/* ================================================================== */
+/* Avance de una iniciativa: lo que lleva y lo que deberia llevar      */
+/* ================================================================== */
+
+/**
+ * Cuanto ha avanzado UNA solicitud dentro del embudo, entre 0 y 1.
+ *
+ * El embudo tiene ocho fases, o sea siete pasos entre la primera y la ultima.
+ * Estar en la fase N significa haber completado N-1 pasos: recien registrada
+ * (Gestion de la demanda) va en 0, en Desarrollo va en 3/7, y en Produccion
+ * —que es la ultima— va en 1. Una solicitud marcada Terminada cuenta como
+ * completa aunque su fase diga otra cosa.
+ *
+ * @param {!Object} solicitud
+ * @return {number} Entre 0 y 1.
+ * @private
+ */
+function avanceDeSolicitud_(solicitud) {
+  if (solicitud.Estado_Actual === ESTADO_TERMINADA) return 1;
+  var pasos = FASES.length - 1;
+  if (pasos <= 0) return 0;
+  var orden = 0;
+  FASES.forEach(function (f, i) { if (f.id === solicitud.Fase_Actual) orden = i + 1; });
+  if (!orden) return 0;                       // fase desconocida: no se inventa avance
+  return Math.min(1, (orden - 1) / pasos);
+}
+
+/**
+ * Porcentaje real de avance de una iniciativa, a partir de sus solicitudes.
+ *
+ * Es el promedio del avance de cada solicitud relacionada. Las canceladas se
+ * descuentan del total: dejarlas dentro castigaria a la iniciativa por un
+ * trabajo que el propio negocio decidio no hacer.
+ *
+ * Una iniciativa sin solicitudes devuelve null, no cero: no es que no haya
+ * avanzado, es que todavia no hay con que medirlo.
+ *
+ * @param {!Array<!Object>} solicitudes Las de esa iniciativa.
+ * @return {?number} 0 a 100, o null si no hay nada que promediar.
+ * @private
+ */
+function avanceRealIniciativa_(solicitudes) {
+  var cuentan = solicitudes.filter(function (s) {
+    return s.Estado_Actual !== ESTADO_CANCELADA;
+  });
+  if (!cuentan.length) return null;
+  var suma = 0;
+  cuentan.forEach(function (s) { suma += avanceDeSolicitud_(s); });
+  return Math.round((suma / cuentan.length) * 1000) / 10;
+}
+
+/**
+ * Porcentaje que la iniciativa DEBERIA llevar hoy, segun su ventana planeada.
+ *
+ * Se mide en dias habiles y no en dias calendario, porque es contra dias
+ * habiles que el equipo trabaja y que ya se miden los SLA del embudo: un plan
+ * que corre en diciembre no avanza los festivos.
+ *
+ * Antes de la fecha de inicio devuelve 0, y pasada la fecha fin estimada
+ * devuelve 100: si ya se vencio el plazo, lo esperado es que estuviera todo.
+ *
+ * @param {*} fechaInicio
+ * @param {*} fechaFinEstimada
+ * @param {Date=} hoy Para poder probarlo con una fecha fija.
+ * @return {?number} 0 a 100, o null si falta alguna de las dos fechas.
+ * @private
+ */
+function avanceEsperadoIniciativa_(fechaInicio, fechaFinEstimada, hoy) {
+  var ini = fechaInicio ? aFecha_(fechaInicio) : null;
+  var fin = fechaFinEstimada ? aFecha_(fechaFinEstimada) : null;
+  if (!ini || !fin) return null;
+
+  var ahora = hoy || new Date();
+  if (ahora <= ini) return 0;
+  if (ahora >= fin) return 100;
+
+  var total = diasHabilesEntre(ini, fin);
+  if (!total) return 100;                     // ventana de un solo dia habil o menos
+  var corridos = diasHabilesEntre(ini, ahora) || 0;
+  return Math.max(0, Math.min(100, Math.round((corridos / total) * 1000) / 10));
+}
+
 /* ================================================================== */
 /* Utilidades de fecha y estadistica                                   */
 /* ================================================================== */
@@ -806,12 +893,20 @@ function calcularMatrizIniciativas_() {
 
   var actividadesPorProyecto = {};
   var abiertasPorProyecto = {};
+  var solicitudesPorProyecto = {};
   datos.solicitudes.forEach(function (s) {
     actividadesPorProyecto[s.ID_Proyecto] = (actividadesPorProyecto[s.ID_Proyecto] || 0) + 1;
     if (FASES_EN_VUELO.indexOf(s.Fase_Actual) !== -1) {
       abiertasPorProyecto[s.ID_Proyecto] = (abiertasPorProyecto[s.ID_Proyecto] || 0) + 1;
     }
+    (solicitudesPorProyecto[s.ID_Proyecto] =
+        solicitudesPorProyecto[s.ID_Proyecto] || []).push(s);
   });
+
+  // Una sola vez para todas: el avance esperado se compara siempre contra el
+  // mismo instante, si no dos iniciativas medidas con milisegundos distintos
+  // podrian no cuadrar entre si.
+  var ahora = new Date();
 
   var celdas = {};
   datos.proyectos.forEach(function (p) {
@@ -831,8 +926,11 @@ function calcularMatrizIniciativas_() {
       fechaFinPlaneada: p.Fecha_Fin_Estimada || null,
       plataformaId: p.Plataforma_ID || '',
       plataforma: nombrePlataforma[p.Plataforma_ID] || null,
+      fechaFinReal: p.Fecha_Fin_Real || null,
       actividades: actividadesPorProyecto[p.ID_Proyecto] || 0,
       actividadesAbiertas: abiertasPorProyecto[p.ID_Proyecto] || 0,
+      avanceReal: avanceRealIniciativa_(solicitudesPorProyecto[p.ID_Proyecto] || []),
+      avanceEsperado: avanceEsperadoIniciativa_(p.Fecha_Inicio, p.Fecha_Fin_Estimada, ahora),
       lenId: p.LEN_ID || null,
       verticalId: p.Vertical_ID || null
     });

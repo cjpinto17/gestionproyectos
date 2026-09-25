@@ -167,6 +167,20 @@ Todo esto se hace desde el editor de Apps Script, con el código ya cargado.
 6. Para ver los archivos creados: menú **Ver → Registros**, ahí aparecen los enlaces de los
    dos Google Sheets.
 
+### Cuando una versión nueva agrega una tabla o una columna
+
+Sobre un sistema **ya instalado y con datos** no hace falta volver a correr el instalador: se
+ejecuta **`actualizarEstructura`** desde el editor de Apps Script, igual que las anteriores.
+Crea las hojas que falten y agrega las columnas que falten, cada una en su posición, y en
+**Registros de ejecución** reporta exactamente qué agregó.
+
+Lo que **no** hace, a propósito: no renombra, no reordena, no borra y no siembra datos. Una
+columna que el sistema ya no usa se queda quieta en la hoja con su contenido; si algún día se
+quiere eliminar de verdad, se borra a mano desde Google Sheets después de revisar que no tenga
+nada que valga la pena.
+
+Se puede ejecutar las veces que sea: la segunda vez no hace nada.
+
 ---
 
 ## Parte 4 · Configurar las notificaciones y el dominio (5 min)

@@ -181,9 +181,11 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'LEN_ID', etiqueta: 'Linea estrategica de negocio', tipo: 'enum', fk: 'Lineas_Estrategicas' },
       { campo: 'Vertical_ID', etiqueta: 'Vertical', tipo: 'enum', fk: 'Verticales' },
       { campo: 'Plataforma_ID', etiqueta: 'Plataforma digital', tipo: 'enum', fk: 'Plataforma_Digital' },
-      { campo: 'Fecha_Estimada', etiqueta: 'Fecha estimada', tipo: 'date' },
+      // Las tres fechas de la iniciativa. "Fecha_Estimada" se retiro: duplicaba
+      // a Fecha_Fin_Estimada y nadie sabia cual de las dos llenar.
       { campo: 'Fecha_Inicio', etiqueta: 'Fecha de inicio', tipo: 'date' },
       { campo: 'Fecha_Fin_Estimada', etiqueta: 'Fecha fin estimada', tipo: 'date' },
+      { campo: 'Fecha_Fin_Real', etiqueta: 'Fecha fin real', tipo: 'date' },
       { campo: 'Estado_Iniciativa', etiqueta: 'Estado', tipo: 'enum', fk: 'Estados_Iniciativa' }
     ]
   },
@@ -340,6 +342,28 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Fecha_Ultimo_Cambio', etiqueta: 'Ultimo cambio de fase', tipo: 'datetime' }
     ]
   },
+  /**
+   * Seguimiento de cada solicitud, escrito por la gente.
+   *
+   * Es distinta de la Auditoria: la auditoria la escribe el sistema y registra
+   * QUE cambio; esta la escribe una persona y registra POR QUE, que acordaron,
+   * a quien estan esperando. Por eso es inmutable: un seguimiento que se puede
+   * editar despues deja de servir como seguimiento.
+   */
+  Observaciones_Solicitud: {
+    etiqueta: 'Observaciones de seguimiento',
+    pk: 'ID_Observacion',
+    inmutable: true,
+    columnas: [
+      { campo: 'ID_Observacion', etiqueta: 'ID Observacion', tipo: 'text', requerido: true },
+      { campo: 'ID_Solicitud', etiqueta: 'Solicitud', tipo: 'text', requerido: true },
+      { campo: 'Fecha_Hora', etiqueta: 'Fecha y hora', tipo: 'datetime', requerido: true },
+      { campo: 'Usuario_ID', etiqueta: 'Usuario', tipo: 'text', requerido: true },
+      { campo: 'Correo_Usuario', etiqueta: 'Correo del usuario', tipo: 'text' },
+      { campo: 'Observacion', etiqueta: 'Observacion', tipo: 'longtext', requerido: true }
+    ]
+  },
+
   Auditoria_Transiciones: {
     etiqueta: 'Auditoria de Transiciones',
     pk: 'ID_Auditoria',

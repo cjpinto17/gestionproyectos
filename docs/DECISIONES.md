@@ -896,6 +896,88 @@ vertical (`.listado-scroll`) en vez de empujar toda la página, y las celdas del
 pegadas arriba de esa caja. Con 39 iniciativas en pantalla, a mitad de lista ya no se sabía qué
 columna era cuál.
 
+### D-60 · Las tres fechas de la iniciativa, y una columna que se va sin llevarse el dato
+
+`Fecha_Estimada` se retira de la iniciativa: duplicaba a `Fecha_Fin_Estimada` y nadie sabía cuál
+de las dos llenar. En su lugar entra **`Fecha_Fin_Real`**, para registrar cuándo terminó de verdad.
+Quedan tres fechas con un papel claro cada una: cuándo arranca, cuándo se espera que termine,
+cuándo terminó.
+
+**Retirar una columna del esquema no borra lo que la hoja ya tenía.** Esto no era así y era una
+mina: `escribirFila_` escribe *todos* los encabezados reales de la hoja, y un campo que el
+formulario ya no envía llegaba como vacío. La primera persona que guardara una iniciativa habría
+borrado esa columna en silencio. Ahora una columna que existe en la hoja y que el esquema ya no
+declara se relee y se vuelve a escribir tal cual. Cuesta una lectura extra por escritura, solo
+mientras la columna siga físicamente en la hoja.
+
+**El instalador tampoco reescribe encabezados sobre una hoja con datos.** `crearHojas_` los
+escribía por posición, así que correr `setupInicial()` después de este cambio le habría puesto a
+cada columna el nombre de la siguiente: las fechas de inicio rotuladas como fecha fin, y nadie se
+daría cuenta hasta mucho después. Sobre una hoja que ya tiene filas ahora solo se **agregan** las
+columnas que falten, en su posición. Se agrega además `actualizarEstructura()`, que hace eso para
+todas las hojas y reporta qué agregó, para no tener que correr el instalador completo.
+
+**Validación de las tres fechas:** no se exige que existan —hoy casi ninguna iniciativa las
+tiene— pero sí que cuenten una historia posible. El fin estimado no puede ir antes del inicio, el
+fin real tampoco, y el fin real no puede ser futuro: es el día en que la iniciativa terminó, no
+una promesa. Terminar *después* de lo estimado sí se acepta: eso pasa, y es justamente lo que el
+indicador debe poder mostrar.
+
+### D-61 · Qué significa el % real y qué significa el % esperado
+
+Dos columnas nuevas en el listado de iniciativas, y dos preguntas distintas.
+
+**`% real` — cuánto se ha hecho.** Es el promedio del avance de las solicitudes de la iniciativa
+por el embudo. El embudo tiene ocho fases, o sea siete pasos: recién registrada va en 0, en
+Desarrollo va en 3/7 (43%), en Producción va en 100%. Una solicitud marcada *Terminada* cuenta
+completa aunque su fase diga otra cosa.
+
+Se consideró contar simplemente *terminadas ÷ total* y darle medio punto a las que están en
+progreso. Se descartó porque ese medio punto es un número inventado: una solicitud en
+Aceptación TI y una recién sacada del backlog valdrían lo mismo. El embudo ya sabe dónde está
+cada una y no hay que suponerlo.
+
+Dos reglas que cambian el número y conviene tener presentes:
+- **Las canceladas salen del total.** Dejarlas dentro castigaría a la iniciativa por un trabajo
+  que el propio negocio decidió no hacer.
+- **Una iniciativa sin solicitudes no marca 0%, marca "sin solicitudes".** No es que no haya
+  avanzado: es que todavía no hay con qué medirlo, y son cosas distintas.
+
+**`% esperado` — cuánto debería llevarse hoy.** Días hábiles corridos desde la fecha de inicio,
+sobre el total de días hábiles hasta la fecha fin estimada. En días hábiles y no calendario
+porque es contra días hábiles que el equipo trabaja y que ya se miden los SLA del embudo: un plan
+que atraviesa diciembre no avanza los festivos. Antes de la fecha de inicio da 0; pasado el plazo
+da 100, porque si ya se venció lo esperado era que estuviera todo. Sin las dos fechas no se
+calcula, y la columna lo dice en vez de inventar un número.
+
+**El color compara los dos, no mira uno solo.** 30% puede ser excelente en marzo y pésimo en
+noviembre. Verde si el real va igual o mejor que el esperado, ámbar hasta diez puntos por debajo,
+rojo más abajo. Sin fechas planeadas no hay contra qué comparar y la barra queda neutra.
+
+### D-62 · El seguimiento se escribe, no se edita
+
+Gestión gana un bloque de **observaciones** por solicitud: quién escribió, cuándo y qué. De la
+más reciente a la más antigua, porque lo que se necesita al abrir una solicitud es en qué quedó,
+no cómo empezó.
+
+**Escribe cualquiera con sesión.** No se restringió a quienes mueven tarjetas: el seguimiento es
+justamente donde el negocio, la fábrica y quien opera el tablero se ponen de acuerdo, y
+limitarlo dejaría por fuera al que más suele tener el dato.
+
+**Nadie edita ni borra lo ya escrito**, y por eso la tabla es `inmutable`. Un seguimiento que se
+puede reescribir después deja de servir para saber qué se dijo y cuándo, que es lo único para lo
+que sirve un seguimiento.
+
+**Es distinto de la Auditoría.** La auditoría la escribe el sistema y registra *qué* cambió; esto
+lo escribe una persona y registra *por qué*, qué se acordó, a quién se está esperando. Son dos
+tablas y dos secciones separadas en la pantalla a propósito.
+
+**Una observación no invalida los indicadores.** Hasta ahora toda escritura marcaba como
+obsoletos todos los resultados calculados —matriz, indicadores, reportes— y la siguiente persona
+en entrar pagaba el recálculo. Para el seguimiento eso sería pagar el costo más alto por el
+cambio más barato: se escribe a diario y no mueve un solo indicador. Las tablas que no alimentan
+ningún cálculo están listadas en `TABLAS_SIN_INDICADORES`.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

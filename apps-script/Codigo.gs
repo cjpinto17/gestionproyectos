@@ -315,8 +315,21 @@ function escribirFila_(tabla, numeroFila, registro) {
   // fase caeria en la columna del estado, el estado en la del bloqueo, y asi.
   var columnas = asegurarColumnas_(tabla);
   var hoja = getHoja_(tabla);
-  var valores = columnas.map(function (c) {
+
+  // Una columna que existe en la hoja pero que el esquema ya no declara NO se
+  // toca: se relee y se vuelve a escribir tal como estaba. Sin esto, retirar
+  // una columna del esquema borraria su contenido en silencio la proxima vez
+  // que alguien guardara esa fila, porque el registro que llega del formulario
+  // no la trae y quedaria en vacio. Pasa con Fecha_Estimada, que se retiro de
+  // Proyectos (D-60) y sigue fisicamente en la hoja.
+  var ajenas = columnasAjenas_(tabla, columnas);
+  var previos = ajenas.length
+      ? hoja.getRange(numeroFila, 1, 1, columnas.length).getValues()[0]
+      : null;
+
+  var valores = columnas.map(function (c, i) {
     var v = registro[c];
+    if (v === undefined && previos && ajenas.indexOf(c) !== -1) return previos[i];
     return (v === undefined || v === null) ? '' : v;
   });
   hoja.getRange(numeroFila, 1, 1, columnas.length).setValues([valores]);
@@ -362,6 +375,25 @@ function asegurarColumnas_(tabla) {
 
   MEMO_ENCABEZADOS[tabla] = actuales;
   return actuales;
+}
+
+/**
+ * Columnas que la hoja tiene de verdad y que el esquema ya no declara.
+ *
+ * Son restos de una version anterior del modelo. El sistema no las lee ni las
+ * ofrece en ningun formulario, pero tampoco las borra: el dato historico es de
+ * quien lo capturo, no del esquema vigente.
+ *
+ * @param {string} tabla
+ * @param {!Array<string>} columnasReales Encabezados de la hoja.
+ * @return {!Array<string>}
+ * @private
+ */
+function columnasAjenas_(tabla, columnasReales) {
+  var declaradas = getEncabezados(tabla);
+  return columnasReales.filter(function (c) {
+    return c && declaradas.indexOf(c) === -1;
+  });
 }
 
 /**
@@ -462,7 +494,39 @@ function validarRegistro_(tabla, registro, esNuevo) {
       errores.push('Ya existe un registro con la llave ' + registro[pk] + '.');
     }
   }
+  if (tabla === 'Proyectos') validarFechasIniciativa_(registro, errores);
   if (errores.length) throw new Error(errores.join(' '));
+}
+
+/**
+ * Coherencia de las tres fechas de una iniciativa.
+ *
+ * No exige que existan —hoy casi ninguna las tiene— pero si que cuenten una
+ * historia posible: no se termina antes de empezar, y no se termina manana.
+ *
+ * @param {!Object} registro
+ * @param {!Array<string>} errores Se agregan aqui.
+ * @private
+ */
+function validarFechasIniciativa_(registro, errores) {
+  var inicio = registro.Fecha_Inicio ? aFecha_(registro.Fecha_Inicio) : null;
+  var finEst = registro.Fecha_Fin_Estimada ? aFecha_(registro.Fecha_Fin_Estimada) : null;
+  var finReal = registro.Fecha_Fin_Real ? aFecha_(registro.Fecha_Fin_Real) : null;
+
+  if (inicio && finEst && finEst < inicio) {
+    errores.push('La fecha fin estimada no puede ser anterior a la fecha de inicio.');
+  }
+  if (inicio && finReal && finReal < inicio) {
+    errores.push('La fecha fin real no puede ser anterior a la fecha de inicio.');
+  }
+  if (finReal) {
+    var hoy = new Date();
+    hoy.setHours(23, 59, 59, 999);
+    if (finReal > hoy) {
+      errores.push('La fecha fin real no puede ser futura: es el dia en que la ' +
+                   'iniciativa efectivamente termino.');
+    }
+  }
 }
 
 /**
@@ -653,7 +717,88 @@ function getDetalleSolicitud(idSolicitud) {
       .sort(function (a, b) {
         return String(b.Fecha_Hora_Cambio).localeCompare(String(a.Fecha_Hora_Cambio));
       });
+  s.Observaciones = observacionesDeSolicitud_(idSolicitud, nombreUsuario);
   return s;
+}
+
+/**
+ * El seguimiento escrito de una solicitud, de lo mas reciente a lo mas antiguo.
+ *
+ * @param {string} idSolicitud
+ * @param {!Object<string,string>} nombreUsuario Mapa ID_Usuario -> nombre.
+ * @return {!Array<!Object>}
+ * @private
+ */
+function observacionesDeSolicitud_(idSolicitud, nombreUsuario) {
+  return leerTabla_('Observaciones_Solicitud')
+      .filter(function (o) { return o.ID_Solicitud === idSolicitud; })
+      .map(function (o) {
+        return {
+          id: o.ID_Observacion,
+          fecha: o.Fecha_Hora,
+          // Si el usuario se borro de la tabla, queda el correo con el que
+          // escribio: el seguimiento no puede quedar sin autor.
+          autor: nombreUsuario[o.Usuario_ID] || o.Correo_Usuario || o.Usuario_ID,
+          correo: o.Correo_Usuario || '',
+          texto: o.Observacion
+        };
+      })
+      .sort(function (a, b) {
+        return marcaDeTiempo_(b.fecha) - marcaDeTiempo_(a.fecha);
+      });
+}
+
+/**
+ * Milisegundos de una fecha, o 0 si no se puede leer. Sirve para ordenar sin
+ * que un dato mal escrito tumbe la lista entera.
+ * @param {*} valor
+ * @return {number}
+ * @private
+ */
+function marcaDeTiempo_(valor) {
+  var d = aFecha_(valor);
+  return d && !isNaN(d.getTime()) ? d.getTime() : 0;
+}
+
+/**
+ * Registra una observacion de seguimiento sobre una solicitud.
+ *
+ * La puede escribir CUALQUIER usuario con sesion: el seguimiento es justamente
+ * donde el negocio, la fabrica y quien opera el tablero se ponen de acuerdo, y
+ * restringirlo a los que mueven tarjetas dejaria por fuera al que mas suele
+ * tener el dato. Lo que no se puede es editar ni borrar lo ya escrito.
+ *
+ * @param {string} idSolicitud
+ * @param {string} texto
+ * @return {!Object} La solicitud con su seguimiento actualizado.
+ */
+function agregarObservacion(idSolicitud, texto) {
+  var ctx = exigirSesion_();
+  var limpio = String(texto || '').trim();
+  if (!limpio) throw new Error('La observacion no puede ir vacia.');
+  if (limpio.length > CONFIG.OBSERVACION_MAXIMA) {
+    throw new Error('La observacion no puede pasar de ' + CONFIG.OBSERVACION_MAXIMA +
+                    ' caracteres. Escribio ' + limpio.length + '.');
+  }
+
+  return conBloqueo_(function () {
+    if (!buscarPorPk_('Solicitudes', idSolicitud)) {
+      throw new Error('No existe la solicitud ' + idSolicitud + '.');
+    }
+    var ahora = new Date();
+    agregarFila_('Observaciones_Solicitud', {
+      ID_Observacion: 'OBS-' + ahora.getTime() + '-' +
+                      Math.floor(Math.random() * 1000),
+      ID_Solicitud: idSolicitud,
+      Fecha_Hora: ahora,
+      Usuario_ID: ctx.idUsuario || '',
+      Correo_Usuario: ctx.correo || '',
+      Observacion: limpio
+    });
+    // agregarFila_ ya dejo la fila nueva en la copia en memoria; no hace falta
+    // botar la tabla (y botarla rehace calculos que esto no cambia).
+    return getDetalleSolicitud(idSolicitud);
+  });
 }
 
 /**
@@ -1862,7 +2007,8 @@ var METODOS_PUBLICOS = {
   getFormularioVersion: true,
   guardarVersion: true,
   getFormularioIniciativa: true,
-  guardarIniciativa: true
+  guardarIniciativa: true,
+  agregarObservacion: true
 };
 
 /**

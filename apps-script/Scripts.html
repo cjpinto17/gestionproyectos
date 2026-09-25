@@ -521,7 +521,7 @@ function pintarListadoIniciativas() {
   };
 
   var columnas = ['Iniciativa', 'LEN', 'Vertical', 'Estado', 'Plataforma', 'Business Owner',
-                  'Inicio', 'Fin planeado'];
+                  'Inicio', 'Fin planeado', '% real', '% esperado'];
 
   $('listadoIni').innerHTML =
     '<thead><tr><th style="width:26px"></th>' + columnas.map(function (c) {
@@ -553,6 +553,8 @@ function pintarListadoIniciativas() {
                                                 : sinDato('sin fecha')) + '</td>' +
             '<td class="num">' + (i.fechaFinPlaneada ? esc(fecha(i.fechaFinPlaneada))
                                                      : sinDato('sin fecha')) + '</td>' +
+            '<td class="num">' + celdaAvanceReal(i) + '</td>' +
+            '<td class="num">' + celdaAvanceEsperado(i) + '</td>' +
           '</tr>' +
           (abierta
             ? '<tr class="ini-abierta"><td></td><td colspan="' + columnas.length +
@@ -749,6 +751,56 @@ function filtroIniciativas() {
  * la de fin. Lo que no tiene fecha va al final y no al principio: una iniciativa
  * sin fechas no es la mas proxima, es la que no se ha planeado.
  */
+/**
+ * El avance real de la iniciativa, con una barra y su color.
+ *
+ * El color no lo da el porcentaje solo sino la comparacion con lo esperado:
+ * 30% puede ser excelente en marzo y pesimo en noviembre. Verde si va igual o
+ * mejor que el plan, ambar si va hasta diez puntos por debajo, rojo si va mas.
+ * Sin fechas planeadas no hay con que comparar, y la barra queda neutra.
+ */
+function celdaAvanceReal(i) {
+  if (i.avanceReal === null || i.avanceReal === undefined) {
+    return '<span style="color:var(--ink-faint)" title="La iniciativa todavía no ' +
+           'tiene solicitudes relacionadas">sin solicitudes</span>';
+  }
+  var clase = 'av-neutro';
+  var ayuda = 'Promedio del avance de sus ' + i.actividades +
+              (i.actividades === 1 ? ' solicitud' : ' solicitudes') + ' por el embudo';
+  if (i.avanceEsperado !== null && i.avanceEsperado !== undefined) {
+    var brecha = i.avanceReal - i.avanceEsperado;
+    clase = brecha >= 0 ? 'av-bien' : (brecha >= -10 ? 'av-ojo' : 'av-mal');
+    ayuda += '. ' + (brecha >= 0
+        ? 'Va ' + formatoPuntos(brecha) + ' por encima de lo esperado'
+        : 'Va ' + formatoPuntos(-brecha) + ' por debajo de lo esperado');
+  }
+  return '<span class="av ' + clase + '" title="' + esc(ayuda) + '">' +
+         '<span class="av-barra"><i style="width:' + Math.max(0, Math.min(100, i.avanceReal)) +
+         '%"></i></span>' + formatoPorcentaje(i.avanceReal) + '</span>';
+}
+
+/** El avance que la iniciativa deberia llevar hoy segun sus fechas. */
+function celdaAvanceEsperado(i) {
+  if (i.avanceEsperado === null || i.avanceEsperado === undefined) {
+    return '<span style="color:var(--ink-faint)" title="Necesita fecha de inicio y ' +
+           'fecha fin estimada para poder calcularlo">sin fechas</span>';
+  }
+  return '<span title="Días hábiles corridos desde el inicio sobre el total planeado">' +
+         formatoPorcentaje(i.avanceEsperado) + '</span>';
+}
+
+/** 42.5 -> "42,5%". Un entero se muestra sin decimales. */
+function formatoPorcentaje(n) {
+  var v = Math.round(n * 10) / 10;
+  return (v % 1 === 0 ? String(v) : String(v).replace('.', ',')) + '%';
+}
+
+/** La diferencia entre dos porcentajes se lee en puntos, no en por ciento. */
+function formatoPuntos(n) {
+  var v = Math.round(n * 10) / 10;
+  return (v % 1 === 0 ? String(v) : String(v).replace('.', ',')) + ' puntos';
+}
+
 function ordenPorFecha(a, b) {
   var ia = marcaDeTiempo(a.fechaInicio), ib = marcaDeTiempo(b.fechaInicio);
   if (ia !== ib) return ia - ib;
@@ -1326,9 +1378,11 @@ function verDetalle(id) {
     abrirModal(s.Nombre_Solicitud, s.ID_Solicitud + ' · ' + s.Nombre_Plataforma,
       '<dl>' + filas + '</dl>' + alerta +
       '<div style="margin-top:12px">' + enlaces + '</div>' + acciones +
-      (historial ? '<h3 style="font-size:12px;margin:16px 0 8px;color:var(--ink-faint);' +
-        'text-transform:uppercase;letter-spacing:.06em">Últimos movimientos</h3>' +
+      bloqueSeguimiento(s) +
+      (historial ? tituloSeccion('Últimos movimientos') +
         '<div class="lista-simple">' + historial + '</div>' : ''), null);
+
+    conectarSeguimiento(s.ID_Solicitud);
 
     if ($('btnBloquear')) {
       $('btnBloquear').addEventListener('click', function () { formularioBloqueo(s.ID_Solicitud); });
@@ -1344,6 +1398,80 @@ function verDetalle(id) {
       });
     }
   }).catch(function (err) { cerrarModal(); fallo(err); });
+}
+
+/** Titulo de seccion dentro del detalle de una solicitud. */
+function tituloSeccion(texto) {
+  return '<h3 style="font-size:12px;margin:16px 0 8px;color:var(--ink-faint);' +
+         'text-transform:uppercase;letter-spacing:.06em">' + esc(texto) + '</h3>';
+}
+
+/**
+ * El seguimiento de la solicitud: lo que la gente ha ido anotando.
+ *
+ * Va de lo mas reciente a lo mas antiguo porque lo que se necesita al abrir
+ * una solicitud es en que quedo, no como empezo. Escribir puede cualquiera con
+ * sesion; borrar o editar, nadie: un seguimiento que se puede reescribir
+ * despues deja de servir para saber que se dijo y cuando.
+ */
+function bloqueSeguimiento(s) {
+  var obs = s.Observaciones || [];
+  var lista = obs.length
+      ? obs.map(function (o) {
+          return '<div class="obs">' +
+            '<div class="obs-cab"><b>' + esc(o.autor || 'sin autor') + '</b>' +
+            '<span>' + esc(fechaHora(o.fecha)) + '</span></div>' +
+            '<div class="obs-txt">' + esc(o.texto) + '</div>' +
+          '</div>';
+        }).join('')
+      : '<p class="nota" style="margin:0">Todavía no hay observaciones. La primera ' +
+        'puede ser la suya.</p>';
+
+  return tituloSeccion('Seguimiento' + (obs.length ? ' · ' + obs.length : '')) +
+    '<div class="obs-nueva">' +
+      '<textarea id="obsTexto" rows="3" maxlength="2000" ' +
+        'placeholder="En qué quedó, qué se acordó, a quién se está esperando"></textarea>' +
+      '<div class="fila" style="justify-content:space-between;align-items:center">' +
+        '<span class="nota" id="obsRestan"></span>' +
+        '<button class="btn" id="btnObs">Agregar observación</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="obs-lista" id="obsLista">' + lista + '</div>';
+}
+
+/** Conecta el cuadro de seguimiento del detalle recien abierto. */
+function conectarSeguimiento(idSolicitud) {
+  var caja = $('obsTexto'), boton = $('btnObs'), restan = $('obsRestan');
+  if (!caja || !boton) return;
+
+  var contar = function () {
+    var quedan = 2000 - caja.value.length;
+    restan.textContent = quedan < 200 ? 'Quedan ' + quedan + ' caracteres' : '';
+    boton.disabled = !caja.value.trim();
+  };
+  caja.addEventListener('input', contar);
+  contar();
+
+  boton.addEventListener('click', function () {
+    var texto = caja.value.trim();
+    if (!texto) return;
+    boton.disabled = true;
+    boton.textContent = 'Guardando…';
+    api('agregarObservacion', idSolicitud, texto).then(function (s) {
+      // Se repinta solo el seguimiento: el resto del detalle no cambio y
+      // volver a armar el modal perderia el desplazamiento de quien lee.
+      caja.value = '';
+      $('obsLista').innerHTML = (s.Observaciones || []).map(function (o) {
+        return '<div class="obs"><div class="obs-cab"><b>' + esc(o.autor || 'sin autor') +
+          '</b><span>' + esc(fechaHora(o.fecha)) + '</span></div>' +
+          '<div class="obs-txt">' + esc(o.texto) + '</div></div>';
+      }).join('');
+      toast('Observación registrada.');
+    }).catch(fallo).then(function () {
+      boton.textContent = 'Agregar observación';
+      contar();
+    });
+  });
 }
 
 function formularioBloqueo(id) {

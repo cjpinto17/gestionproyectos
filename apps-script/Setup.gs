@@ -95,7 +95,8 @@ function moverAUnidadCompartida_(fileId) {
 function crearHojas_(libro, esquema) {
   Object.keys(esquema).forEach(function (nombreHoja) {
     var def = esquema[nombreHoja];
-    var hoja = libro.getSheetByName(nombreHoja) || libro.insertSheet(nombreHoja);
+    var existia = libro.getSheetByName(nombreHoja);
+    var hoja = existia || libro.insertSheet(nombreHoja);
     var encabezados = def.columnas.map(function (c) { return c.campo; });
 
     // Una hoja nueva trae 26 columnas; Solicitudes necesita mas.
@@ -103,8 +104,20 @@ function crearHojas_(libro, esquema) {
       hoja.insertColumnsAfter(hoja.getMaxColumns(), encabezados.length - hoja.getMaxColumns());
     }
 
-    hoja.getRange(1, 1, 1, encabezados.length).setValues([encabezados]);
-    hoja.getRange(1, 1, 1, encabezados.length)
+    // Una hoja QUE YA TENIA DATOS no se le reescriben los encabezados por
+    // posicion. El esquema cambia con el tiempo —se retiro Fecha_Estimada y se
+    // agrego Fecha_Fin_Real (D-60)— y escribir la lista nueva sobre la vieja
+    // le pondria a cada columna el nombre de la siguiente: las fechas de inicio
+    // quedarian rotuladas como fecha fin y nadie se daria cuenta. Para esas
+    // hojas se agregan solo las columnas que falten, en su posicion, que es lo
+    // que hace asegurarColumnas_ sin mover un solo dato.
+    if (existia && hoja.getLastRow() > 1) {
+      alinearEncabezados_(hoja, encabezados);
+    } else {
+      hoja.getRange(1, 1, 1, encabezados.length).setValues([encabezados]);
+    }
+
+    hoja.getRange(1, 1, 1, hoja.getLastColumn() || encabezados.length)
         .setFontWeight('bold')
         .setFontColor(CONFIG.COLORES.BLANCO)
         .setBackground(CONFIG.COLORES.NAVY);
@@ -115,6 +128,91 @@ function crearHojas_(libro, esquema) {
   // Elimina la hoja por defecto que Google crea con cada libro nuevo.
   var vacia = libro.getSheetByName('Hoja 1') || libro.getSheetByName('Sheet1');
   if (vacia && libro.getSheets().length > 1) libro.deleteSheet(vacia);
+}
+
+/**
+ * Pone las hojas al dia con el esquema, sin tocar un solo dato.
+ *
+ * Es lo que hay que ejecutar cuando una version nueva agrega una tabla o una
+ * columna: crea las hojas que falten, agrega las columnas que falten en su
+ * posicion, y reporta que hizo. No renombra, no reordena, no borra y no
+ * siembra nada; una columna que el esquema ya no declara se deja quieta con su
+ * contenido, para que el dato historico no se pierda por un cambio de modelo.
+ *
+ * Se puede ejecutar cuantas veces se quiera: la segunda vez no hace nada.
+ *
+ * @return {!Object} Que hojas y que columnas se agregaron.
+ */
+function actualizarEstructura() {
+  exigirOperador_();
+  var resumen = { hojasCreadas: [], columnasAgregadas: [], sinCambios: [] };
+
+  [[getIdLibroParametrizacion_(), ESQUEMA_PARAMETRIZACION],
+   [getIdLibroTransaccional_(), ESQUEMA_TRANSACCIONAL]].forEach(function (par) {
+    var libro = SpreadsheetApp.openById(par[0]);
+    Object.keys(par[1]).forEach(function (nombreHoja) {
+      var encabezados = par[1][nombreHoja].columnas.map(function (c) { return c.campo; });
+      var hoja = libro.getSheetByName(nombreHoja);
+
+      if (!hoja) {
+        hoja = libro.insertSheet(nombreHoja);
+        if (hoja.getMaxColumns() < encabezados.length) {
+          hoja.insertColumnsAfter(hoja.getMaxColumns(),
+                                  encabezados.length - hoja.getMaxColumns());
+        }
+        hoja.getRange(1, 1, 1, encabezados.length).setValues([encabezados]);
+        hoja.getRange(1, 1, 1, encabezados.length)
+            .setFontWeight('bold')
+            .setFontColor(CONFIG.COLORES.BLANCO)
+            .setBackground(CONFIG.COLORES.NAVY);
+        hoja.setFrozenRows(1);
+        hoja.autoResizeColumns(1, encabezados.length);
+        resumen.hojasCreadas.push(nombreHoja);
+        return;
+      }
+
+      var antes = hoja.getRange(1, 1, 1, Math.max(hoja.getLastColumn(), 1)).getValues()[0]
+          .map(function (v) { return String(v || ''); });
+      var faltantes = encabezados.filter(function (c) { return antes.indexOf(c) === -1; });
+      if (!faltantes.length) { resumen.sinCambios.push(nombreHoja); return; }
+
+      alinearEncabezados_(hoja, encabezados);
+      faltantes.forEach(function (c) {
+        resumen.columnasAgregadas.push(nombreHoja + '.' + c);
+      });
+    });
+  });
+
+  Logger.log(JSON.stringify(resumen, null, 2));
+  return resumen;
+}
+
+/**
+ * Agrega a una hoja con datos las columnas que el esquema declara y ella no
+ * tiene, cada una en su posicion. No renombra, no reordena y no borra: una
+ * columna que sobra —resto de una version anterior del modelo— se deja quieta
+ * con su contenido.
+ *
+ * @param {!Sheet} hoja
+ * @param {!Array<string>} encabezados Los que el esquema declara, en orden.
+ * @private
+ */
+function alinearEncabezados_(hoja, encabezados) {
+  var ancho = Math.max(hoja.getLastColumn(), 1);
+  var actuales = hoja.getRange(1, 1, 1, ancho).getValues()[0]
+      .map(function (v) { return String(v || ''); });
+
+  encabezados.forEach(function (campo, i) {
+    if (actuales.indexOf(campo) !== -1) return;
+    var posicion = Math.min(i + 1, actuales.length + 1);
+    if (posicion <= hoja.getMaxColumns()) {
+      hoja.insertColumnBefore(posicion);
+    } else {
+      hoja.insertColumnsAfter(hoja.getMaxColumns(), 1);
+    }
+    hoja.getRange(1, posicion).setValue(campo);
+    actuales.splice(posicion - 1, 0, campo);
+  });
 }
 
 /**

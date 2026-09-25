@@ -100,6 +100,13 @@ var CONFIG = {
    */
   VENTANA_HOME_MESES: 3,
 
+  /**
+   * Tope de una observacion de seguimiento. No es una restriccion de la hoja
+   * sino de la lectura: un seguimiento util se escribe en un parrafo, y una
+   * celda con dos paginas de texto no la lee nadie.
+   */
+  OBSERVACION_MAXIMA: 2000,
+
   CACHE_SEGUNDOS: 900,
 
   /**

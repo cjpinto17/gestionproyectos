@@ -167,7 +167,7 @@ function invalidarTabla_(tabla) {
   delete MEMO_ENCABEZADOS[tabla];
   // Los resultados calculados (indicadores, matriz, reportes) salen de estas
   // mismas tablas, asi que tambien quedan obsoletos.
-  nuevaVersionDatos_();
+  if (alimentaIndicadores_(tabla)) nuevaVersionDatos_();
   if (!CONFIG.CACHE_SEGUNDOS) return;
   borrarBloques_(claveCache_(tabla));
 }
@@ -199,7 +199,7 @@ function invalidarTabla_(tabla) {
  */
 function refrescarFilaEnCache_(tabla, numeroFila, columnas) {
   // Los indicadores, la matriz y los reportes salen de esta tabla: cambiaron.
-  nuevaVersionDatos_();
+  if (alimentaIndicadores_(tabla)) nuevaVersionDatos_();
   delete MEMO_ENCABEZADOS[tabla];
 
   var filas = MEMO_TABLAS[tabla] || leerDeCache_(tabla);
@@ -219,6 +219,26 @@ function refrescarFilaEnCache_(tabla, numeroFila, columnas) {
   // Si la tabla ya no cabe en cache, hay que borrar la copia vieja: dejarla
   // seria servir el dato anterior.
   if (!guardarEnCache_(tabla, copia)) borrarBloques_(claveCache_(tabla));
+}
+
+/**
+ * Tablas cuyo contenido NO entra en ningun indicador, matriz ni reporte.
+ *
+ * Importa porque cada escritura sobre una tabla que si entra obliga a rehacer
+ * todos los calculos para la siguiente persona que abra la aplicacion. El
+ * seguimiento de una solicitud se escribe a diario y no mueve ni un indicador:
+ * hacer que un comentario bote la matriz de iniciativas entera seria pagar el
+ * costo mas alto por el cambio mas barato.
+ */
+var TABLAS_SIN_INDICADORES = ['Observaciones_Solicitud'];
+
+/**
+ * @param {string} tabla
+ * @return {boolean} true si lo que se escribio puede cambiar un calculo.
+ * @private
+ */
+function alimentaIndicadores_(tabla) {
+  return TABLAS_SIN_INDICADORES.indexOf(tabla) === -1;
 }
 
 /**
