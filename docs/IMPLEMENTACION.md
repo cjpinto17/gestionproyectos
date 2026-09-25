@@ -183,9 +183,13 @@ Se puede ejecutar las veces que sea: la segunda vez no hace nada.
 
 ### Permisos por rol
 
-Se configuran desde la aplicación: **Administración → Configurar permisos**. Es una cuadrícula con
-los permisos en las filas y los roles en las columnas; se marca lo que cada rol puede hacer y se
-guarda.
+Se configuran desde la aplicación: **Administración → Configurar permisos**. Ocupa la página
+entera: los permisos en las filas, los once roles en las columnas. Se marca lo que cada rol puede
+hacer y se presiona **Guardar permisos**. El enlace *todos* al final de cada fila marca o desmarca
+ese permiso para todos los roles a la vez.
+
+Nada se guarda hasta presionar el botón, así que se puede probar sin miedo. Si intenta salir con
+cambios sin guardar, la aplicación se lo advierte.
 
 Mientras no se guarde por primera vez, la aplicación usa los valores de fábrica, que son
 exactamente lo que hacía antes de que esto fuera configurable. La pantalla lo avisa.

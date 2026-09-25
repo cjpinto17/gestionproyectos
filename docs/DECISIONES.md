@@ -1152,6 +1152,33 @@ está amarrado a la lógica y un rol nuevo creado desde la hoja no tendría comp
 los campos editables por fase ni el alcance por plataforma: se propusieron y el negocio decidió
 empezar por lo demás.
 
+### D-69 · Los permisos son una página, no una ventana
+
+La cuadrícula de permisos se hizo primero como modal y no daba: son 17 permisos más 8 fases por 11
+roles, y en una ventana hay que desplazarse a lo alto **y** a lo ancho a la vez para encontrar una
+casilla. Configurar permisos es comparar roles entre sí, y eso pide verlos todos de una mirada.
+
+Ahora ocupa la página entera de Administración, que alterna entre dos vistas: catálogos y permisos.
+No es una pestaña nueva del menú principal, porque no es una función aparte: es parte de
+administrar, y compartir el permiso `Administrar` evita inventar uno nuevo para lo mismo.
+
+Con el ancho completo, los nombres de rol van **horizontales** en vez de girados noventa grados.
+Se parten en dos líneas cuando hace falta: con *"Líder de proyecto FS"* en una sola, la tabla se
+pasaba dieciocho píxeles y aparecía justo el desplazamiento horizontal que se quería evitar.
+
+**Atajo por fila.** Cada permiso tiene un *todos* al final que lo marca o desmarca para los once
+roles de un golpe. Con 275 casillas es la diferencia entre configurar y resignarse, y como nada se
+guarda hasta presionar **Guardar permisos**, equivocarse no cuesta nada.
+
+Tres detalles que no son cosméticos:
+- **Se avisa antes de salir con cambios sin guardar.** Es una pantalla donde uno marca veinte
+  casillas y se distrae; perderlas por un clic en *Volver* sería una lástima evitable.
+- **Entrar a Administración siempre abre en catálogos.** Si alguien se fue a otra pestaña dejando
+  abierta la cuadrícula, al volver no se encuentra con una pantalla que no recuerda haber pedido.
+- **El título de cada grupo se queda a la vista** al desplazar a lo ancho en una pantalla angosta.
+  Vive en un `<span>` propio y no pegado a la celda, porque la celda abarca todas las columnas y
+  fijarla a ella no sirve de nada.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

@@ -1,9 +1,10 @@
 <!-- Admin.html | Pagina 6: CRUD de parametrizacion -->
 <section class="pagina" id="pg-admin" hidden>
-    <div class="encabezado">
+    <div class="encabezado" id="encabezadoAdmin">
       <h1>Administración</h1>
       <p>Catálogos maestros. Las columnas se derivan del esquema declarado en <code>Esquema.gs</code>.</p>
     </div>
+  <div id="vistaCatalogos">
     <div class="panel" style="margin-bottom:16px">
       <div class="fila">
         <div>
@@ -33,4 +34,27 @@
       </div>
       <div class="tabla-scroll"><table id="tablaAdmin"></table></div>
     </div>
+  </div>
+
+  <!-- Vista de permisos. Ocupa la pagina entera en vez de una ventana: la
+       cuadricula es de 17 permisos mas 8 fases por 11 roles, y en un modal
+       no cabe sin obligar a desplazarse en las dos direcciones a la vez. -->
+  <div id="vistaPermisos" hidden>
+    <div class="fila encabezado">
+      <div>
+        <h1>Permisos por rol</h1>
+        <p id="permisosAviso">Qué puede hacer cada rol: qué pestañas ve, qué acciones ejecuta y
+        en qué fases del embudo puede mover solicitudes.</p>
+      </div>
+      <div class="fila ml-auto">
+        <button class="btn-sec" id="btnVolverAdmin">&#8592; Volver a catálogos</button>
+        <button class="btn-primario" id="btnGuardarPermisos">Guardar permisos</button>
+      </div>
+    </div>
+    <p class="nota" style="margin-top:0">Marque lo que cada rol puede hacer. Las fases solo cuentan
+    para los roles que además tengan <b>Mover de fase</b>: sin esa llave, marcar fases no habilita
+    nada. Nada se guarda hasta que presione <b>Guardar permisos</b>, y los cambios le aplican a cada
+    persona la próxima vez que entre.</p>
+    <div class="pm-caja"><table id="tablaPermisos" class="pm-tabla"></table></div>
+  </div>
 </section>

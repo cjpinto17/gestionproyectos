@@ -1985,6 +1985,10 @@ var TABLAS_ADMIN = [
 ];
 
 function cargarAdmin() {
+  // Entrar a Administracion siempre abre en catalogos: si alguien se fue a otra
+  // pestana dejando abierta la cuadricula, al volver no se encuentra con una
+  // pantalla que no recuerda haber pedido.
+  if (!$('vistaPermisos').hidden) { PERMISOS_SUCIOS = false; mostrarPermisos(false); }
   if (!$('botoneraTablas').innerHTML) {
     $('botoneraTablas').innerHTML = TABLAS_ADMIN.map(function (t) {
       return '<button class="btn-sec" data-tabla="' + t + '" aria-pressed="' +
@@ -2176,19 +2180,33 @@ function formularioRegistro(valorPk) {
 /* --- Migracion de solicitudes (solo Administrador) --- */
 /* --- Permisos por rol --- */
 $('btnPermisos').addEventListener('click', abrirPermisos);
+$('btnVolverAdmin').addEventListener('click', function () { mostrarPermisos(false); });
+$('btnGuardarPermisos').addEventListener('click', guardarPermisosDeLaPagina);
 
 /**
- * La cuadricula de permisos: una fila por permiso, una columna por rol.
+ * Lo que se esta editando. Vive aparte del DOM para que guardar mande lo que la
+ * persona dejo marcado y no lo que el navegador alcanzo a repintar.
+ */
+var PERMISOS_EDIT = null;
+var PERMISOS_SUCIOS = false;
+
+/**
+ * Los permisos ocupan la pagina entera de Administracion, no una ventana.
  *
- * Va asi y no al reves porque los permisos son muchos mas que los roles: una
- * tabla de 17 filas y 11 columnas se recorre; una de 11 filas y 17 columnas
- * obliga a desplazarse a lo ancho para comparar dos roles, que es justo lo que
- * uno hace aqui.
+ * Se probo primero como modal y no daba: la cuadricula es de 17 permisos mas 8
+ * fases por 11 roles, y en una ventana hay que desplazarse a lo alto y a lo
+ * ancho a la vez para encontrar una casilla. Como pagina caben los once roles
+ * de una sola mirada, que es justo lo que uno hace aqui: comparar roles.
  */
 function abrirPermisos() {
-  abrirModal('Permisos por rol', '', '<p class="nota">Cargando…</p>', null);
+  mostrarPermisos(true);
+  $('tablaPermisos').innerHTML =
+    '<tbody><tr><td class="pm-fija">Cargando…</td></tr></tbody>';
+  $('btnGuardarPermisos').disabled = true;
+
   api('getMatrizPermisos').then(function (r) {
-    PERMISOS_EDIT = { valores: {}, fases: {} };
+    PERMISOS_EDIT = { valores: {}, fases: {}, roles: r.roles, permisos: r.permisos,
+                      fases_cat: r.fases };
     r.roles.forEach(function (rol) {
       PERMISOS_EDIT.valores[rol.id] = {};
       r.permisos.forEach(function (pm) {
@@ -2196,79 +2214,140 @@ function abrirPermisos() {
       });
       PERMISOS_EDIT.fases[rol.id] = (r.fasesPorRol[rol.id] || []).slice();
     });
-
-    abrirModal('Permisos por rol',
-      r.enHoja ? '' : 'Todavía no se han guardado: lo que ve es la configuración de fábrica',
-      cuerpoPermisos(r),
-      function () {
-        return api('guardarPermisos', PERMISOS_EDIT.valores, PERMISOS_EDIT.fases)
-            .then(function () {
-              toast('Permisos guardados. Cada persona los verá al volver a entrar.');
-              invalidarCacheCliente();
-            });
-      });
-
-    $('tablaPermisos').addEventListener('change', function (e) {
-      var c = e.target.closest('input[type=checkbox][data-rol]');
-      if (!c) return;
-      if (c.dataset.permiso) {
-        PERMISOS_EDIT.valores[c.dataset.rol][c.dataset.permiso] = c.checked;
-      } else if (c.dataset.fase) {
-        var fases = PERMISOS_EDIT.fases[c.dataset.rol];
-        var i = fases.indexOf(c.dataset.fase);
-        if (c.checked && i === -1) fases.push(c.dataset.fase);
-        if (!c.checked && i !== -1) fases.splice(i, 1);
-      }
-    });
-  }).catch(function (err) { cerrarModal(); fallo(err); });
+    PERMISOS_SUCIOS = false;
+    $('permisosAviso').textContent = r.enHoja
+        ? 'Qué puede hacer cada rol. Su propio rol es ' + r.rolPropio + '.'
+        : 'Todavía no se han guardado nunca: lo que ve es la configuración de fábrica, ' +
+          'la misma con la que la aplicación viene funcionando.';
+    $('tablaPermisos').innerHTML = cuerpoPermisos();
+    $('btnGuardarPermisos').disabled = false;
+  }).catch(function (err) {
+    mostrarPermisos(false);
+    fallo(err);
+  });
 }
 
-/** Lo que se esta editando en la ventana de permisos. */
-var PERMISOS_EDIT = { valores: {}, fases: {} };
+/** Alterna entre la vista de catalogos y la de permisos. */
+function mostrarPermisos(ver) {
+  if (!ver && PERMISOS_SUCIOS &&
+      !confirm('Hay cambios de permisos sin guardar. ¿Salir y perderlos?')) return;
+  $('vistaPermisos').hidden = !ver;
+  $('vistaCatalogos').hidden = ver;
+  $('encabezadoAdmin').hidden = ver;      // la vista de permisos trae su propio titulo
+  if (!ver) PERMISOS_SUCIOS = false;
+  window.scrollTo(0, 0);
+}
 
-function cuerpoPermisos(r) {
+/**
+ * La cuadricula: permisos en las filas, roles en las columnas.
+ *
+ * Va asi y no al reves porque los permisos son el doble que los roles: una
+ * tabla de 25 filas por 11 columnas se recorre de arriba abajo; la traspuesta
+ * obliga a desplazarse a lo ancho para comparar dos roles, que es lo que uno
+ * viene a hacer.
+ */
+function cuerpoPermisos() {
+  var e = PERMISOS_EDIT;
   var encabezado = '<thead><tr><th class="pm-fija">Permiso</th>' +
-    r.roles.map(function (rol) {
-      return '<th class="pm-rol" title="' + esc(rol.id + ' · ' + rol.nombre) + '"><span>' +
-             esc(rol.nombre) + '</span></th>';
-    }).join('') + '</tr></thead>';
+    e.roles.map(function (rol) {
+      return '<th class="pm-rol" title="' + esc(rol.id) + '">' + esc(rol.nombre) + '</th>';
+    }).join('') + '<th class="pm-todos">Todos</th></tr></thead>';
 
   var grupo = '';
-  var filas = r.permisos.map(function (pm) {
+  var filas = e.permisos.map(function (pm) {
     var cabecera = '';
     if (pm.grupo !== grupo) {
       grupo = pm.grupo;
-      cabecera = '<tr class="pm-grupo"><td class="pm-fija" colspan="' +
-                 (r.roles.length + 1) + '">' + esc(grupo) + '</td></tr>';
+      cabecera = filaDeGrupo(grupo);
     }
-    return cabecera + '<tr><td class="pm-fija">' + esc(pm.nombre) + '</td>' +
-      r.roles.map(function (rol) {
-        return celdaPermiso(rol.id, 'permiso', pm.campo,
-                            !!(r.valores[rol.id] || {})[pm.campo]);
-      }).join('') + '</tr>';
+    return cabecera + filaPermiso(pm.nombre, 'permiso', pm.campo, function (rolId) {
+      return e.valores[rolId][pm.campo];
+    });
   }).join('');
 
-  var filasFase = '<tr class="pm-grupo"><td class="pm-fija" colspan="' + (r.roles.length + 1) +
-      '">Fases del embudo que puede mover</td></tr>' +
-    r.fases.map(function (f) {
-      return '<tr><td class="pm-fija">' + esc(f.nombre) + '</td>' +
-        r.roles.map(function (rol) {
-          return celdaPermiso(rol.id, 'fase', f.id,
-                              (r.fasesPorRol[rol.id] || []).indexOf(f.id) !== -1);
-        }).join('') + '</tr>';
+  var filasFase = filaDeGrupo('Fases del embudo que puede mover') +
+    e.fases_cat.map(function (f) {
+      return filaPermiso(f.nombre, 'fase', f.id, function (rolId) {
+        return e.fases[rolId].indexOf(f.id) !== -1;
+      });
     }).join('');
 
-  return '<p class="nota" style="margin:0 0 10px">Marque lo que cada rol puede hacer. ' +
-    'Las fases solo cuentan para los roles que además tengan <b>Mover de fase</b>: sin esa ' +
-    'llave, marcar fases no habilita nada. Los cambios aplican a cada persona la próxima vez ' +
-    'que entre.</p>' +
-    '<div class="pm-caja"><table id="tablaPermisos" class="pm-tabla">' +
-    encabezado + '<tbody>' + filas + filasFase + '</tbody></table></div>';
+  return encabezado + '<tbody>' + filas + filasFase + '</tbody>';
 }
 
-function celdaPermiso(rolId, tipo, valor, marcado) {
-  return '<td class="pm-celda"><label><input type="checkbox" data-rol="' + esc(rolId) + '" ' +
-         'data-' + tipo + '="' + esc(valor) + '"' + (marcado ? ' checked' : '') + '></label></td>';
+function filaDeGrupo(texto) {
+  // El titulo va dentro de un <span> propio y no pegado a la celda: la celda
+  // abarca todas las columnas, asi que fijarla a ella no sirve de nada. Fijando
+  // el span, el titulo del grupo se queda a la vista aunque se desplace a lo
+  // ancho en una pantalla angosta.
+  return '<tr class="pm-grupo"><td colspan="' + (PERMISOS_EDIT.roles.length + 2) +
+         '"><span>' + esc(texto) + '</span></td></tr>';
+}
+
+/**
+ * Una fila: el nombre, una casilla por rol y el atajo de fila.
+ *
+ * El atajo marca o desmarca ese permiso para TODOS los roles de un golpe. Con
+ * 275 casillas es la diferencia entre configurar y resignarse; y como nada se
+ * guarda hasta presionar Guardar, equivocarse no cuesta nada.
+ */
+function filaPermiso(nombre, tipo, valor, estaMarcada) {
+  return '<tr data-fila="' + esc(valor) + '"><td class="pm-fija">' + esc(nombre) + '</td>' +
+    PERMISOS_EDIT.roles.map(function (rol) {
+      return '<td class="pm-celda"><label><input type="checkbox" data-rol="' + esc(rol.id) +
+             '" data-' + tipo + '="' + esc(valor) + '"' +
+             (estaMarcada(rol.id) ? ' checked' : '') + '></label></td>';
+    }).join('') +
+    '<td class="pm-todos"><button type="button" class="pm-atajo" data-todos="' + esc(valor) +
+    '" title="Marcar o desmarcar esta fila para todos los roles">todos</button></td></tr>';
+}
+
+$('tablaPermisos').addEventListener('change', function (e) {
+  var c = e.target.closest('input[type=checkbox][data-rol]');
+  if (!c) return;
+  anotarPermiso(c.dataset.rol, c.dataset.permiso, c.dataset.fase, c.checked);
+});
+
+$('tablaPermisos').addEventListener('click', function (e) {
+  var atajo = e.target.closest('[data-todos]');
+  if (!atajo) return;
+  var fila = atajo.closest('tr');
+  var casillas = fila.querySelectorAll('input[type=checkbox]');
+  // Si falta alguna por marcar, el atajo marca; si ya estaban todas, desmarca.
+  var marcar = Array.prototype.some.call(casillas, function (c) { return !c.checked; });
+  Array.prototype.forEach.call(casillas, function (c) {
+    c.checked = marcar;
+    anotarPermiso(c.dataset.rol, c.dataset.permiso, c.dataset.fase, marcar);
+  });
+});
+
+/** Guarda en memoria lo que se acaba de marcar o desmarcar. */
+function anotarPermiso(rolId, permiso, fase, marcado) {
+  PERMISOS_SUCIOS = true;
+  if (permiso) {
+    PERMISOS_EDIT.valores[rolId][permiso] = marcado;
+    return;
+  }
+  var fases = PERMISOS_EDIT.fases[rolId];
+  var i = fases.indexOf(fase);
+  if (marcado && i === -1) fases.push(fase);
+  if (!marcado && i !== -1) fases.splice(i, 1);
+}
+
+function guardarPermisosDeLaPagina() {
+  if (!PERMISOS_EDIT) return;
+  var boton = $('btnGuardarPermisos');
+  boton.disabled = true;
+  boton.textContent = 'Guardando…';
+  api('guardarPermisos', PERMISOS_EDIT.valores, PERMISOS_EDIT.fases).then(function () {
+    PERMISOS_SUCIOS = false;
+    toast('Permisos guardados. Cada persona los verá al volver a entrar.');
+    invalidarCacheCliente();
+    $('permisosAviso').textContent = 'Qué puede hacer cada rol.';
+  }).catch(fallo).then(function () {
+    boton.disabled = false;
+    boton.textContent = 'Guardar permisos';
+  });
 }
 
 $('btnMigrar').addEventListener('click', function () {
