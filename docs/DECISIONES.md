@@ -1070,6 +1070,30 @@ etiqueta cuando los dos tenían contenido, sin etiqueta cuando solo uno lo tení
 ninguna fila que ya tenga alcance propio**. Corre primero en simulación y solo escribe si se la
 llama con `true`.
 
+### D-67 · La iniciativa se busca escribiendo, no bajando por una lista de 39
+
+Al crear una solicitud, la iniciativa se elegía de un desplegable con las 39 del portafolio, en
+el orden en que venían de la hoja. Ahora es un campo donde se escribe parte del nombre y la lista
+se reduce sola, en **orden alfabético**.
+
+Es el mismo mecanismo que ya usan los filtros del tablero (`llenarCombo` / `valorCombo`), no uno
+nuevo: lista predictiva del navegador, sin librerías, y funciona igual en celular.
+
+**El cambio corrige además un error silencioso.** Un `<select>` siempre trae la primera opción
+seleccionada, así que quien no tocaba el campo creaba la solicitud colgada de la primera
+iniciativa de la lista sin enterarse. El campo de texto arranca vacío, y al guardar se distinguen
+dos casos: vacío ("elija la iniciativa") y texto que no corresponde a ninguna ("no hay ninguna
+iniciativa con ese nombre"), con el campo marcado en rojo hasta que se corrige.
+
+**Dos opciones con el mismo nombre ya no se tapan entre sí.** La lista resuelve el texto escrito a
+un identificador, así que dos iniciativas homónimas harían que una fuera inalcanzable sin que nada
+lo advirtiera. Ahora la segunda lleva su código entre paréntesis. Hoy no hay nombres repetidos en
+las 39, pero el nombre es texto libre y nada impide que mañana los haya. Vale para todos los
+combos, incluidos los filtros del tablero.
+
+Los demás campos del formulario siguen siendo desplegables: son listas cortas (plataformas, tipos,
+prioridades) donde ver todas las opciones de un vistazo es mejor que escribir.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

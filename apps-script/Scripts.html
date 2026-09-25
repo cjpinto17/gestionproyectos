@@ -1097,18 +1097,35 @@ function prepararFiltrosKanban(r) {
 
 /**
  * Llena una lista predictiva y guarda la equivalencia texto -> identificador.
- * Las opciones quedan ordenadas alfabeticamente.
+ *
+ * Las opciones quedan en orden alfabetico (con localeCompare en espanol, para
+ * que las tildes y la n con virgulilla caigan donde uno las busca y no al final).
+ *
+ * Si dos opciones se llaman igual —dos iniciativas con el mismo nombre, dos
+ * personas homonimas— la segunda lleva su codigo entre parentesis. Sin eso, el
+ * texto escrito apuntaria siempre a una de las dos y la otra seria inalcanzable
+ * sin que nada lo advirtiera.
  */
 var EQUIVALENCIAS = {};
 function llenarCombo(idLista, opciones) {
   var ordenadas = opciones.slice().sort(function (a, b) {
     return String(a.texto).localeCompare(String(b.texto), 'es');
   });
-  EQUIVALENCIAS[idLista] = {};
-  ordenadas.forEach(function (o) {
-    EQUIVALENCIAS[idLista][String(o.texto).toLowerCase()] = o.id;
+
+  var vistos = {};
+  var etiquetas = ordenadas.map(function (o) {
+    var texto = String(o.texto || o.id);
+    var clave = texto.toLowerCase();
+    if (vistos[clave]) texto = texto + ' (' + o.id + ')';
+    vistos[clave] = true;
+    return { id: o.id, texto: texto };
   });
-  $(idLista).innerHTML = ordenadas.map(function (o) {
+
+  EQUIVALENCIAS[idLista] = {};
+  etiquetas.forEach(function (o) {
+    EQUIVALENCIAS[idLista][o.texto.toLowerCase()] = o.id;
+  });
+  $(idLista).innerHTML = etiquetas.map(function (o) {
     return '<option value="' + esc(o.texto) + '"></option>';
   }).join('');
 }
@@ -1560,7 +1577,11 @@ $('btnNueva').addEventListener('click', function () {
   abrirModal('Nueva solicitud', 'Se creará la carpeta en Drive para esta solicitud',
     '<div class="formulario">' +
     '<label class="campo"><span>Iniciativa *</span>' +
-      sel('nsProyecto', CAT.proyectos, 'ID_Proyecto', 'Nombre_Proyecto') + '</label>' +
+      '<input type="text" id="nsProyecto" list="dlNsProyecto" autocomplete="off" ' +
+        'placeholder="Escriba parte del nombre…">' +
+      '<datalist id="dlNsProyecto"></datalist>' +
+      '<small style="color:var(--ink-faint)">Son ' + CAT.proyectos.length +
+      ' iniciativas: escriba una parte del nombre y la lista se reduce sola.</small></label>' +
     '<label class="campo"><span>Nombre de la solicitud *</span>' +
       '<input type="text" id="nsNombre" maxlength="120"></label>' +
     '<label class="campo"><span>Alcance</span>' +
@@ -1592,6 +1613,16 @@ $('btnNueva').addEventListener('click', function () {
     function () {
       var nombre = $('nsNombre').value.trim();
       if (!nombre) throw new Error('Escriba el nombre de la solicitud.');
+      // El combo devuelve '' si esta vacio y null si lo escrito no corresponde
+      // a ninguna iniciativa. Los dos casos se atajan aqui: antes era un
+      // <select> y siempre traia la primera de la lista, asi que quien no lo
+      // tocaba creaba la solicitud colgada de una iniciativa que no era.
+      var proyecto = valorCombo('nsProyecto', 'dlNsProyecto');
+      if (!proyecto) {
+        throw new Error(proyecto === null
+          ? 'No hay ninguna iniciativa con ese nombre. Elija una de la lista.'
+          : 'Elija la iniciativa a la que pertenece la solicitud.');
+      }
       var doc = $('nsDoc').value.trim();
       if (doc && !/^https?:\/\//i.test(doc)) {
         throw new Error('El enlace del documento debe empezar por http:// o https://');
@@ -1599,7 +1630,7 @@ $('btnNueva').addEventListener('click', function () {
       return api('crearSolicitud', {
         Nombre_Solicitud: nombre,
         Alcance: $('nsAlcance').value,
-        ID_Proyecto: $('nsProyecto').value,
+        ID_Proyecto: proyecto,
         Plataforma_ID: $('nsPlataforma').value,
         Tipo_Solicitud: $('nsTipo').value,
         Prioridad: $('nsPrioridad').value,
@@ -1614,6 +1645,16 @@ $('btnNueva').addEventListener('click', function () {
         cargarGestion(true);
       });
     });
+
+  // La lista se llena despues de pintar la ventana, cuando el <datalist> ya
+  // existe en el documento. llenarCombo la deja en orden alfabetico.
+  llenarCombo('dlNsProyecto', CAT.proyectos.map(function (p) {
+    return { id: p.ID_Proyecto, texto: p.Nombre_Proyecto };
+  }));
+  $('nsProyecto').addEventListener('input', function () {
+    // Quita el aviso de "no coincide" apenas la persona corrige.
+    this.classList.remove('sin-coincidencia');
+  });
 });
 
 /* ================= Roadmap ================= */
