@@ -119,6 +119,23 @@ function puedeEditarSolicitud(rolId) {
 }
 
 /**
+ * Roles que pueden editar los datos de una iniciativa.
+ *
+ * La iniciativa es del negocio: quien la define, la prioriza y responde por
+ * ella. Por eso la editan el Product Owner y el Administrador, y no la fabrica,
+ * que si mantiene al dia las solicitudes que cuelgan de ella.
+ */
+var ROLES_EDITAN_INICIATIVA = ['RO-02', 'RO-08'];
+
+/**
+ * @param {string} rolId
+ * @return {boolean}
+ */
+function puedeEditarIniciativa(rolId) {
+  return ROLES_EDITAN_INICIATIVA.indexOf(rolId) !== -1;
+}
+
+/**
  * Roles que pueden crear y editar versiones del roadmap.
  *
  * El roadmap lo arma quien conoce el plan de entrega, y eso incluye al lider de

@@ -442,10 +442,86 @@ function mapaEstados() { return mapaCatalogo_(ESTADOS); }
 function mapaEstadosIniciativa() { return mapaCatalogo_(ESTADOS_INICIATIVA); }
 
 /** @return {!Object<string,string>} Mapa ID_Plataforma -> nombre. */
-function mapaPlataformas() { return mapaCatalogo_(PLATAFORMAS); }
+function mapaPlataformas() { return mapaCatalogo_(getPlataformas_()); }
 
 /** @return {!Object<string,string>} Mapa ID_LEN -> Nombre_LEN. */
-function mapaLineasEstrategicas() { return mapaCatalogo_(LINEAS_ESTRATEGICAS); }
+function mapaLineasEstrategicas() { return mapaCatalogo_(getLineasEstrategicas_()); }
 
 /** @return {!Object<string,string>} Mapa ID_Vertical -> Nombre_Vertical. */
-function mapaVerticales() { return mapaCatalogo_(VERTICALES); }
+function mapaVerticales() { return mapaCatalogo_(getVerticales_()); }
+
+/* ================================================================== */
+/* Catalogos vigentes: la hoja manda sobre la lista de arranque        */
+/* ================================================================== */
+
+/**
+ * Catalogos que el negocio puede ampliar desde Administracion, y donde por
+ * tanto la HOJA es la fuente de verdad. La lista que trae el codigo es solo el
+ * arranque: sirve para instalar y como respaldo si la hoja aun no existe.
+ *
+ * Los que NO estan aqui —roles, fases, estados, prioridad— siguen viniendo del
+ * codigo a proposito: cada uno tiene logica asociada (la matriz de permisos, el
+ * orden del embudo, los colores, el peso de la prioridad) que no se puede
+ * deducir de una fila nueva en una hoja. Agregar uno ahi no bastaria para que
+ * el sistema supiera que hacer con el.
+ */
+var CATALOGOS_AMPLIABLES = {
+  Plataforma_Digital: function () { return PLATAFORMAS; },
+  Lineas_Estrategicas: function () { return LINEAS_ESTRATEGICAS; },
+  Verticales: function () { return VERTICALES; },
+  Causales_Bloqueo: function () { return CAUSALES_BLOQUEO; },
+  Tipos_Solicitud: function () { return TIPOS_SOLICITUD; },
+  Tipos_Iniciativa: function () { return TIPOS_INICIATIVA; }
+};
+
+/**
+ * Devuelve un catalogo tal como esta HOY en la hoja.
+ *
+ * Antes los desplegables se armaban con la lista del codigo, asi que una
+ * plataforma agregada desde Administracion existia en la hoja pero no aparecia
+ * al editar una iniciativa. Ahora manda la hoja.
+ *
+ * @param {string} tabla
+ * @return {!Array<{id: string, nombre: string, orden: number}>}
+ */
+function catalogoVigente(tabla) {
+  var respaldo = CATALOGOS_AMPLIABLES[tabla] ? CATALOGOS_AMPLIABLES[tabla]() : null;
+  if (!respaldo) return respaldo;
+
+  try {
+    var def = getDefinicionTabla(tabla).def;
+    var filas = leerTabla_(tabla);
+    if (!filas.length) return respaldo;          // hoja vacia: aun no se instalo
+
+    var pk = def.pk;
+    var campoNombre = def.columnas[1] ? def.columnas[1].campo : pk;
+    var campoOrden = def.columnas[2] && /^Orden_/.test(def.columnas[2].campo)
+        ? def.columnas[2].campo : null;
+
+    var lista = filas.filter(function (f) { return f[pk]; }).map(function (f, i) {
+      return {
+        id: String(f[pk]),
+        nombre: String(f[campoNombre] || f[pk]),
+        orden: campoOrden ? (Number(f[campoOrden]) || i + 1) : i + 1
+      };
+    });
+
+    if (campoOrden) lista.sort(function (a, b) { return a.orden - b.orden; });
+    return lista;
+  } catch (e) {
+    return respaldo;      // sin hoja legible, el sistema sigue con lo del codigo
+  }
+}
+
+/** @return {!Array} Plataformas digitales vigentes. */
+function getPlataformas_() { return catalogoVigente('Plataforma_Digital'); }
+/** @return {!Array} Lineas estrategicas vigentes. */
+function getLineasEstrategicas_() { return catalogoVigente('Lineas_Estrategicas'); }
+/** @return {!Array} Verticales vigentes. */
+function getVerticales_() { return catalogoVigente('Verticales'); }
+/** @return {!Array} Causales de bloqueo vigentes. */
+function getCausalesBloqueo_() { return catalogoVigente('Causales_Bloqueo'); }
+/** @return {!Array} Tipos de solicitud vigentes. */
+function getTiposSolicitud_() { return catalogoVigente('Tipos_Solicitud'); }
+/** @return {!Array} Tipos de iniciativa vigentes. */
+function getTiposIniciativa_() { return catalogoVigente('Tipos_Iniciativa'); }

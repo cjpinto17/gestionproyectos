@@ -165,6 +165,7 @@ function contextoDeCorreo_(correo, via) {
     puedeOperarTablero: puedeOperarTablero(usuario.Rol_ID),
     puedeEditarSolicitud: puedeEditarSolicitud(usuario.Rol_ID),
     puedeGestionarVersiones: puedeGestionarVersiones(usuario.Rol_ID),
+    puedeEditarIniciativa: puedeEditarIniciativa(usuario.Rol_ID),
     fasesEditables: permisos.fases === TODAS
         ? FASES.map(function (f) { return f.id; })
         : permisos.fases
@@ -493,18 +494,18 @@ function conBloqueo_(operacion) {
 function getCatalogos() {
   return {
     proyectos: leerTabla_('Proyectos'),
-    plataformas: PLATAFORMAS,
+    plataformas: getPlataformas_(),
     usuarios: leerTabla_('Usuarios'),
     fases: FASES,
     estados: ESTADOS,
     estadosIniciativa: ESTADOS_INICIATIVA,
-    tipos: TIPOS_SOLICITUD,
-    tiposIniciativa: TIPOS_INICIATIVA,
+    tipos: getTiposSolicitud_(),
+    tiposIniciativa: getTiposIniciativa_(),
     prioridades: PRIORIDADES,
-    causales: CAUSALES_BLOQUEO,
+    causales: getCausalesBloqueo_(),
     roles: ROLES,
-    lineasEstrategicas: LINEAS_ESTRATEGICAS,
-    verticales: VERTICALES
+    lineasEstrategicas: getLineasEstrategicas_(),
+    verticales: getVerticales_()
   };
 }
 
@@ -600,12 +601,12 @@ function armarDatosKanban_(filtros) {
     solicitudes: solicitudes,
     proyectos: proyectos,
     usuarios: usuarios,
-    plataformas: PLATAFORMAS,
+    plataformas: getPlataformas_(),
     fases: FASES,
     estados: ESTADOS,
-    tipos: TIPOS_SOLICITUD,
+    tipos: getTiposSolicitud_(),
     prioridades: PRIORIDADES,
-    causales: CAUSALES_BLOQUEO,
+    causales: getCausalesBloqueo_(),
     versiones: getVersionesDisponibles_()
   };
 }
@@ -1548,12 +1549,14 @@ function adminCargarTabla(tabla) {
  * @private
  */
 function opcionesDeReferencia_(columnas) {
+  // Los catalogos ampliables salen de la hoja, no de la lista del codigo: si
+  // alguien agrego una plataforma desde Administracion, tiene que aparecer aqui.
   var catalogos = {
     Roles: ROLES, Fases: FASES, Estados: ESTADOS, Estados_Iniciativa: ESTADOS_INICIATIVA,
-    Tipos_Solicitud: TIPOS_SOLICITUD, Tipos_Iniciativa: TIPOS_INICIATIVA,
-    Prioridad: PRIORIDADES, Causales_Bloqueo: CAUSALES_BLOQUEO,
-    Plataforma_Digital: PLATAFORMAS, Lineas_Estrategicas: LINEAS_ESTRATEGICAS,
-    Verticales: VERTICALES
+    Prioridad: PRIORIDADES,
+    Tipos_Solicitud: getTiposSolicitud_(), Tipos_Iniciativa: getTiposIniciativa_(),
+    Causales_Bloqueo: getCausalesBloqueo_(), Plataforma_Digital: getPlataformas_(),
+    Lineas_Estrategicas: getLineasEstrategicas_(), Verticales: getVerticales_()
   };
   var opciones = {};
   columnas.forEach(function (col) {
@@ -1857,7 +1860,9 @@ var METODOS_PUBLICOS = {
   getFormularioMigracion: true,
   migrarSolicitud: true,
   getFormularioVersion: true,
-  guardarVersion: true
+  guardarVersion: true,
+  getFormularioIniciativa: true,
+  guardarIniciativa: true
 };
 
 /**
@@ -2016,5 +2021,79 @@ function guardarVersion(idVersion, datos) {
     validarRegistro_('Roadmap_Versiones', registro, true);
     agregarFila_('Roadmap_Versiones', registro);
     return { ok: true, idVersion: registro.ID_Version };
+  });
+}
+
+/* ================================================================== */
+/* 15. Edicion de iniciativas                                          */
+/* ================================================================== */
+
+/** @private */
+function exigirEdicionIniciativa_() {
+  var ctx = exigirSesion_();
+  if (!puedeEditarIniciativa(ctx.rolId)) {
+    throw new Error('Su rol no puede editar iniciativas.');
+  }
+  return ctx;
+}
+
+/**
+ * Formulario de edicion de una iniciativa.
+ *
+ * Se edita desde donde se está mirando —la tarjeta o la fila del listado— y no
+ * desde Administracion, por la misma razon que las versiones (D-55): quien
+ * conoce la iniciativa no tiene por que ser administrador de todos los
+ * catalogos maestros.
+ *
+ * @param {string} idProyecto
+ * @return {!Object} { idProyecto, columnas, opciones, valores }
+ */
+function getFormularioIniciativa(idProyecto) {
+  exigirEdicionIniciativa_();
+
+  var actual = buscarPorPk_('Proyectos', idProyecto);
+  if (!actual) throw new Error('No existe la iniciativa ' + idProyecto + '.');
+
+  var info = getDefinicionTabla('Proyectos');
+  var columnas = info.def.columnas.filter(function (c) {
+    return c.campo !== info.def.pk;          // la llave no se toca
+  });
+
+  return {
+    idProyecto: idProyecto,
+    columnas: columnas,
+    opciones: opcionesDeReferencia_(columnas),
+    valores: actual
+  };
+}
+
+/**
+ * Guarda la edicion de una iniciativa.
+ * @param {string} idProyecto
+ * @param {!Object} datos
+ * @return {!Object}
+ */
+function guardarIniciativa(idProyecto, datos) {
+  exigirEdicionIniciativa_();
+
+  return conBloqueo_(function () {
+    var actual = buscarPorPk_('Proyectos', idProyecto);
+    if (!actual) throw new Error('No existe la iniciativa ' + idProyecto + '.');
+
+    var info = getDefinicionTabla('Proyectos');
+    var nuevo = {};
+    Object.keys(actual).forEach(function (k) { if (k !== '_fila') nuevo[k] = actual[k]; });
+    info.def.columnas.forEach(function (c) {
+      if (c.campo === info.def.pk) return;
+      if (datos[c.campo] !== undefined) nuevo[c.campo] = datos[c.campo];
+    });
+    nuevo[info.def.pk] = idProyecto;
+
+    normalizarFechas_('Proyectos', nuevo);
+    nuevo.Prioridad = normalizarPrioridad_(nuevo.Prioridad) || nuevo.Prioridad;
+    validarRegistro_('Proyectos', nuevo, false);
+    escribirFila_('Proyectos', actual._fila, nuevo);
+
+    return { ok: true, idProyecto: idProyecto };
   });
 }

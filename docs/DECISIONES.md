@@ -841,6 +841,61 @@ El orden dentro de cada iniciativa es el del **backlog** (`Orden_Iniciativa`), q
 negocio definió para decir qué se trabaja primero; lo que no tenga orden va al final y no al
 principio por valer cero.
 
+### D-57 · Los catálogos que se amplían desde Administración se leen de la hoja
+
+Administración permite crear plataformas digitales, líneas estratégicas, verticales, causales de
+bloqueo y tipos. Sin embargo, los formularios seguían mostrando la lista escrita en el código:
+una plataforma nueva se guardaba en la hoja y no aparecía en ningún desplegable. Era el reporte
+*"en la edición de proyectos desde admin no muestra la lista completa de plataformas digitales"*.
+
+Ahora esos seis catálogos se leen de su hoja cada vez que se arma un formulario
+(`catalogoVigente` en `Esquema.gs`), y la lista del código queda solo como **respaldo**: se usa
+si la hoja todavía no se ha creado —una instalación nueva— o si leerla falla. Cuando la hoja
+tiene una columna `Orden_`, ese es el orden en que se ven.
+
+**Cuatro catálogos siguen viviendo en el código a propósito**, y no es un olvido:
+
+| Catálogo | Por qué no se amplía desde la hoja |
+| --- | --- |
+| Roles | Cada rol tiene una matriz de permisos escrita en `Rbac.gs`; un rol nuevo en la hoja no tendría permisos y sería un usuario sin acceso a nada |
+| Fases | El embudo tiene un orden y unos SLA por fase; una fase nueva rompería las métricas de lead time |
+| Estados | El color y el comportamiento (bloqueada, finalizada) están atados al ID |
+| Prioridad | El peso que ordena las columnas de la vista por prioridad está atado al ID |
+
+Para tocar cualquiera de esos cuatro hay que cambiar el código, que es exactamente la barrera
+que se quiere.
+
+### D-58 · La tarjeta de la iniciativa se edita, pero solo dos roles
+
+Hasta ahora una iniciativa mal escrita había que corregirla en Administración, tabla por tabla.
+El lápiz de la tarjeta —y el de la fila del listado— abre el mismo formulario, con los valores
+actuales cargados.
+
+**El ID de la iniciativa no está en el formulario.** Es lo que la amarra con sus solicitudes: si
+se pudiera cambiar, las solicitudes quedarían huérfanas. Todo lo demás sí se corrige, incluidas
+las fechas y la plataforma.
+
+**Lo pueden hacer el líder de la gerencia (RO-02) y el administrador (RO-08).** No la fábrica de
+software ni los Business Owner: la iniciativa es la unidad de planeación del portafolio, y quien
+la reordena o le cambia la prioridad está moviendo el plan, no ejecutando una tarea. El permiso
+se comprueba **en el servidor** antes de abrir el formulario y otra vez antes de guardar; el
+lápiz que no se ve en pantalla es cortesía, no la seguridad.
+
+### D-59 · El listado se ordena por fecha y su encabezado se queda quieto
+
+Dos cambios sobre la vista de Listado, de la misma conversación:
+
+**El orden ya no es alfabético sino por fecha de inicio**, de la más antigua a la más reciente, y
+a igualdad de inicio manda la fecha de fin planeado. Alfabético respondía *"¿dónde está esta
+iniciativa?"*; por fecha responde *"¿qué está arrancando ahora y qué viene después?"*, que es la
+pregunta que se le hace a un listado con fechas. **Lo que no tiene fecha queda al final**, no al
+principio: una iniciativa sin fecha registrada no es una que empieza el 1 de enero del año cero.
+
+**El encabezado se queda quieto al desplazarse.** La tabla ahora tiene su propio desplazamiento
+vertical (`.listado-scroll`) en vez de empujar toda la página, y las celdas del encabezado van
+pegadas arriba de esa caja. Con 39 iniciativas en pantalla, a mitad de lista ya no se sabía qué
+columna era cuál.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

@@ -755,7 +755,7 @@ function getRoadmapVersiones() {
   });
 
   return {
-    plataformas: PLATAFORMAS,
+    plataformas: getPlataformas_(),
     porPlataforma: porPlataforma,
     cumplimiento: calcularCumplimientoFecha_(datos.roadmap)
   };
@@ -839,12 +839,12 @@ function calcularMatrizIniciativas_() {
   });
 
   return {
-    lineas: LINEAS_ESTRATEGICAS,
-    verticales: VERTICALES,
-    tipos: TIPOS_INICIATIVA,
+    lineas: getLineasEstrategicas_(),
+    verticales: getVerticales_(),
+    tipos: getTiposIniciativa_(),
     estados: ESTADOS_INICIATIVA,
     prioridades: PRIORIDADES,
-    plataformas: PLATAFORMAS,
+    plataformas: getPlataformas_(),
     celdas: celdas,
     totalIniciativas: datos.proyectos.length
   };

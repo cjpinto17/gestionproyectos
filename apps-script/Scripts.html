@@ -510,9 +510,7 @@ function pintarListadoIniciativas() {
 
   var todas = [];
   Object.keys(r.celdas).forEach(function (k) { todas = todas.concat(r.celdas[k]); });
-  var visibles = todas.filter(pasa).sort(function (a, b) {
-    return String(a.nombre).localeCompare(String(b.nombre), 'es');
-  });
+  var visibles = todas.filter(pasa).sort(ordenPorFecha);
 
   $('tituloListado').textContent = visibles.length === 1
       ? '1 iniciativa'
@@ -522,7 +520,8 @@ function pintarListadoIniciativas() {
     return '<span style="color:var(--ink-faint)">' + texto + '</span>';
   };
 
-  var columnas = ['Iniciativa', 'LEN', 'Vertical', 'Estado', 'Plataforma', 'Business Owner'];
+  var columnas = ['Iniciativa', 'LEN', 'Vertical', 'Estado', 'Plataforma', 'Business Owner',
+                  'Inicio', 'Fin planeado'];
 
   $('listadoIni').innerHTML =
     '<thead><tr><th style="width:26px"></th>' + columnas.map(function (c) {
@@ -536,7 +535,11 @@ function pintarListadoIniciativas() {
               '" data-ini="' + esc(i.idProyecto) + '" role="button" tabindex="0"' +
               ' aria-expanded="' + (abierta ? 'true' : 'false') + '">' +
             '<td class="ini-flecha">' + (abierta ? '&#9662;' : '&#9656;') + '</td>' +
-            '<td style="font-weight:600">' + esc(i.nombre) + '</td>' +
+            '<td style="font-weight:600">' + esc(i.nombre) +
+              (CTX.puedeEditarIniciativa
+                ? '<button class="lapiz" title="Editar iniciativa" data-editar-ini="' +
+                  esc(i.idProyecto) + '">&#9998;</button>'
+                : '') + '</td>' +
             '<td>' + (i.lenId ? esc(nombreDeCatalogo(r.lineas, i.lenId)) : sinDato('sin LEN')) + '</td>' +
             '<td>' + (i.verticalId ? esc(nombreDeCatalogo(r.verticales, i.verticalId))
                                    : sinDato('sin vertical')) + '</td>' +
@@ -546,6 +549,10 @@ function pintarListadoIniciativas() {
                        : sinDato('sin estado')) + '</td>' +
             '<td>' + (i.plataforma ? esc(i.plataforma) : sinDato('sin plataforma')) + '</td>' +
             '<td>' + (i.bo ? esc(i.bo) : sinDato('sin asignar')) + '</td>' +
+            '<td class="num">' + (i.fechaInicio ? esc(fecha(i.fechaInicio))
+                                                : sinDato('sin fecha')) + '</td>' +
+            '<td class="num">' + (i.fechaFinPlaneada ? esc(fecha(i.fechaFinPlaneada))
+                                                     : sinDato('sin fecha')) + '</td>' +
           '</tr>' +
           (abierta
             ? '<tr class="ini-abierta"><td></td><td colspan="' + columnas.length +
@@ -561,6 +568,8 @@ function pintarListadoIniciativas() {
 var INI_ABIERTAS = {};
 
 $('listadoIni').addEventListener('click', function (e) {
+  var lapiz = e.target.closest('[data-editar-ini]');
+  if (lapiz) { formularioIniciativa(lapiz.dataset.editarIni); return; }
   var fila = e.target.closest('.ini-fila[data-ini]');
   if (fila) alternarIniciativa(fila.dataset.ini);
 });
@@ -733,6 +742,26 @@ function filtroIniciativas() {
     if (q && String(i.nombre).toLowerCase().indexOf(q) === -1) return false;
     return true;
   };
+}
+
+/**
+ * Orden del listado: por fecha de inicio ascendente, y a igualdad de inicio por
+ * la de fin. Lo que no tiene fecha va al final y no al principio: una iniciativa
+ * sin fechas no es la mas proxima, es la que no se ha planeado.
+ */
+function ordenPorFecha(a, b) {
+  var ia = marcaDeTiempo(a.fechaInicio), ib = marcaDeTiempo(b.fechaInicio);
+  if (ia !== ib) return ia - ib;
+  var fa = marcaDeTiempo(a.fechaFinPlaneada), fb = marcaDeTiempo(b.fechaFinPlaneada);
+  if (fa !== fb) return fa - fb;
+  return String(a.nombre).localeCompare(String(b.nombre), 'es');
+}
+
+/** Fecha comparable; lo que no tenga fecha se va al final. */
+function marcaDeTiempo(valor) {
+  if (!valor) return Infinity;
+  var d = new Date(valor);
+  return isNaN(d.getTime()) ? Infinity : d.getTime();
 }
 
 function ordenPorPrioridad(a, b) {
@@ -922,7 +951,11 @@ function tarjetaIniciativa(i, conClasificacion) {
       : '<div class="fechas"><span>Sin fechas registradas</span></div>';
 
   return '<article class="ini ' + franja + (i.prioridad === 'PRI-01' ? ' critica' : '') + '">' +
-    '<h4>' + esc(i.nombre) + '</h4>' +
+    '<h4>' + esc(i.nombre) +
+      (CTX.puedeEditarIniciativa
+        ? '<button class="lapiz ini-lapiz" title="Editar iniciativa" data-editar-ini="' +
+          esc(i.idProyecto) + '">&#9998;</button>'
+        : '') + '</h4>' +
     '<div class="meta">' +
       '<span class="badge ' + clase + '">' + esc(nombreEst) + '</span>' +
       (i.prioridadNombre
@@ -1197,7 +1230,14 @@ function validarTransicionCliente(origen, destino) {
 }
 
 /* --- Detalle de la actividad --- */
+// Las tarjetas de iniciativa viven en la matriz y en las columnas por prioridad;
+// el listado tiene su propio manejador.
 document.addEventListener('click', function (e) {
+  var lapizIni = e.target.closest('[data-editar-ini]');
+  if (lapizIni && !e.target.closest('#listadoIni')) {
+    formularioIniciativa(lapizIni.dataset.editarIni);
+    return;
+  }
   var lapiz = e.target.closest('[data-editar-sol]');
   if (lapiz) { editarSolicitud(lapiz.dataset.editarSol); return; }
   var alerta = e.target.closest('[data-alerta]');
@@ -1516,6 +1556,25 @@ $('btnNuevaVersion').addEventListener('click', function () { formularioVersion('
  * Vive aqui y no en Administracion porque quien arma el plan de entrega no es
  * necesariamente administrador.
  */
+function formularioIniciativa(idProyecto) {
+  abrirModal('Editar iniciativa', '', '<p class="nota">Cargando\u2026</p>', null);
+  api('getFormularioIniciativa', idProyecto).then(function (f) {
+    var campos = construirCampos(f.columnas, f.opciones, f.valores, null);
+    abrirModal('Editar iniciativa', esc(f.valores.Nombre_Proyecto || idProyecto),
+      '<div class="formulario">' +
+        '<p class="nota" style="margin:0">El ID de la iniciativa no cambia: es el que la ' +
+        'relaciona con sus solicitudes. Lo dem\u00e1s se puede corregir.</p>' + campos + '</div>',
+      function () {
+        return api('guardarIniciativa', idProyecto, leerCampos(f.columnas)).then(function () {
+          toast('Iniciativa actualizada.');
+          DATOS.matriz = null;
+          INI_ABIERTAS = {};
+          cargarIniciativas();
+        });
+      });
+  }).catch(function (err) { cerrarModal(); fallo(err); });
+}
+
 function formularioVersion(idVersion) {
   abrirModal(idVersion ? 'Editar versión' : 'Nueva versión', '',
              '<p class="nota">Cargando…</p>', null);
