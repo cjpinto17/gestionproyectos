@@ -160,11 +160,21 @@
   .b-cerrado{background:#EEF2F9;color:#42557A}
 
   /* Kanban */
-  .kanban{display:flex;gap:12px;overflow-x:auto;padding-bottom:14px;align-items:flex-start}
+  /* El tablero se desplaza dentro de su propia caja, no empujando la pagina:
+     asi el nombre de cada fase se queda arriba mientras se recorre la columna.
+     Sin esto, a la quinta tarjeta ya no se sabia en que fase se estaba. */
+  .kanban{display:flex;gap:12px;overflow:auto;padding-bottom:14px;align-items:flex-start;
+          max-height:calc(100vh - 230px);min-height:340px}
   .col{flex:0 0 272px;background:#E8EDF7;border-radius:var(--radio);padding:10px}
   .col.destino{background:#D8F5E6;box-shadow:inset 0 0 0 2px var(--esmeralda)}
   .col.vetada{background:#F6E2E2;box-shadow:inset 0 0 0 2px #E7A3A3}
-  .col-cab{display:flex;align-items:center;gap:8px;padding:2px 4px 10px}
+  /* El encabezado se pega arriba de la columna. El fondo se hereda para que
+     siga el color de la columna cuando es destino de arrastre o esta vetada,
+     y los margenes negativos lo estiran sobre el relleno de .col para que las
+     tarjetas no se vean pasar por el costado. */
+  .col-cab{display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:2;
+           background:inherit;margin:-10px -10px 0;padding:12px 14px 10px;
+           border-radius:var(--radio) var(--radio) 0 0}
   .col-cab .orden{background:var(--navy);color:#fff;font-family:var(--display);font-weight:700;font-size:11px;width:19px;height:19px;border-radius:5px;display:grid;place-items:center}
   .col-cab h3{font-size:12.5px;font-weight:700;line-height:1.2}
   .col-cab .cuenta{margin-left:auto;font-size:12px;color:var(--ink-muted);font-variant-numeric:tabular-nums}

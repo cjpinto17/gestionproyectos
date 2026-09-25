@@ -423,7 +423,10 @@ function cargarIniciativas() {
     pintarIniciativas();
     return;
   }
-  cargando(VISTA_INI === 'matriz' ? 'matriz' : 'prioridades', 'matriz');
+  // El esqueleto va en el contenedor de la vista que se esta abriendo; si
+  // fuera siempre el de la matriz, la vista que abre por defecto arrancaria
+  // en blanco mientras llegan los datos.
+  cargando(CAJA_ESQUELETO_INI[VISTA_INI] || 'matriz', 'matriz');
   api('getMatrizIniciativas').then(function (r) {
     DATOS.matriz = r;
     prepararFiltrosIniciativas(r);
@@ -462,11 +465,19 @@ $('filtroPrioridadIni').addEventListener('change', pintarIniciativas);
 $('filtroPlataformaIni').addEventListener('change', pintarIniciativas);
 
 /**
- * Vista activa del portafolio: la matriz LEN x vertical, o las columnas por
- * prioridad. Los dos cortes leen los mismos datos y respetan los mismos
- * filtros; cambia el eje con el que se agrupan.
+ * Vista activa del portafolio. Las tres leen los mismos datos y respetan los
+ * mismos filtros; cambia el eje con el que se agrupan.
+ *
+ * Abre en "listado" (rotulada Seguimiento en pantalla) porque es la que
+ * responde la pregunta de todos los dias —como va cada tema— y la unica que
+ * deja abrir una iniciativa para ver sus solicitudes. La matriz y las columnas
+ * por prioridad responden preguntas de planeacion, que se hacen de vez en
+ * cuando, y quedan a un clic.
  */
-var VISTA_INI = 'matriz';
+var VISTA_INI = 'listado';
+
+/** Donde va el esqueleto de carga de cada vista. */
+var CAJA_ESQUELETO_INI = { matriz: 'matriz', prioridad: 'prioridades', listado: 'listadoIni' };
 
 $('vistaIni').addEventListener('click', function (e) {
   var boton = e.target.closest('button[data-vista]');
@@ -536,6 +547,7 @@ function pintarListadoIniciativas() {
               ' aria-expanded="' + (abierta ? 'true' : 'false') + '">' +
             '<td class="ini-flecha">' + (abierta ? '&#9662;' : '&#9656;') + '</td>' +
             '<td style="font-weight:600">' + esc(i.nombre) +
+              botonComentarios(i.idProyecto, '') +
               (CTX.puedeEditarIniciativa
                 ? '<button class="lapiz" title="Editar iniciativa" data-editar-ini="' +
                   esc(i.idProyecto) + '">&#9998;</button>'
@@ -570,6 +582,8 @@ function pintarListadoIniciativas() {
 var INI_ABIERTAS = {};
 
 $('listadoIni').addEventListener('click', function (e) {
+  var globo = e.target.closest('[data-comentar-ini]');
+  if (globo) { comentariosIniciativa(globo.dataset.comentarIni); return; }
   var lapiz = e.target.closest('[data-editar-ini]');
   if (lapiz) { formularioIniciativa(lapiz.dataset.editarIni); return; }
   var fila = e.target.closest('.ini-fila[data-ini]');
@@ -801,6 +815,17 @@ function formatoPuntos(n) {
   return (v % 1 === 0 ? String(v) : String(v).replace('.', ',')) + ' puntos';
 }
 
+/**
+ * El globo de comentarios de una iniciativa.
+ *
+ * A diferencia del lapiz, lo ve todo el mundo: comentar no es editar, y el
+ * seguimiento sirve justamente porque escribe quien tiene el dato.
+ */
+function botonComentarios(idProyecto, clases) {
+  return '<button class="lapiz' + clases + '" title="Comentarios de la iniciativa" ' +
+         'data-comentar-ini="' + esc(idProyecto) + '">&#128172;</button>';
+}
+
 function ordenPorFecha(a, b) {
   var ia = marcaDeTiempo(a.fechaInicio), ib = marcaDeTiempo(b.fechaInicio);
   if (ia !== ib) return ia - ib;
@@ -1007,7 +1032,8 @@ function tarjetaIniciativa(i, conClasificacion) {
       (CTX.puedeEditarIniciativa
         ? '<button class="lapiz ini-lapiz" title="Editar iniciativa" data-editar-ini="' +
           esc(i.idProyecto) + '">&#9998;</button>'
-        : '') + '</h4>' +
+        : '') +
+      botonComentarios(i.idProyecto, ' ini-lapiz') + '</h4>' +
     '<div class="meta">' +
       '<span class="badge ' + clase + '">' + esc(nombreEst) + '</span>' +
       (i.prioridadNombre
@@ -1285,6 +1311,11 @@ function validarTransicionCliente(origen, destino) {
 // Las tarjetas de iniciativa viven en la matriz y en las columnas por prioridad;
 // el listado tiene su propio manejador.
 document.addEventListener('click', function (e) {
+  var globoIni = e.target.closest('[data-comentar-ini]');
+  if (globoIni && !e.target.closest('#listadoIni')) {
+    comentariosIniciativa(globoIni.dataset.comentarIni);
+    return;
+  }
   var lapizIni = e.target.closest('[data-editar-ini]');
   if (lapizIni && !e.target.closest('#listadoIni')) {
     formularioIniciativa(lapizIni.dataset.editarIni);
@@ -1378,11 +1409,11 @@ function verDetalle(id) {
     abrirModal(s.Nombre_Solicitud, s.ID_Solicitud + ' · ' + s.Nombre_Plataforma,
       '<dl>' + filas + '</dl>' + alerta +
       '<div style="margin-top:12px">' + enlaces + '</div>' + acciones +
-      bloqueSeguimiento(s) +
+      bloqueComentarios(s.Observaciones) +
       (historial ? tituloSeccion('Últimos movimientos') +
         '<div class="lista-simple">' + historial + '</div>' : ''), null);
 
-    conectarSeguimiento(s.ID_Solicitud);
+    conectarComentarios('agregarObservacion', s.ID_Solicitud);
 
     if ($('btnBloquear')) {
       $('btnBloquear').addEventListener('click', function () { formularioBloqueo(s.ID_Solicitud); });
@@ -1407,40 +1438,52 @@ function tituloSeccion(texto) {
 }
 
 /**
- * El seguimiento de la solicitud: lo que la gente ha ido anotando.
+ * Los comentarios de algo: lo que la gente ha ido anotando.
  *
- * Va de lo mas reciente a lo mas antiguo porque lo que se necesita al abrir
- * una solicitud es en que quedo, no como empezo. Escribir puede cualquiera con
- * sesion; borrar o editar, nadie: un seguimiento que se puede reescribir
- * despues deja de servir para saber que se dijo y cuando.
+ * Van de lo mas reciente a lo mas antiguo porque lo que se necesita al abrir
+ * una solicitud —o una iniciativa— es en que quedo, no como empezo. Escribir
+ * puede cualquiera con sesion; borrar o editar, nadie: un seguimiento que se
+ * puede reescribir despues deja de servir para saber que se dijo y cuando.
+ *
+ * El mismo bloque sirve para las dos cosas: solo cambia la operacion del
+ * servidor que lo guarda.
  */
-function bloqueSeguimiento(s) {
-  var obs = s.Observaciones || [];
-  var lista = obs.length
-      ? obs.map(function (o) {
-          return '<div class="obs">' +
-            '<div class="obs-cab"><b>' + esc(o.autor || 'sin autor') + '</b>' +
-            '<span>' + esc(fechaHora(o.fecha)) + '</span></div>' +
-            '<div class="obs-txt">' + esc(o.texto) + '</div>' +
-          '</div>';
-        }).join('')
-      : '<p class="nota" style="margin:0">Todavía no hay observaciones. La primera ' +
-        'puede ser la suya.</p>';
-
-  return tituloSeccion('Seguimiento' + (obs.length ? ' · ' + obs.length : '')) +
+function bloqueComentarios(observaciones) {
+  var obs = observaciones || [];
+  return tituloSeccion('Comentarios' + (obs.length ? ' · ' + obs.length : '')) +
     '<div class="obs-nueva">' +
       '<textarea id="obsTexto" rows="3" maxlength="2000" ' +
         'placeholder="En qué quedó, qué se acordó, a quién se está esperando"></textarea>' +
       '<div class="fila" style="justify-content:space-between;align-items:center">' +
         '<span class="nota" id="obsRestan"></span>' +
-        '<button class="btn" id="btnObs">Agregar observación</button>' +
+        '<button class="btn" id="btnObs">Agregar comentario</button>' +
       '</div>' +
     '</div>' +
-    '<div class="obs-lista" id="obsLista">' + lista + '</div>';
+    '<div class="obs-lista" id="obsLista">' + listaComentarios(obs) + '</div>';
 }
 
-/** Conecta el cuadro de seguimiento del detalle recien abierto. */
-function conectarSeguimiento(idSolicitud) {
+/** Los comentarios ya escritos, o el texto de cuando no hay ninguno. */
+function listaComentarios(obs) {
+  if (!obs.length) {
+    return '<p class="nota" style="margin:0">Todavía no hay comentarios. El primero ' +
+           'puede ser el suyo.</p>';
+  }
+  return obs.map(function (o) {
+    return '<div class="obs">' +
+      '<div class="obs-cab"><b>' + esc(o.autor || 'sin autor') + '</b>' +
+      '<span>' + esc(fechaHora(o.fecha)) + '</span></div>' +
+      '<div class="obs-txt">' + esc(o.texto) + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+/**
+ * Conecta el cuadro de comentarios recien pintado.
+ *
+ * @param {string} metodo Operacion del servidor que guarda.
+ * @param {string} id Llave de la solicitud o de la iniciativa.
+ */
+function conectarComentarios(metodo, id) {
   var caja = $('obsTexto'), boton = $('btnObs'), restan = $('obsRestan');
   if (!caja || !boton) return;
 
@@ -1457,21 +1500,26 @@ function conectarSeguimiento(idSolicitud) {
     if (!texto) return;
     boton.disabled = true;
     boton.textContent = 'Guardando…';
-    api('agregarObservacion', idSolicitud, texto).then(function (s) {
-      // Se repinta solo el seguimiento: el resto del detalle no cambio y
-      // volver a armar el modal perderia el desplazamiento de quien lee.
+    api(metodo, id, texto).then(function (r) {
+      // Se repinta solo la lista: el resto de la ventana no cambio y volver a
+      // armarla perderia el desplazamiento de quien esta leyendo.
       caja.value = '';
-      $('obsLista').innerHTML = (s.Observaciones || []).map(function (o) {
-        return '<div class="obs"><div class="obs-cab"><b>' + esc(o.autor || 'sin autor') +
-          '</b><span>' + esc(fechaHora(o.fecha)) + '</span></div>' +
-          '<div class="obs-txt">' + esc(o.texto) + '</div></div>';
-      }).join('');
-      toast('Observación registrada.');
+      $('obsLista').innerHTML = listaComentarios(r.Observaciones || []);
+      toast('Comentario registrado.');
     }).catch(fallo).then(function () {
-      boton.textContent = 'Agregar observación';
+      boton.textContent = 'Agregar comentario';
       contar();
     });
   });
+}
+
+/** Ventana de comentarios de una iniciativa, desde cualquiera de las vistas. */
+function comentariosIniciativa(idProyecto) {
+  abrirModal('Comentarios', idProyecto, '<p class="nota">Cargando…</p>', null);
+  api('getObservacionesIniciativa', idProyecto).then(function (r) {
+    abrirModal('Comentarios', r.nombre, bloqueComentarios(r.Observaciones), null);
+    conectarComentarios('agregarObservacionIniciativa', idProyecto);
+  }).catch(function (err) { cerrarModal(); fallo(err); });
 }
 
 function formularioBloqueo(id) {

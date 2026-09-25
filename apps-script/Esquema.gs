@@ -364,6 +364,29 @@ var ESQUEMA_TRANSACCIONAL = {
     ]
   },
 
+  /**
+   * Lo mismo que Observaciones_Solicitud, pero a nivel de iniciativa.
+   *
+   * Son dos tablas y no una con un campo "tipo" porque cada una apunta a una
+   * llave distinta y las hojas se leen y se validan por tabla: mezclarlas
+   * obligaria a filtrar por tipo en cada lectura y a que una solicitud y una
+   * iniciativa compartieran espacio de llaves sin necesidad. La logica si es
+   * una sola (ver observacionesDe_ y registrarObservacion_).
+   */
+  Observaciones_Proyecto: {
+    etiqueta: 'Comentarios de iniciativas',
+    pk: 'ID_Observacion',
+    inmutable: true,
+    columnas: [
+      { campo: 'ID_Observacion', etiqueta: 'ID Observacion', tipo: 'text', requerido: true },
+      { campo: 'ID_Proyecto', etiqueta: 'Iniciativa', tipo: 'text', requerido: true },
+      { campo: 'Fecha_Hora', etiqueta: 'Fecha y hora', tipo: 'datetime', requerido: true },
+      { campo: 'Usuario_ID', etiqueta: 'Usuario', tipo: 'text', requerido: true },
+      { campo: 'Correo_Usuario', etiqueta: 'Correo del usuario', tipo: 'text' },
+      { campo: 'Observacion', etiqueta: 'Observacion', tipo: 'longtext', requerido: true }
+    ]
+  },
+
   Auditoria_Transiciones: {
     etiqueta: 'Auditoria de Transiciones',
     pk: 'ID_Auditoria',

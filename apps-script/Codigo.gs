@@ -717,25 +717,36 @@ function getDetalleSolicitud(idSolicitud) {
       .sort(function (a, b) {
         return String(b.Fecha_Hora_Cambio).localeCompare(String(a.Fecha_Hora_Cambio));
       });
-  s.Observaciones = observacionesDeSolicitud_(idSolicitud, nombreUsuario);
+  s.Observaciones = observacionesDe_('Observaciones_Solicitud', 'ID_Solicitud',
+                                     idSolicitud, nombreUsuario);
   return s;
 }
 
 /**
- * El seguimiento escrito de una solicitud, de lo mas reciente a lo mas antiguo.
+ * Los comentarios escritos sobre algo, de lo mas reciente a lo mas antiguo.
  *
- * @param {string} idSolicitud
+ * Sirve igual para una solicitud y para una iniciativa: cambia la tabla y el
+ * campo por el que se filtra, no la forma de leerla ni de ordenarla.
+ *
+ * @param {string} tabla Observaciones_Solicitud u Observaciones_Proyecto.
+ * @param {string} campoLlave ID_Solicitud o ID_Proyecto.
+ * @param {string} id
  * @param {!Object<string,string>} nombreUsuario Mapa ID_Usuario -> nombre.
  * @return {!Array<!Object>}
  * @private
  */
-function observacionesDeSolicitud_(idSolicitud, nombreUsuario) {
-  return leerTabla_('Observaciones_Solicitud')
-      .filter(function (o) { return o.ID_Solicitud === idSolicitud; })
-      .map(function (o) {
+function observacionesDe_(tabla, campoLlave, id, nombreUsuario) {
+  return leerTabla_(tabla)
+      .filter(function (o) { return o[campoLlave] === id; })
+      .map(function (o, i) {
         return {
           id: o.ID_Observacion,
           fecha: o.Fecha_Hora,
+          // Posicion en la hoja. Las filas se agregan al final, asi que un
+          // indice mayor es un comentario posterior: es el desempate cuando
+          // dos caen en el mismo instante y la fecha sola no alcanza para
+          // decidir cual va primero.
+          orden: i,
           // Si el usuario se borro de la tabla, queda el correo con el que
           // escribio: el seguimiento no puede quedar sin autor.
           autor: nombreUsuario[o.Usuario_ID] || o.Correo_Usuario || o.Usuario_ID,
@@ -744,7 +755,8 @@ function observacionesDeSolicitud_(idSolicitud, nombreUsuario) {
         };
       })
       .sort(function (a, b) {
-        return marcaDeTiempo_(b.fecha) - marcaDeTiempo_(a.fecha);
+        var d = marcaDeTiempo_(b.fecha) - marcaDeTiempo_(a.fecha);
+        return d !== 0 ? d : b.orden - a.orden;
       });
 }
 
@@ -773,6 +785,64 @@ function marcaDeTiempo_(valor) {
  * @return {!Object} La solicitud con su seguimiento actualizado.
  */
 function agregarObservacion(idSolicitud, texto) {
+  registrarObservacion_('Observaciones_Solicitud', 'ID_Solicitud', 'Solicitudes',
+                        'solicitud', idSolicitud, texto);
+  return getDetalleSolicitud(idSolicitud);
+}
+
+/**
+ * Registra un comentario de seguimiento sobre una iniciativa.
+ *
+ * Misma regla que en las solicitudes: escribe cualquiera con sesion, y nadie
+ * edita ni borra lo ya escrito.
+ *
+ * @param {string} idProyecto
+ * @param {string} texto
+ * @return {!Object} La lista completa ya actualizada.
+ */
+function agregarObservacionIniciativa(idProyecto, texto) {
+  registrarObservacion_('Observaciones_Proyecto', 'ID_Proyecto', 'Proyectos',
+                        'iniciativa', idProyecto, texto);
+  return getObservacionesIniciativa(idProyecto);
+}
+
+/**
+ * Los comentarios de una iniciativa, con el nombre de la iniciativa para el
+ * encabezado de la ventana.
+ *
+ * @param {string} idProyecto
+ * @return {!Object}
+ */
+function getObservacionesIniciativa(idProyecto) {
+  exigirSesion_();
+  var proyecto = buscarPorPk_('Proyectos', idProyecto);
+  if (!proyecto) throw new Error('No existe la iniciativa ' + idProyecto + '.');
+
+  var nombreUsuario = {};
+  leerTabla_('Usuarios').forEach(function (u) {
+    nombreUsuario[u.ID_Usuario] = u.Nombre_Completo;
+  });
+
+  return {
+    idProyecto: idProyecto,
+    nombre: proyecto.Nombre_Proyecto || idProyecto,
+    Observaciones: observacionesDe_('Observaciones_Proyecto', 'ID_Proyecto',
+                                    idProyecto, nombreUsuario)
+  };
+}
+
+/**
+ * El nucleo compartido: valida, comprueba que exista el dueno y escribe.
+ *
+ * @param {string} tabla Donde se guarda.
+ * @param {string} campoLlave Columna que apunta al dueno.
+ * @param {string} tablaDueno Tabla del dueno, para comprobar que exista.
+ * @param {string} comoSeLlama Como nombrarlo en el mensaje de error.
+ * @param {string} id
+ * @param {string} texto
+ * @private
+ */
+function registrarObservacion_(tabla, campoLlave, tablaDueno, comoSeLlama, id, texto) {
   var ctx = exigirSesion_();
   var limpio = String(texto || '').trim();
   if (!limpio) throw new Error('La observacion no puede ir vacia.');
@@ -781,23 +851,22 @@ function agregarObservacion(idSolicitud, texto) {
                     ' caracteres. Escribio ' + limpio.length + '.');
   }
 
-  return conBloqueo_(function () {
-    if (!buscarPorPk_('Solicitudes', idSolicitud)) {
-      throw new Error('No existe la solicitud ' + idSolicitud + '.');
+  conBloqueo_(function () {
+    if (!buscarPorPk_(tablaDueno, id)) {
+      throw new Error('No existe la ' + comoSeLlama + ' ' + id + '.');
     }
     var ahora = new Date();
-    agregarFila_('Observaciones_Solicitud', {
-      ID_Observacion: 'OBS-' + ahora.getTime() + '-' +
-                      Math.floor(Math.random() * 1000),
-      ID_Solicitud: idSolicitud,
+    var fila = {
+      ID_Observacion: 'OBS-' + ahora.getTime() + '-' + Math.floor(Math.random() * 1000),
       Fecha_Hora: ahora,
       Usuario_ID: ctx.idUsuario || '',
       Correo_Usuario: ctx.correo || '',
       Observacion: limpio
-    });
+    };
+    fila[campoLlave] = id;
+    agregarFila_(tabla, fila);
     // agregarFila_ ya dejo la fila nueva en la copia en memoria; no hace falta
     // botar la tabla (y botarla rehace calculos que esto no cambia).
-    return getDetalleSolicitud(idSolicitud);
   });
 }
 
@@ -2008,7 +2077,9 @@ var METODOS_PUBLICOS = {
   guardarVersion: true,
   getFormularioIniciativa: true,
   guardarIniciativa: true,
-  agregarObservacion: true
+  agregarObservacion: true,
+  agregarObservacionIniciativa: true,
+  getObservacionesIniciativa: true
 };
 
 /**

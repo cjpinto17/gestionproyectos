@@ -978,6 +978,64 @@ en entrar pagaba el recálculo. Para el seguimiento eso sería pagar el costo m�
 cambio más barato: se escribe a diario y no mueve un solo indicador. Las tablas que no alimentan
 ningún cálculo están listadas en `TABLAS_SIN_INDICADORES`.
 
+### D-63 · Los mismos comentarios, ahora también en la iniciativa
+
+Lo que se hizo para las solicitudes (D-62) se extiende a las iniciativas: un globo junto al
+nombre abre una ventana con los comentarios, de lo más reciente a lo más antiguo, y un cuadro
+para escribir. Mismas reglas: escribe cualquiera con sesión, nadie edita ni borra.
+
+**El globo lo ve todo el mundo; el lápiz, no.** Editar una iniciativa mueve el plan y está
+limitado a dos roles (D-58). Comentar no es editar: el seguimiento sirve justamente porque lo
+escribe quien tiene el dato, que muchas veces no es quien puede tocar la ficha.
+
+**Dos tablas, una sola lógica.** `Observaciones_Solicitud` y `Observaciones_Proyecto` son hojas
+separadas porque cada una apunta a una llave distinta y las hojas se leen y se validan por tabla;
+mezclarlas obligaría a filtrar por tipo en cada lectura y a que una solicitud y una iniciativa
+compartieran espacio de llaves sin necesidad. La lógica sí es una sola: `observacionesDe_` y
+`registrarObservacion_` sirven a las dos, y el bloque de pantalla también.
+
+**Corrección de orden.** Dos comentarios escritos en el mismo milisegundo quedaban al revés: con
+fechas iguales el orden se mantenía como venía de la hoja, que es del más viejo al más nuevo.
+Ahora la posición en la hoja desempata, y una fila posterior es un comentario posterior.
+
+**El bloque pasó a llamarse "Comentarios".** Se llamaba "Seguimiento", y ese nombre quedó ocupado
+por la vista de iniciativas (D-64). Dos cosas distintas con el mismo nombre en la misma
+aplicación se prestan a confusión, y "comentarios" es además la palabra con que el negocio pidió
+la función.
+
+### D-64 · Iniciativas abre en Seguimiento
+
+La página de iniciativas abría en la matriz LEN × vertical. Ahora abre en la vista de listado,
+que además se llama **Seguimiento** en pantalla.
+
+La matriz responde *dónde estamos invirtiendo* y las columnas por prioridad *qué es lo más
+urgente*: son preguntas de planeación, que se hacen cada tanto. La vista de listado responde
+*cómo va cada tema*, que es la pregunta de todos los días, y es la única que deja abrir una
+iniciativa para ver sus solicitudes, su avance real y el esperado. Lo que se abre primero debería
+ser lo que se consulta más, no lo que se construyó primero.
+
+Las otras dos vistas no se van: quedan a un clic, en el mismo selector, que ahora arranca por
+Seguimiento.
+
+**Detalle que importa:** el esqueleto de carga ahora se pinta en el contenedor de la vista que se
+está abriendo. Estaba fijo en el de la matriz, así que la vista por defecto habría arrancado en
+blanco mientras llegaban los datos.
+
+### D-65 · El nombre de la fase se queda quieto en el tablero
+
+El tablero de Gestión tiene ocho columnas y algunas acumulan decenas de tarjetas. Al bajar, el
+encabezado se iba con la página y a la quinta tarjeta ya no se sabía en qué fase se estaba
+mirando.
+
+El tablero se desplaza ahora **dentro de su propia caja** en vez de empujar la página, y el
+encabezado de cada columna queda pegado arriba de esa caja. Es el mismo tratamiento que se le dio
+a la tabla de Seguimiento (D-59), y por la misma razón.
+
+Dos detalles de la implementación que no son cosméticos: el fondo del encabezado se **hereda** de
+la columna, para que siga su color cuando la columna es destino de un arrastre o está vetada; y
+se estira sobre el relleno de la columna, para que las tarjetas no se vean pasar por el costado
+al desplazarse.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

@@ -230,7 +230,7 @@ function refrescarFilaEnCache_(tabla, numeroFila, columnas) {
  * hacer que un comentario bote la matriz de iniciativas entera seria pagar el
  * costo mas alto por el cambio mas barato.
  */
-var TABLAS_SIN_INDICADORES = ['Observaciones_Solicitud'];
+var TABLAS_SIN_INDICADORES = ['Observaciones_Solicitud', 'Observaciones_Proyecto'];
 
 /**
  * @param {string} tabla
