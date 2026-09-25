@@ -303,18 +303,19 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'ID_Solicitud', etiqueta: 'ID Solicitud', tipo: 'text', requerido: true },
       { campo: 'Fecha_Registro', etiqueta: 'Fecha de registro', tipo: 'datetime', requerido: true },
       { campo: 'Nombre_Solicitud', etiqueta: 'Nombre de la solicitud', tipo: 'text', requerido: true },
-      { campo: 'Objetivo', etiqueta: 'Objetivo', tipo: 'longtext' },
-      { campo: 'Entregable', etiqueta: 'Entregable', tipo: 'text' },
+      // "Objetivo" y "Entregable" eran dos campos separados y se unieron en
+      // este (D-66): en la practica se llenaban con lo mismo dicho de dos
+      // formas, o uno de los dos quedaba vacio.
+      { campo: 'Alcance', etiqueta: 'Alcance', tipo: 'longtext',
+        ayuda: 'Qué se busca lograr y qué se espera recibir al final: el objetivo de negocio y el entregable concreto.' },
       // Toda solicitud es hija de una iniciativa.
       { campo: 'ID_Proyecto', etiqueta: 'Iniciativa', tipo: 'enum', fk: 'Proyectos', requerido: true },
       { campo: 'Plataforma_ID', etiqueta: 'Plataforma digital', tipo: 'enum', fk: 'Plataforma_Digital', requerido: true },
       { campo: 'Solicitante_ID', etiqueta: 'Solicitante', tipo: 'enum', fk: 'Usuarios', requerido: true },
       { campo: 'Tipo_Solicitud', etiqueta: 'Tipo de solicitud', tipo: 'enum', fk: 'Tipos_Solicitud', requerido: true },
       { campo: 'Prioridad', etiqueta: 'Prioridad', tipo: 'enum', fk: 'Prioridad', requerido: true },
-      // Orden de atencion dentro de la iniciativa: 1 es lo primero que se
-      // trabaja. Es independiente de la prioridad, que compara todo el
-      // portafolio entre si.
-      { campo: 'Orden_Iniciativa', etiqueta: 'Orden en la iniciativa', tipo: 'number' },
+      // Aqui vivia Orden_Iniciativa, retirado en D-66: se llenaba solo y nadie
+      // lo reordenaba, asi que ordenaba por antiguedad disfrazada de decision.
       { campo: 'Proceso_Impactado', etiqueta: 'Proceso impactado', tipo: 'text' },
       { campo: 'Doc_Requerimiento_URL', etiqueta: 'Documento de requerimiento', tipo: 'url' },
       { campo: 'Carpeta_Drive_URL', etiqueta: 'Carpeta en Drive', tipo: 'url' },
@@ -409,10 +410,9 @@ var ESQUEMA_TRANSACCIONAL = {
     pk: 'Fila',
     columnas: [
       { campo: 'ID_Proyecto', etiqueta: 'Iniciativa', tipo: 'enum', fk: 'Proyectos', requerido: true },
-      { campo: 'Orden_Iniciativa', etiqueta: 'Orden en la iniciativa', tipo: 'number' },
       { campo: 'Nombre_Solicitud', etiqueta: 'Nombre de la solicitud', tipo: 'text', requerido: true },
-      { campo: 'Objetivo', etiqueta: 'Objetivo', tipo: 'longtext' },
-      { campo: 'Entregable', etiqueta: 'Entregable', tipo: 'text' },
+      { campo: 'Alcance', etiqueta: 'Alcance', tipo: 'longtext',
+        ayuda: 'Qué se busca lograr y qué se espera recibir al final: el objetivo de negocio y el entregable concreto.' },
       { campo: 'Plataforma_ID', etiqueta: 'Plataforma digital', tipo: 'enum', fk: 'Plataforma_Digital' },
       { campo: 'Tipo_Solicitud', etiqueta: 'Tipo', tipo: 'enum', fk: 'Tipos_Solicitud' },
       { campo: 'Prioridad', etiqueta: 'Prioridad', tipo: 'enum', fk: 'Prioridad' },

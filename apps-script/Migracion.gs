@@ -77,15 +77,12 @@ function migrarSolicitud(datos, opciones) {
       // dependen el Lead Time y todos los indicadores de antiguedad.
       Fecha_Registro: aFechaOpcional_(datos.Fecha_Registro) || new Date(),
       Nombre_Solicitud: String(datos.Nombre_Solicitud || '').trim(),
-      Objetivo: datos.Objetivo || '',
-      Entregable: datos.Entregable || '',
+      Alcance: datos.Alcance || '',
       ID_Proyecto: datos.ID_Proyecto || '',
       Plataforma_ID: datos.Plataforma_ID || '',
       Solicitante_ID: datos.Solicitante_ID || ctx.idUsuario,
       Tipo_Solicitud: datos.Tipo_Solicitud || '',
       Prioridad: datos.Prioridad || '',
-      Orden_Iniciativa: datos.Orden_Iniciativa ||
-                        siguienteOrdenIniciativa_(datos.ID_Proyecto),
       Proceso_Impactado: datos.Proceso_Impactado || '',
       Doc_Requerimiento_URL: String(datos.Doc_Requerimiento_URL || '').trim(),
       Carpeta_Drive_URL: '',

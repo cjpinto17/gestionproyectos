@@ -837,9 +837,8 @@ en fase y el SLA de esa fase ya resueltos, y la pantalla solo compara.
 la precarga en segundo plano (D-45) suele haberlas traído antes de que alguien despliegue nada.
 Si todavía no llegaron, se piden una vez y de ahí en adelante desplegar es instantáneo.
 
-El orden dentro de cada iniciativa es el del **backlog** (`Orden_Iniciativa`), que es el que el
-negocio definió para decir qué se trabaja primero; lo que no tenga orden va al final y no al
-principio por valer cero.
+El orden dentro de cada iniciativa era el del **backlog** (`Orden_Iniciativa`). Ese campo se
+retiró en D-66; hoy el orden es **prioridad, y a igual prioridad lo que se pidió antes**.
 
 ### D-57 · Los catálogos que se amplían desde Administración se leen de la hoja
 
@@ -1035,6 +1034,41 @@ Dos detalles de la implementación que no son cosméticos: el fondo del encabeza
 la columna, para que siga su color cuando la columna es destino de un arrastre o está vetada; y
 se estira sobre el relleno de la columna, para que las tarjetas no se vean pasar por el costado
 al desplazarse.
+
+### D-66 · Dos campos que sobraban en la solicitud
+
+**Se retira `Orden_Iniciativa`.** El campo nunca se pidió en el formulario: el sistema le ponía
+el siguiente número libre al crear la solicitud, con la idea de que el negocio la reordenara
+después. Nadie la reordenó nunca, así que el campo terminó siendo la fecha de creación disfrazada
+de decisión, y encima aparecía como un número en la tarjeta y como un dato en el detalle, donde
+invitaba a leerlo como una prioridad que no era.
+
+Sin él, las solicitudes se ordenan por **prioridad, y a igual prioridad por lo que se pidió
+antes**. Son los dos criterios que sí significan algo y que alguien sí mantiene. La regla es una
+sola (`ordenDeAtencion`) y aplica igual en el tablero de Gestión y dentro de cada iniciativa en
+Seguimiento; antes eran dos ordenamientos distintos escritos por separado.
+
+**`Objetivo` y `Entregable` se unen en `Alcance`,** un solo campo largo con una línea que explica
+para qué es: *qué se busca lograr y qué se espera recibir al final*. En la práctica los dos
+campos se llenaban con lo mismo dicho de dos formas, o uno quedaba vacío.
+
+La explicación vive en el **esquema**, no en la pantalla: se agregó la propiedad `ayuda` a las
+columnas, y `construirCampos` la muestra bajo el control. Así un campo que necesita explicarse se
+explica igual en todos los formularios que lo muestren —crear, editar, migrar, administrar— y no
+solo en el que uno se acordó de tocar.
+
+**El alcance ahora se ve en el detalle de la solicitud.** No estaba: ni Objetivo ni Entregable
+aparecían al abrir una solicitud, así que se escribían y no los leía nadie. Va como bloque aparte
+y no como fila de la lista de datos, porque es el único campo largo del detalle y en una fila los
+saltos de línea se pierden.
+
+**Nada de lo escrito se pierde, pero hay que moverlo.** Las columnas `Objetivo` y `Entregable`
+siguen en la hoja con su contenido —el sistema ya no las toca ni las borra (D-60)— pero eso
+significa que el texto quedaría invisible en la aplicación aunque siga guardado. Para eso está
+`unificarAlcanceSolicitudes()`: pasa lo escrito a `Alcance`, uno debajo del otro y con su
+etiqueta cuando los dos tenían contenido, sin etiqueta cuando solo uno lo tenía, y **sin pisar
+ninguna fila que ya tenga alcance propio**. Corre primero en simulación y solo escribe si se la
+llama con `true`.
 
 ## Supuestos abiertos
 

@@ -22,7 +22,7 @@ var TODAS = '*';
 var MATRIZ_PERMISOS = {
   'RO-01': { // Solicitante
     fases: ['FAS-01'],
-    campos: ['Nombre_Solicitud', 'Objetivo', 'Entregable', 'ID_Proyecto',
+    campos: ['Nombre_Solicitud', 'Alcance', 'ID_Proyecto',
              'Plataforma_ID', 'Tipo_Solicitud', 'Prioridad', 'Proceso_Impactado'],
     override: false
   },
@@ -77,7 +77,7 @@ var MATRIZ_PERMISOS = {
   'RO-09': { // Business Owner: duena de la iniciativa en el negocio.
              // Registra demanda y consulta todo, pero no opera el embudo.
     fases: ['FAS-01'],
-    campos: ['Nombre_Solicitud', 'Objetivo', 'Entregable', 'ID_Proyecto',
+    campos: ['Nombre_Solicitud', 'Alcance', 'ID_Proyecto',
              'Plataforma_ID', 'Tipo_Solicitud', 'Prioridad', 'Proceso_Impactado'],
     override: false
   }

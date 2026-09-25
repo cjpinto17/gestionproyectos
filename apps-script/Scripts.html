@@ -632,14 +632,7 @@ function detalleIniciativa(idProyecto) {
 
   var solicitudes = DATOS.kanban.solicitudes.filter(function (s) {
     return s.ID_Proyecto === idProyecto;
-  }).sort(function (a, b) {
-    // Orden del backlog: el que la iniciativa definio. Lo que no tenga orden
-    // va al final, no al principio por valer cero.
-    var oa = Number(a.Orden_Iniciativa) || 9999;
-    var ob = Number(b.Orden_Iniciativa) || 9999;
-    if (oa !== ob) return oa - ob;
-    return String(a.ID_Solicitud).localeCompare(String(b.ID_Solicitud), 'es');
-  });
+  }).sort(ordenDeAtencion);
 
   if (!solicitudes.length) {
     return '<div class="sol-cab">Esta iniciativa todavía no tiene solicitudes.</div>';
@@ -1174,17 +1167,7 @@ function pintarKanban() {
   var visibles = solicitudesFiltradas();
   $('kanban').innerHTML = r.fases.map(function (f) {
     var enFase = visibles.filter(function (s) { return s.Fase_Actual === f.id; })
-        .sort(function (a, b) {
-          // Primero lo que el negocio numero dentro de su iniciativa; lo no
-          // numerado va despues, ordenado por prioridad.
-          var oa = Number(a.Orden_Iniciativa) || 999;
-          var ob = Number(b.Orden_Iniciativa) || 999;
-          if (oa !== ob) return oa - ob;
-          var pa = PESO_PRIORIDAD[a.Prioridad], pb = PESO_PRIORIDAD[b.Prioridad];
-          if (pa === undefined) pa = 9;
-          if (pb === undefined) pb = 9;
-          return pa - pb;
-        });
+        .sort(ordenDeAtencion);
     return '<div class="col" data-fase="' + f.id + '">' +
       '<div class="col-cab"><span class="orden num">' + f.orden + '</span>' +
       '<h3>' + esc(f.nombre) + '</h3>' +
@@ -1201,6 +1184,25 @@ function pintarKanban() {
         : 'tablero de consulta: mover tarjetas es exclusivo del Product Owner y el Administrador');
 }
 
+/**
+ * Orden en que se leen las solicitudes, en el tablero y dentro de su iniciativa.
+ *
+ * Antes mandaba Orden_Iniciativa, un numero que el sistema asignaba solo al
+ * crear la solicitud y que nadie reordenaba despues: ordenaba por antiguedad
+ * disfrazada de decision. Sin el quedan los dos criterios que si significan
+ * algo y que alguien si mantiene: primero lo mas prioritario, y a igual
+ * prioridad lo que se pidio antes.
+ */
+function ordenDeAtencion(a, b) {
+  var pa = PESO_PRIORIDAD[a.Prioridad], pb = PESO_PRIORIDAD[b.Prioridad];
+  if (pa === undefined) pa = 9;
+  if (pb === undefined) pb = 9;
+  if (pa !== pb) return pa - pb;
+  var fa = marcaDeTiempo(a.Fecha_Registro), fb = marcaDeTiempo(b.Fecha_Registro);
+  if (fa !== fb) return fa - fb;
+  return String(a.ID_Solicitud).localeCompare(String(b.ID_Solicitud), 'es');
+}
+
 function tarjetaActividad(s) {
   var bloq = String(s.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0;
   // Sin permiso para operar el tablero, la tarjeta se abre pero no se arrastra.
@@ -1208,8 +1210,6 @@ function tarjetaActividad(s) {
       '"' + (CTX.puedeOperarTablero ? ' draggable="true"' : '') +
       ' data-id="' + esc(s.ID_Solicitud) + '">' +
     '<div class="t-top">' +
-      (s.Orden_Iniciativa ? '<span class="t-orden" title="Orden dentro de la iniciativa">' +
-        esc(s.Orden_Iniciativa) + '</span>' : '') +
       '<span class="t-id">' + esc(s.ID_Solicitud) + '</span>' +
       '<span class="badge ' + (CLASE_ESTADO[s.Estado_Actual] || 'b-iniciar') + '">' +
         esc(nombreEstado(s.Estado_Actual)) + '</span>' +
@@ -1363,13 +1363,18 @@ function verDetalle(id) {
       ['Estado', nombreEstado(s.Estado_Actual)],
       ['Tipo', nombreDeCatalogo(CAT.tipos, s.Tipo_Solicitud)],
       ['Prioridad', nombreDeCatalogo(CAT.prioridades, s.Prioridad)],
-      ['Orden en la iniciativa', s.Orden_Iniciativa || 'sin definir'],
       ['Responsable', s.Nombre_Responsable || '—'],
       ['Versión', s.Version_Semantica || 'Sin asignar'],
       ['Registro', fechaHora(s.Fecha_Registro)]
     ].map(function (p) {
       return '<dt>' + esc(p[0]) + '</dt><dd>' + esc(p[1]) + '</dd>';
     }).join('');
+
+    // El alcance va aparte del listado de datos y no dentro: es el unico campo
+    // largo del detalle, y en una fila de <dl> los saltos de linea se pierden.
+    var alcance = s.Alcance
+        ? tituloSeccion('Alcance') + '<p class="alcance">' + esc(s.Alcance) + '</p>'
+        : '';
 
     var alerta = bloq
         ? '<div class="caja-alerta"><strong>&#9888;&#65039; Actividad bloqueada</strong><br>Causal: ' +
@@ -1407,7 +1412,7 @@ function verDetalle(id) {
     }).join('');
 
     abrirModal(s.Nombre_Solicitud, s.ID_Solicitud + ' · ' + s.Nombre_Plataforma,
-      '<dl>' + filas + '</dl>' + alerta +
+      '<dl>' + filas + '</dl>' + alcance + alerta +
       '<div style="margin-top:12px">' + enlaces + '</div>' + acciones +
       bloqueComentarios(s.Observaciones) +
       (historial ? tituloSeccion('Últimos movimientos') +
@@ -1558,8 +1563,9 @@ $('btnNueva').addEventListener('click', function () {
       sel('nsProyecto', CAT.proyectos, 'ID_Proyecto', 'Nombre_Proyecto') + '</label>' +
     '<label class="campo"><span>Nombre de la solicitud *</span>' +
       '<input type="text" id="nsNombre" maxlength="120"></label>' +
-    '<label class="campo"><span>Objetivo</span><textarea id="nsObjetivo" rows="3"></textarea></label>' +
-    '<label class="campo"><span>Entregable</span><input type="text" id="nsEntregable"></label>' +
+    '<label class="campo"><span>Alcance</span>' +
+      '<textarea id="nsAlcance" rows="4"></textarea>' +
+      '<small style="color:var(--ink-faint)">Qué se busca lograr y qué se espera recibir al final: el objetivo de negocio y el entregable concreto.</small></label>' +
     '<label class="campo"><span>Plataforma digital *</span>' +
       sel('nsPlataforma', CAT.plataformas, 'id', 'nombre') + '</label>' +
     '<label class="campo"><span>Tipo *</span>' +
@@ -1592,8 +1598,7 @@ $('btnNueva').addEventListener('click', function () {
       }
       return api('crearSolicitud', {
         Nombre_Solicitud: nombre,
-        Objetivo: $('nsObjetivo').value,
-        Entregable: $('nsEntregable').value,
+        Alcance: $('nsAlcance').value,
         ID_Proyecto: $('nsProyecto').value,
         Plataforma_ID: $('nsPlataforma').value,
         Tipo_Solicitud: $('nsTipo').value,
@@ -2011,8 +2016,12 @@ function construirCampos(columnas, opciones, registro, campoBloqueado) {
       control = '<input type="' + tipoInput + '" id="campo_' + c.campo + '" value="' +
                 esc(valor) + '"' + bloqueado + '>';
     }
+    // La ayuda la declara el esquema, asi que un campo que necesita explicarse
+    // se explica igual en todos los formularios que lo muestren.
     return '<label class="campo"><span>' + esc(c.etiqueta) + (c.requerido ? ' *' : '') +
-           '</span>' + control + '</label>';
+           '</span>' + control +
+           (c.ayuda ? '<small style="color:var(--ink-faint)">' + esc(c.ayuda) + '</small>' : '') +
+           '</label>';
   }).join('');
 }
 

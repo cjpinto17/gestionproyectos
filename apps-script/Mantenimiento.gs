@@ -155,6 +155,96 @@ function repararSolicitudesDesalineadas() {
 }
 
 /**
+ * Pasa a "Alcance" lo que estaba escrito en "Objetivo" y "Entregable".
+ *
+ * Los dos campos se unieron en uno (D-66). Las columnas viejas siguen en la
+ * hoja con su contenido —el sistema ya no las toca, pero tampoco las borra—,
+ * asi que sin esta funcion el texto que la gente escribio quedaria invisible
+ * en la aplicacion aunque siga guardado.
+ *
+ * Como se junta el texto:
+ *   - Si los dos tienen contenido, quedan uno debajo del otro, con la etiqueta
+ *     de cual era cual, para no perder la distincion que alguien si hizo.
+ *   - Si solo uno tiene contenido, pasa tal cual, sin etiqueta.
+ *   - Una fila que ya tenga Alcance escrito NO se toca: lo nuevo manda sobre
+ *     lo viejo, siempre.
+ *
+ * Es segura de repetir: la segunda vez no encuentra nada que mover.
+ *
+ * @param {boolean=} aplicar false (o sin valor) solo informa lo que haria.
+ * @return {!Object} Reporte.
+ */
+function unificarAlcanceSolicitudes(aplicar) {
+  exigirOperador_();
+  return conBloqueo_(function () {
+    var columnas = asegurarColumnas_('Solicitudes');
+    var iAlcance = columnas.indexOf('Alcance');
+    var iObjetivo = columnas.indexOf('Objetivo');
+    var iEntregable = columnas.indexOf('Entregable');
+
+    if (iAlcance === -1) {
+      throw new Error('La hoja Solicitudes no tiene la columna Alcance. ' +
+                      'Ejecute actualizarEstructura() primero.');
+    }
+    if (iObjetivo === -1 && iEntregable === -1) {
+      return { total: 0, porCambiar: 0,
+               mensaje: 'La hoja no tiene columnas Objetivo ni Entregable: nada que unificar.' };
+    }
+
+    var hoja = getHoja_('Solicitudes');
+    var ultimaFila = hoja.getLastRow();
+    if (ultimaFila < 2) return { total: 0, porCambiar: 0, mensaje: 'No hay solicitudes.' };
+
+    var rango = hoja.getRange(2, 1, ultimaFila - 1, columnas.length);
+    var valores = rango.getValues();
+    var porCambiar = 0, conservados = 0;
+    var muestra = [];
+
+    for (var i = 0; i < valores.length; i++) {
+      var fila = valores[i];
+      if (!String(fila[0] || '').trim()) continue;                    // fila vacia
+      if (String(fila[iAlcance] || '').trim()) { conservados++; continue; }
+
+      var objetivo = iObjetivo === -1 ? '' : String(fila[iObjetivo] || '').trim();
+      var entregable = iEntregable === -1 ? '' : String(fila[iEntregable] || '').trim();
+      if (!objetivo && !entregable) continue;                         // nada que mover
+
+      var texto;
+      if (objetivo && entregable) {
+        texto = 'Objetivo: ' + objetivo + '\n\nEntregable: ' + entregable;
+      } else {
+        texto = objetivo || entregable;
+      }
+
+      if (aplicar) fila[iAlcance] = texto;
+      porCambiar++;
+      if (muestra.length < 5) {
+        muestra.push({ id: fila[0], quedaria: texto.slice(0, 90) });
+      }
+    }
+
+    if (aplicar && porCambiar) {
+      rango.setValues(valores);
+      invalidarTabla_('Solicitudes');
+    }
+
+    var reporte = {
+      total: valores.length,
+      porCambiar: porCambiar,
+      conAlcancePropio: conservados,
+      muestra: muestra,
+      mensaje: aplicar
+          ? 'Se unificaron ' + porCambiar + ' solicitudes. Las columnas Objetivo y ' +
+            'Entregable quedan intactas en la hoja por si hay que volver atras.'
+          : 'Simulacion: se unificarian ' + porCambiar + ' solicitudes. ' +
+            'Vuelva a ejecutar con unificarAlcanceSolicitudes(true) para aplicarlo.'
+    };
+    Logger.log(JSON.stringify(reporte, null, 2));
+    return reporte;
+  });
+}
+
+/**
  * Lleva los ID de solicitud ya existentes al formato SOL-0015.
  *
  * Las solicitudes cargadas antes del cambio de formato quedaron como

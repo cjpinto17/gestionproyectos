@@ -152,7 +152,7 @@ function asegurarUsuario_(nombre, rol, cargo) {
  * De la imagen salen la fase, el estado, el bloqueo y el orden dentro de la
  * iniciativa; el resto son los valores que el negocio confirmo: todas son de
  * tipo Nuevo, prioridad Critica, plataforma Banca Movil, con la misma causal de
- * bloqueo y el mismo responsable. Objetivo, entregable y version quedan vacios
+ * bloqueo y el mismo responsable. Alcance y version quedan vacios
  * porque aun no estan definidos.
  *
  * @param {string} idResponsable
@@ -186,7 +186,8 @@ function sembrarTableroRecaudo_(idResponsable) {
   var filas = tarjetas.map(function (t) {
     var fila = {
       ID_Proyecto: INICIATIVA,
-      Orden_Iniciativa: t[0],
+      // t[0] era el orden dentro de la iniciativa, retirado en D-66. Se conserva
+      // en la tabla de arriba porque es el orden en que se listan aqui.
       Nombre_Solicitud: t[1],
       Plataforma_ID: 'PL-03',            // Banca Movil
       Tipo_Solicitud: 'TIP-03',          // Nuevo
@@ -285,15 +286,12 @@ function crearSolicitudDesdeCarga_(datos, ctx) {
       ID_Solicitud: id,
       Fecha_Registro: ahora,
       Nombre_Solicitud: String(datos.Nombre_Solicitud).trim(),
-      Objetivo: datos.Objetivo || '',
-      Entregable: datos.Entregable || '',
+      Alcance: datos.Alcance || '',
       ID_Proyecto: datos.ID_Proyecto,
       Plataforma_ID: datos.Plataforma_ID || '',
       Solicitante_ID: datos.Solicitante_ID || ctx.idUsuario,
       Tipo_Solicitud: datos.Tipo_Solicitud || '',
       Prioridad: datos.Prioridad || '',
-      Orden_Iniciativa: datos.Orden_Iniciativa ||
-                        siguienteOrdenIniciativa_(datos.ID_Proyecto),
       Proceso_Impactado: datos.Proceso_Impactado || '',
       Doc_Requerimiento_URL: '',
       Carpeta_Drive_URL: '',

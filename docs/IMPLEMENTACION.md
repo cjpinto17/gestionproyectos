@@ -181,6 +181,11 @@ nada que valga la pena.
 
 Se puede ejecutar las veces que sea: la segunda vez no hace nada.
 
+Cuando además hay que **mover datos** de una columna vieja a una nueva, la versión trae una
+función aparte para eso y se dice al publicar. Hoy hay una: **`unificarAlcanceSolicitudes`**, que
+pasa a `Alcance` lo que estaba escrito en `Objetivo` y `Entregable`. Se ejecuta primero sin nada
+entre paréntesis para ver qué haría, y luego con `true` entre paréntesis para aplicarlo.
+
 ---
 
 ## Parte 4 · Configurar las notificaciones y el dominio (5 min)

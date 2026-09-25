@@ -1004,23 +1004,6 @@ function formatearIdSolicitud_(numero) {
   return CONFIG.PREFIJO_SOLICITUD + '-' + relleno;
 }
 
-/**
- * Siguiente numero de orden dentro de una iniciativa.
- * El orden no se pide en el formulario: la solicitud nueva entra al final de
- * la fila de su iniciativa, y desde ahi el negocio la reordena si hace falta.
- * @param {string} idProyecto
- * @return {number}
- * @private
- */
-function siguienteOrdenIniciativa_(idProyecto) {
-  var maximo = 0;
-  leerTabla_('Solicitudes').forEach(function (s) {
-    if (s.ID_Proyecto !== idProyecto) return;
-    var n = Number(s.Orden_Iniciativa);
-    if (!isNaN(n)) maximo = Math.max(maximo, n);
-  });
-  return maximo + 1;
-}
 
 /**
  * Registra una nueva solicitud: valida, asigna ID, crea la carpeta en Drive
@@ -1041,14 +1024,12 @@ function crearSolicitud(datos) {
       ID_Solicitud: id,
       Fecha_Registro: ahora,
       Nombre_Solicitud: (datos.Nombre_Solicitud || '').trim(),
-      Objetivo: datos.Objetivo || '',
-      Entregable: datos.Entregable || '',
+      Alcance: datos.Alcance || '',
       ID_Proyecto: datos.ID_Proyecto || '',
       Plataforma_ID: datos.Plataforma_ID || '',
       Solicitante_ID: datos.Solicitante_ID || ctx.idUsuario,
       Tipo_Solicitud: datos.Tipo_Solicitud || '',
       Prioridad: datos.Prioridad || '',
-      Orden_Iniciativa: siguienteOrdenIniciativa_(datos.ID_Proyecto),
       Proceso_Impactado: datos.Proceso_Impactado || '',
       // Si la persona ya tiene el documento en Drive se conserva su enlace y no
       // se clona la plantilla: quedaria un duplicado vacio al lado del bueno.
