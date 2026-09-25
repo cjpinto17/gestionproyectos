@@ -218,8 +218,9 @@ function exigirOperador_() {
 
 /** @private */
 function nombreDeRol_(rolId) {
-  for (var i = 0; i < ROLES.length; i++) {
-    if (ROLES[i].id === rolId) return ROLES[i].nombre;
+  var roles = getRoles_();
+  for (var i = 0; i < roles.length; i++) {
+    if (roles[i].id === rolId) return roles[i].nombre;
   }
   return rolId;
 }
@@ -570,7 +571,7 @@ function getCatalogos() {
     tiposIniciativa: getTiposIniciativa_(),
     prioridades: PRIORIDADES,
     causales: getCausalesBloqueo_(),
-    roles: ROLES,
+    roles: getRoles_(),
     lineasEstrategicas: getLineasEstrategicas_(),
     verticales: getVerticales_()
   };
@@ -1710,7 +1711,7 @@ function opcionesDeReferencia_(columnas) {
   // Los catalogos ampliables salen de la hoja, no de la lista del codigo: si
   // alguien agrego una plataforma desde Administracion, tiene que aparecer aqui.
   var catalogos = {
-    Roles: ROLES, Fases: FASES, Estados: ESTADOS, Estados_Iniciativa: ESTADOS_INICIATIVA,
+    Roles: getRoles_(), Fases: FASES, Estados: ESTADOS, Estados_Iniciativa: ESTADOS_INICIATIVA,
     Prioridad: PRIORIDADES,
     Tipos_Solicitud: getTiposSolicitud_(), Tipos_Iniciativa: getTiposIniciativa_(),
     Causales_Bloqueo: getCausalesBloqueo_(), Plataforma_Digital: getPlataformas_(),
@@ -1884,7 +1885,7 @@ function enviarCorreoBienvenida(idUsuario) {
                     'con la direccion que reparte al equipo.');
   }
 
-  var rol = mapaCatalogo_(ROLES)[u.Rol_ID] || '';
+  var rol = mapaCatalogo_(getRoles_())[u.Rol_ID] || '';
   // Sin genero: el correo va a personas cuyo genero el sistema no conoce ni
   // tiene por que suponer a partir del nombre.
   var asunto = 'Le damos la bienvenida a ' + CONFIG.APP_NOMBRE;
@@ -2009,30 +2010,36 @@ function getMatrizPermisos() {
   var ctx = exigirPermiso_(PERMISO_ADMINISTRAR,
       'Su rol no puede ver ni cambiar los permisos.');
 
+  // Los roles salen de la HOJA, no de la lista del codigo: si el negocio
+  // renombro un rol desde Administracion, o agrego uno, la pantalla de permisos
+  // tiene que mostrarlo con su nombre actual. Lo unico que sigue en el codigo
+  // es la relacion entre el identificador del rol y lo que el sistema hace.
+  var roles = getRoles_();
+
   return {
     rolPropio: ctx.rolId,
-    roles: ROLES.map(function (r) { return { id: r.id, nombre: r.nombre }; }),
+    roles: roles.map(function (r) { return { id: r.id, nombre: r.nombre }; }),
     permisos: CATALOGO_PERMISOS,
     fases: FASES.map(function (f) { return { id: f.id, nombre: f.nombre }; }),
     valores: mapaDePermisos_(),
     fasesPorRol: mapaDeFases_(),
     // Si las hojas aun no existen, lo que se ve son los valores de fabrica y
     // guardar es lo que las crea. Conviene decirlo en la pantalla.
-    enHoja: !!filaDePermisos_('Permisos_Rol', ROLES[0].id)
+    enHoja: !!(roles.length && filaDePermisos_('Permisos_Rol', roles[0].id))
   };
 }
 
 /** @return {!Object<string,!Object<string,boolean>>} rol -> permiso -> si/no. @private */
 function mapaDePermisos_() {
   var mapa = {};
-  ROLES.forEach(function (r) { mapa[r.id] = getPermisos(r.id); });
+  getRoles_().forEach(function (r) { mapa[r.id] = getPermisos(r.id); });
   return mapa;
 }
 
 /** @return {!Object<string,!Array<string>>} rol -> fases. @private */
 function mapaDeFases_() {
   var mapa = {};
-  ROLES.forEach(function (r) { mapa[r.id] = fasesDeRol(r.id); });
+  getRoles_().forEach(function (r) { mapa[r.id] = fasesDeRol(r.id); });
   return mapa;
 }
 
@@ -2064,7 +2071,7 @@ function guardarPermisos(valores, fasesPorRol) {
                     'a entrar aqui. Si va a ceder la administracion, primero ' +
                     'cambie su usuario de rol en la tabla Usuarios.');
   }
-  var conAdmin = ROLES.filter(function (r) {
+  var conAdmin = getRoles_().filter(function (r) {
     return valores[r.id] && valores[r.id][PERMISO_ADMINISTRAR];
   });
   if (!conAdmin.length) {
@@ -2084,7 +2091,7 @@ function guardarPermisos(valores, fasesPorRol) {
       return fases.indexOf(columna.replace('_', '-')) !== -1;
     });
 
-    return { ok: true, roles: ROLES.length };
+    return { ok: true, roles: getRoles_().length };
   });
 }
 
@@ -2100,7 +2107,7 @@ function escribirMatriz_(tabla, columnas, marcada) {
   var hoja = getHoja_(tabla);
   var encabezados = asegurarColumnas_(tabla);
 
-  var filas = ROLES.map(function (r) {
+  var filas = getRoles_().map(function (r) {
     return encabezados.map(function (c) {
       if (c === 'Rol_ID') return r.id;
       if (columnas.indexOf(c) === -1) return '';        // columna que no es nuestra

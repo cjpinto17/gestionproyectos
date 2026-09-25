@@ -1179,6 +1179,36 @@ Tres detalles que no son cosméticos:
   Vive en un `<span>` propio y no pegado a la celda, porque la celda abarca todas las columnas y
   fijarla a ella no sirve de nada.
 
+### D-70 · El nombre de un rol es del negocio; su identificador, del sistema
+
+**Error corregido.** La pantalla de permisos —y con ella el nombre de rol que aparece arriba a la
+derecha, el desplegable al editar un usuario y el correo de bienvenida— leía la lista `ROLES`
+escrita en el código, no la hoja `Roles`. Quien renombrara un rol desde Administración veía el
+cambio en la hoja y en ninguna otra parte. Eran trece sitios.
+
+Es exactamente el mismo error que se corrigió en D-57 para plataformas, líneas estratégicas y
+verticales: se arregló allá y se volvió a cometer aquí, porque los roles no se habían agregado a la
+capa de catálogos que lee de la hoja. Ahora sí están, con `getRoles_()`.
+
+**Qué se lee de la hoja y qué no**, que es la distinción que importa:
+
+| De la hoja `Roles` | Del código |
+| --- | --- |
+| El **nombre** del rol | Qué significa cada identificador para el sistema |
+| **Qué roles existen**: uno agregado ahí aparece en permisos, uno retirado desaparece | — |
+| El **orden** en que se listan | — |
+
+Lo que un rol **puede hacer** no cambia por renombrarlo: sale de `Permisos_Rol`, indexada por
+identificador. Renombrar *Analista Fábrica* a *Ingeniero de software* no le quita ni le da nada;
+`RO-03` sigue siendo `RO-03`.
+
+**Un rol creado desde la hoja arranca sin ningún permiso**, ni siquiera ver el Home. Es lo correcto:
+el sistema no puede adivinar qué debe poder hacer un rol que no conocía, y concederle algo por
+defecto sería peor que no concederle nada. Se le marcan sus permisos en la misma pantalla.
+
+**Si la hoja `Roles` queda vacía se usa la lista del código**, no una lista vacía: igual que con los
+demás catálogos, quedarse sin roles dejaría a todo el mundo sin acceso.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

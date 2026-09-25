@@ -575,6 +575,11 @@ function mapaVerticales() { return mapaCatalogo_(getVerticales_()); }
  * el sistema supiera que hacer con el.
  */
 var CATALOGOS_AMPLIABLES = {
+  // Los roles se leen de la hoja SOLO por su nombre y su existencia. Lo que un
+  // rol PUEDE hacer sigue saliendo de Permisos_Rol, y su identificador sigue
+  // amarrado al codigo: renombrar "Analista Fabrica" a "Ingeniero de software"
+  // es cosa del negocio, pero RO-03 tiene que seguir llamandose RO-03.
+  Roles: function () { return ROLES; },
   Plataforma_Digital: function () { return PLATAFORMAS; },
   Lineas_Estrategicas: function () { return LINEAS_ESTRATEGICAS; },
   Verticales: function () { return VERTICALES; },
@@ -623,6 +628,7 @@ function catalogoVigente(tabla) {
 }
 
 /** @return {!Array} Plataformas digitales vigentes. */
+function getRoles_() { return catalogoVigente('Roles'); }
 function getPlataformas_() { return catalogoVigente('Plataforma_Digital'); }
 /** @return {!Array} Lineas estrategicas vigentes. */
 function getLineasEstrategicas_() { return catalogoVigente('Lineas_Estrategicas'); }

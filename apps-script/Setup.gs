@@ -278,14 +278,14 @@ function sembrarCatalogos_(libro) {
 
   // Los permisos, uno por rol. Solo si la hoja esta vacia: una vez que el
   // negocio los ajusta desde Administracion, el instalador no los pisa.
-  sembrarSiVacio_(libro, 'Permisos_Rol', ROLES.map(function (r) {
+  sembrarSiVacio_(libro, 'Permisos_Rol', getRoles_().map(function (r) {
     var p = getPermisos(r.id);
     return [r.id].concat(CATALOGO_PERMISOS.map(function (c) {
       return p[c.campo] ? 'SI' : 'NO';
     }));
   }));
 
-  sembrarSiVacio_(libro, 'Permisos_Fase', ROLES.map(function (r) {
+  sembrarSiVacio_(libro, 'Permisos_Fase', getRoles_().map(function (r) {
     var fases = fasesDeRol(r.id);
     return [r.id].concat(TODAS_LAS_FASES_().map(function (f) {
       return fases.indexOf(f) !== -1 ? 'SI' : 'NO';

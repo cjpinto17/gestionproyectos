@@ -199,7 +199,7 @@ administre, y quitarle la administración al rol de quien está guardando. Para 
 administración, cambie de rol al usuario en la tabla `Usuarios`.
 
 Cuando además hay que **mover datos** de una columna vieja a una nueva, la versión trae una
-función aparte para eso y se dice al publicar. Hoy hay una: **`unificarAlcanceSolicitudes`**, que
+función aparte para eso y se dice al publicar. Hoy hay una: **`unificarAlcanceSolicitudes`** (archivo **`Mantenimiento.gs`**), que
 pasa a `Alcance` lo que estaba escrito en `Objetivo` y `Entregable`. Se ejecuta primero sin nada
 entre paréntesis para ver qué haría, y luego con `true` entre paréntesis para aplicarlo.
 
@@ -503,6 +503,31 @@ el botón avisa en lugar de mandar un correo con un enlace roto.
 - **Si usas el Camino C**: copia y pega los archivos que cambiaron.
 
 ---
+
+## Funciones que se ejecutan a mano, y dónde están
+
+En el editor de Apps Script las funciones se eligen del desplegable de arriba, pero **primero hay
+que abrir el archivo en el que viven** (panel izquierdo, sección *Archivos*): el desplegable solo
+lista las del archivo abierto.
+
+| Función | Archivo | Para qué |
+| --- | --- | --- |
+| `setupInicial` | `Setup.gs` | Crear los dos libros de Google Sheets y todas sus hojas. Solo la primera vez |
+| `cargarDatosIniciales` | `DatosIniciales.gs` | Cargar las 8 plataformas y las 39 iniciativas. Solo la primera vez |
+| `validarInstalacion` | `Setup.gs` | Comprobar que quedó todo bien. Debe decir `problemas: []` |
+| `registrarmeComoAdministrador` | `Setup.gs` | Darse de alta como usuario administrador |
+| `actualizarEstructura` | `Setup.gs` | **La más frecuente.** Poner las hojas al día cuando una versión agrega una tabla o una columna |
+| `configurarUrlAplicacion` | `Config.gs` | Guardar el enlace de la aplicación, que usan los correos de bienvenida |
+| `unificarAlcanceSolicitudes` | `Mantenimiento.gs` | Pasar a `Alcance` lo que estaba en `Objetivo` y `Entregable` |
+| `renumerarSolicitudes` | `Mantenimiento.gs` | Llevar los ID viejos al formato `SOL-0015` |
+| `verificarEstructura` | `Mantenimiento.gs` | Revisar que las hojas coincidan con el esquema |
+| `diagnosticarSolicitudes` | `Mantenimiento.gs` | Buscar filas con datos inconsistentes |
+| `repararSolicitudesDesalineadas` | `Mantenimiento.gs` | Corregir filas que quedaron corridas una columna |
+| `sincronizarCatalogos` | `Setup.gs` | Reponer catálogos maestros que falten |
+| `medirRendimiento` | `Cache.gs` | Medir cuánto tarda cada consulta |
+
+Las que aceptan `true` entre paréntesis (`unificarAlcanceSolicitudes`, `renumerarSolicitudes`)
+**primero se ejecutan sin nada** para ver qué harían, y solo después con `true` para aplicarlo.
 
 ## Si algo sale mal
 
