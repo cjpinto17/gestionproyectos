@@ -335,7 +335,7 @@ function abrirRegistroDelEnlace() {
       b.classList.toggle('activa', b.dataset.vista === 'listado');
     });
     INI_ABIERTAS[id] = true;
-    comentariosIniciativa(id);
+    verDetalleIniciativa(id);
   }
 }
 
@@ -666,7 +666,7 @@ var INI_ABIERTAS = {};
 
 $('listadoIni').addEventListener('click', function (e) {
   var globo = e.target.closest('[data-comentar-ini]');
-  if (globo) { comentariosIniciativa(globo.dataset.comentarIni); return; }
+  if (globo) { verDetalleIniciativa(globo.dataset.comentarIni); return; }
   var lapiz = e.target.closest('[data-editar-ini]');
   if (lapiz) { formularioIniciativa(lapiz.dataset.editarIni); return; }
   var fila = e.target.closest('.ini-fila[data-ini]');
@@ -892,14 +892,15 @@ function formatoPuntos(n) {
 }
 
 /**
- * El globo de comentarios de una iniciativa.
+ * La lupa que abre el detalle de una iniciativa.
  *
- * A diferencia del lapiz, lo ve todo el mundo: comentar no es editar, y el
- * seguimiento sirve justamente porque escribe quien tiene el dato.
+ * A diferencia del lapiz, la ve todo el mundo: ver no es editar. Dentro del
+ * detalle van los datos, el avance, el enlace a la documentacion y la
+ * trazabilidad completa de los comentarios.
  */
 function botonComentarios(idProyecto, clases) {
-  return '<button class="lapiz' + clases + '" title="Comentarios de la iniciativa" ' +
-         'data-comentar-ini="' + esc(idProyecto) + '">&#128172;</button>';
+  return '<button class="lapiz' + clases + '" title="Ver el detalle de la iniciativa" ' +
+         'data-comentar-ini="' + esc(idProyecto) + '">&#128269;</button>';
 }
 
 function ordenPorFecha(a, b) {
@@ -1433,7 +1434,7 @@ function validarTransicionCliente(origen, destino) {
 document.addEventListener('click', function (e) {
   var globoIni = e.target.closest('[data-comentar-ini]');
   if (globoIni && !e.target.closest('#listadoIni')) {
-    comentariosIniciativa(globoIni.dataset.comentarIni);
+    verDetalleIniciativa(globoIni.dataset.comentarIni);
     return;
   }
   var lapizIni = e.target.closest('[data-editar-ini]');
@@ -1641,13 +1642,83 @@ function conectarComentarios(metodo, id) {
   });
 }
 
-/** Ventana de comentarios de una iniciativa, desde cualquiera de las vistas. */
-function comentariosIniciativa(idProyecto) {
-  abrirModal('Comentarios', idProyecto, '<p class="nota">Cargando…</p>', null);
-  api('getObservacionesIniciativa', idProyecto).then(function (r) {
-    abrirModal('Comentarios', r.nombre, bloqueComentarios(r.Observaciones), null);
+/**
+ * El detalle de una iniciativa, desde cualquiera de las tres vistas.
+ *
+ * Reemplazo de la ventana que antes solo mostraba los comentarios: para saber
+ * de que iniciativa se estaba hablando habia que cerrarla y volver a la tabla.
+ * Ahora la conversacion queda debajo de los datos que la explican.
+ */
+function verDetalleIniciativa(idProyecto) {
+  abrirModal('Iniciativa', idProyecto, '<p class="nota">Cargando…</p>', null);
+  api('getDetalleIniciativa', idProyecto).then(function (i) {
+    abrirModal(i.nombre, i.idProyecto + (i.plataforma ? ' · ' + i.plataforma : ''),
+               cuerpoDetalleIniciativa(i), null);
     conectarComentarios('agregarObservacionIniciativa', idProyecto);
+    if ($('btnEditarDesdeDetalle')) {
+      $('btnEditarDesdeDetalle').addEventListener('click', function () {
+        formularioIniciativa(idProyecto);
+      });
+    }
   }).catch(function (err) { cerrarModal(); fallo(err); });
+}
+
+function cuerpoDetalleIniciativa(i) {
+  var filas = [
+    ['Estado', i.estado],
+    ['Prioridad', i.prioridad],
+    ['Tipo', i.tipo],
+    ['Línea estratégica', i.len],
+    ['Vertical', i.vertical],
+    ['Plataforma digital', i.plataforma],
+    ['Business Owner', i.bo],
+    ['Product Owner', i.po],
+    ['Inicio', fecha(i.fechaInicio)],
+    ['Fin estimado', fecha(i.fechaFinEstimada)],
+    ['Fin real', fecha(i.fechaFinReal)]
+  ].map(function (p) {
+    return '<dt>' + esc(p[0]) + '</dt><dd>' +
+           (p[1] ? esc(p[1]) : '<span style="color:var(--ink-faint)">sin definir</span>') +
+           '</dd>';
+  }).join('');
+
+  var descripcion = i.descripcion
+      ? tituloSeccion('Descripción') + '<p class="alcance">' + esc(i.descripcion) + '</p>'
+      : '';
+
+  // El avance con las mismas reglas del listado: % real contra % esperado.
+  var avance = tituloSeccion('Avance') +
+    '<p style="font-size:13px;margin:0">' +
+      (i.avanceReal === null
+        ? '<span style="color:var(--ink-faint)">Todavía no tiene solicitudes relacionadas.</span>'
+        : celdaAvanceReal({ avanceReal: i.avanceReal, avanceEsperado: i.avanceEsperado,
+                            actividades: i.solicitudes }) + ' de avance real' +
+          (i.avanceEsperado === null
+            ? ' <span style="color:var(--ink-faint)">(sin fechas para comparar)</span>'
+            : ' · se esperaba ' + formatoPorcentaje(i.avanceEsperado))) +
+    '</p>' +
+    '<p class="nota" style="margin:6px 0 0">' + i.solicitudes +
+      (i.solicitudes === 1 ? ' solicitud' : ' solicitudes') +
+      ' · ' + i.solicitudesEnVuelo + ' en curso' +
+      (i.solicitudesBloqueadas
+        ? ' · <b style="color:var(--rojo)">' + i.solicitudesBloqueadas + ' bloqueada' +
+          (i.solicitudesBloqueadas === 1 ? '' : 's') + '</b>'
+        : '') + '</p>';
+
+  var drive = i.driveUrl
+      ? '<div style="margin-top:16px"><a class="btn-sec" target="_blank" rel="noopener" ' +
+        'style="text-decoration:none;display:inline-block" href="' + esc(i.driveUrl) + '">' +
+        'Documentación en Drive</a></div>'
+      : '<p class="nota" style="margin-top:16px">Sin carpeta de documentación registrada' +
+        (CTX.puedeEditarIniciativa ? ': se agrega editando la iniciativa.' : '.') + '</p>';
+
+  var editar = CTX.puedeEditarIniciativa
+      ? '<div class="fila" style="margin-top:14px">' +
+        '<button class="btn-sec" id="btnEditarDesdeDetalle">Editar iniciativa</button></div>'
+      : '';
+
+  return '<dl>' + filas + '</dl>' + descripcion + avance + drive + editar +
+         bloqueComentarios(i.Observaciones);
 }
 
 function formularioBloqueo(id) {

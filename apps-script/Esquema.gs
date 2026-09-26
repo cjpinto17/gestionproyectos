@@ -248,7 +248,12 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'Fecha_Inicio', etiqueta: 'Fecha de inicio', tipo: 'date' },
       { campo: 'Fecha_Fin_Estimada', etiqueta: 'Fecha fin estimada', tipo: 'date' },
       { campo: 'Fecha_Fin_Real', etiqueta: 'Fecha fin real', tipo: 'date' },
-      { campo: 'Estado_Iniciativa', etiqueta: 'Estado', tipo: 'enum', fk: 'Estados_Iniciativa' }
+      { campo: 'Estado_Iniciativa', etiqueta: 'Estado', tipo: 'enum', fk: 'Estados_Iniciativa' },
+      // La carpeta donde vive la documentacion de la iniciativa. Es de la
+      // iniciativa y no de cada solicitud: las solicitudes ya tienen la suya,
+      // creada por el sistema, y esta es la del proyecto completo.
+      { campo: 'Drive_URL', etiqueta: 'Carpeta de documentacion en Drive', tipo: 'url',
+        ayuda: 'Enlace a la carpeta de Drive donde vive la documentación de esta iniciativa.' }
     ]
   },
   Plataforma_Digital: {

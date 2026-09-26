@@ -826,31 +826,68 @@ function agregarObservacion(idSolicitud, texto) {
 function agregarObservacionIniciativa(idProyecto, texto) {
   var r = registrarObservacion_('Observaciones_Proyecto', 'ID_Proyecto', 'Proyectos',
                                 'iniciativa', idProyecto, texto);
-  var lista = getObservacionesIniciativa(idProyecto);
-  lista.avisos = notificarComentario_('iniciativa', r.dueno, r.ctx, r.texto);
-  return lista;
+  var detalle = getDetalleIniciativa(idProyecto);
+  detalle.avisos = notificarComentario_('iniciativa', r.dueno, r.ctx, r.texto);
+  return detalle;
 }
 
 /**
- * Los comentarios de una iniciativa, con el nombre de la iniciativa para el
- * encabezado de la ventana.
+ * Todo lo de una iniciativa en una sola consulta: sus datos, su avance, sus
+ * solicitudes y la trazabilidad completa de sus comentarios.
+ *
+ * Antes solo existia la lista de comentarios, y para ver de que iniciativa se
+ * estaba hablando habia que cerrar la ventana y volver a la tabla. Aqui la
+ * conversacion queda al lado de los datos que la explican.
  *
  * @param {string} idProyecto
  * @return {!Object}
  */
-function getObservacionesIniciativa(idProyecto) {
-  exigirSesion_();
-  var proyecto = buscarPorPk_('Proyectos', idProyecto);
-  if (!proyecto) throw new Error('No existe la iniciativa ' + idProyecto + '.');
+function getDetalleIniciativa(idProyecto) {
+  exigirPagina_('iniciativas');
+
+  var p = buscarPorPk_('Proyectos', idProyecto);
+  if (!p) throw new Error('No existe la iniciativa ' + idProyecto + '.');
 
   var nombreUsuario = {};
   leerTabla_('Usuarios').forEach(function (u) {
     nombreUsuario[u.ID_Usuario] = u.Nombre_Completo;
   });
 
+  // Las solicitudes de la iniciativa: cuantas hay y como van. El avance se
+  // calcula con las mismas reglas del listado (D-61), no con otras: dos
+  // numeros distintos para lo mismo serian peor que ninguno.
+  var suyas = leerTabla_('Solicitudes').filter(function (x) {
+    return x.ID_Proyecto === idProyecto;
+  });
+  var enVuelo = suyas.filter(function (x) {
+    return FASES_EN_VUELO.indexOf(x.Fase_Actual) !== -1;
+  }).length;
+  var bloqueadas = suyas.filter(function (x) {
+    return String(x.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0;
+  }).length;
+
   return {
     idProyecto: idProyecto,
-    nombre: proyecto.Nombre_Proyecto || idProyecto,
+    nombre: p.Nombre_Proyecto || idProyecto,
+    descripcion: p.Descripcion || '',
+    prioridad: mapaCatalogo_(PRIORIDADES)[normalizarPrioridad_(p.Prioridad)] || p.Prioridad || '',
+    tipo: mapaCatalogo_(getTiposIniciativa_())[p.Tipo_Iniciativa] || '',
+    estado: mapaCatalogo_(ESTADOS_INICIATIVA)[p.Estado_Iniciativa] || '',
+    estadoId: p.Estado_Iniciativa || '',
+    len: mapaLineasEstrategicas()[p.LEN_ID] || '',
+    vertical: mapaVerticales()[p.Vertical_ID] || '',
+    plataforma: mapaPlataformas()[p.Plataforma_ID] || '',
+    bo: nombreUsuario[p.BO_Usuario] || '',
+    po: nombreUsuario[p.PO_Usuario] || '',
+    fechaInicio: p.Fecha_Inicio || null,
+    fechaFinEstimada: p.Fecha_Fin_Estimada || null,
+    fechaFinReal: p.Fecha_Fin_Real || null,
+    driveUrl: String(p.Drive_URL || '').trim(),
+    solicitudes: suyas.length,
+    solicitudesEnVuelo: enVuelo,
+    solicitudesBloqueadas: bloqueadas,
+    avanceReal: avanceRealIniciativa_(suyas),
+    avanceEsperado: avanceEsperadoIniciativa_(p.Fecha_Inicio, p.Fecha_Fin_Estimada),
     Observaciones: observacionesDe_('Observaciones_Proyecto', 'ID_Proyecto',
                                     idProyecto, nombreUsuario)
   };
@@ -868,6 +905,10 @@ function getObservacionesIniciativa(idProyecto) {
  * @private
  */
 function registrarObservacion_(tabla, campoLlave, tablaDueno, comoSeLlama, id, texto) {
+  // Comentar algo que no se puede ver no tiene sentido, y si no se comprueba
+  // aqui la operacion falla DESPUES de haber escrito, al releer para devolver
+  // el detalle: el comentario queda guardado y la pantalla muestra un error.
+  exigirPagina_(tabla === 'Observaciones_Proyecto' ? 'iniciativas' : 'gestion');
   var ctx = exigirPermiso_(
       tabla === 'Observaciones_Proyecto' ? 'Comentar_Iniciativa' : 'Comentar_Solicitud',
       'Su rol no puede escribir comentarios en ' +
@@ -2358,7 +2399,7 @@ var METODOS_PUBLICOS = {
   guardarIniciativa: true,
   agregarObservacion: true,
   agregarObservacionIniciativa: true,
-  getObservacionesIniciativa: true,
+  getDetalleIniciativa: true,
   getMatrizPermisos: true,
   guardarPermisos: true,
   getUrlAplicacion: true,

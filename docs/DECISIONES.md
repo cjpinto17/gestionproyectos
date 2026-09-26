@@ -1318,6 +1318,41 @@ diagnóstico lo dice en mayúsculas.
   equivocado y silencioso. Cuando se automatiza un dato, hay que validar que el valor obtenido
   sirva para lo que se va a usar.
 
+### D-74 · El detalle de la iniciativa, con la conversación al lado de los datos
+
+La ventana que abría la lupa mostraba **solo los comentarios**. Para saber de qué iniciativa se
+estaba hablando había que cerrarla y volver a la tabla — justo cuando se necesita el contexto para
+entender lo que alguien escribió.
+
+Ahora abre el **detalle completo**: estado, prioridad, tipo, LEN, vertical, plataforma, Business
+Owner, Product Owner y las tres fechas; la descripción; el avance; la documentación en Drive; y
+debajo, la trazabilidad de comentarios con el cuadro para escribir uno nuevo.
+
+**El avance se calcula con las mismas reglas del listado** (D-61), no con otras. Dos números
+distintos para lo mismo serían peor que ninguno: quien viera 47,6% en la tabla y otra cosa aquí
+dejaría de creerle a los dos.
+
+**Lo ve todo el mundo; editar sigue siendo de dos roles.** Ver no es editar. Quien puede editar
+encuentra un botón que abre el formulario desde el mismo detalle, sin volver a la tabla.
+
+**La lupa reemplaza al globo de comentarios** en tarjetas y filas. Dos botones para lo mismo —uno
+que abría comentarios y otro que habría abierto el detalle— habrían sido una decisión de más en
+cada uso. El detalle incluye los comentarios, así que el globo perdió su razón de ser.
+
+El enlace directo de los correos (`?page=iniciativas&id=INI-004`) abre ahora este detalle: quien
+llega desde el aviso de un comentario cae en la conversación **y** en el contexto que la explica.
+
+### D-75 · La documentación de la iniciativa vive en un campo suyo
+
+Campo nuevo `Drive_URL` en la iniciativa: la carpeta donde vive la documentación del proyecto.
+
+Es de la **iniciativa** y no de cada solicitud. Las solicitudes ya tienen su propia carpeta, que el
+sistema crea al registrarlas; esta es la del proyecto completo, la que alguien arma a mano con el
+caso de negocio, los diseños y las actas. Son dos cosas distintas y por eso son dos campos.
+
+Se llena editando la iniciativa y se lee desde el detalle, con un botón. Cuando está vacío, el
+detalle lo dice —y a quien puede editar le recuerda dónde se agrega— en vez de callar.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
