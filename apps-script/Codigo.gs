@@ -21,7 +21,16 @@
  */
 function doGet(e) {
   var plantilla = HtmlService.createTemplateFromFile('Index');
-  plantilla.paginaInicial = (e && e.parameter && e.parameter.page) || 'home';
+  var params = (e && e.parameter) || {};
+  plantilla.paginaInicial = params.page || 'home';
+  // Enlace directo a una solicitud o a una iniciativa: ?page=gestion&id=SOL-0042
+  // Sin esto, el correo de un comentario dejaba a la persona en el tablero
+  // completo, buscando a mano entre noventa tarjetas la que le mencionaron.
+  // Se limpia aqui porque va a parar al HTML: solo letras, numeros y guiones.
+  // En mayusculas porque asi se generan todos los codigos del sistema: un
+  // enlace escrito a mano en minusculas abriria un detalle que "no existe".
+  plantilla.registroInicial = String(params.id || '').replace(/[^A-Za-z0-9_-]/g, '')
+      .substring(0, 40).toUpperCase();
   return plantilla.evaluate()
       .setTitle(CONFIG.APP_NOMBRE + ' | ' + CONFIG.APP_SUBTITULO)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -790,9 +799,13 @@ function marcaDeTiempo_(valor) {
  * @return {!Object} La solicitud con su seguimiento actualizado.
  */
 function agregarObservacion(idSolicitud, texto) {
-  registrarObservacion_('Observaciones_Solicitud', 'ID_Solicitud', 'Solicitudes',
-                        'solicitud', idSolicitud, texto);
-  return getDetalleSolicitud(idSolicitud);
+  var r = registrarObservacion_('Observaciones_Solicitud', 'ID_Solicitud', 'Solicitudes',
+                                'solicitud', idSolicitud, texto);
+  // El aviso sale FUERA del bloqueo: mandar un correo puede tardar segundos, y
+  // mientras el bloqueo este tomado nadie mas puede escribir en las hojas.
+  var detalle = getDetalleSolicitud(idSolicitud);
+  detalle.avisos = notificarComentario_('solicitud', r.dueno, r.ctx, r.texto);
+  return detalle;
 }
 
 /**
@@ -806,9 +819,11 @@ function agregarObservacion(idSolicitud, texto) {
  * @return {!Object} La lista completa ya actualizada.
  */
 function agregarObservacionIniciativa(idProyecto, texto) {
-  registrarObservacion_('Observaciones_Proyecto', 'ID_Proyecto', 'Proyectos',
-                        'iniciativa', idProyecto, texto);
-  return getObservacionesIniciativa(idProyecto);
+  var r = registrarObservacion_('Observaciones_Proyecto', 'ID_Proyecto', 'Proyectos',
+                                'iniciativa', idProyecto, texto);
+  var lista = getObservacionesIniciativa(idProyecto);
+  lista.avisos = notificarComentario_('iniciativa', r.dueno, r.ctx, r.texto);
+  return lista;
 }
 
 /**
@@ -859,8 +874,9 @@ function registrarObservacion_(tabla, campoLlave, tablaDueno, comoSeLlama, id, t
                     ' caracteres. Escribio ' + limpio.length + '.');
   }
 
-  conBloqueo_(function () {
-    if (!buscarPorPk_(tablaDueno, id)) {
+  return conBloqueo_(function () {
+    var dueno = buscarPorPk_(tablaDueno, id);
+    if (!dueno) {
       throw new Error('No existe la ' + comoSeLlama + ' ' + id + '.');
     }
     var ahora = new Date();
@@ -875,6 +891,7 @@ function registrarObservacion_(tabla, campoLlave, tablaDueno, comoSeLlama, id, t
     agregarFila_(tabla, fila);
     // agregarFila_ ya dejo la fila nueva en la copia en memoria; no hace falta
     // botar la tabla (y botarla rehace calculos que esto no cambia).
+    return { ctx: ctx, dueno: dueno, texto: limpio };
   });
 }
 
@@ -1621,6 +1638,155 @@ function notificarCorreo_(solicitud, evento) {
     subject: asunto,
     htmlBody: cuerpoCorreo_(solicitud, evento)
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Aviso de comentario nuevo                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Avisa por correo a quienes les concierne un comentario nuevo.
+ *
+ * NUNCA interrumpe la escritura: el comentario ya quedo guardado cuando esto
+ * corre, y si el correo falla se devuelve el aviso y punto. Nadie pierde lo que
+ * escribio porque Gmail este caido.
+ *
+ * @param {string} tipo 'solicitud' | 'iniciativa'
+ * @param {!Object} dueno La solicitud o la iniciativa comentada.
+ * @param {!Object} ctx Quien escribio.
+ * @param {string} texto El comentario.
+ * @return {!Array<string>} Avisos para mostrar en pantalla.
+ * @private
+ */
+function notificarComentario_(tipo, dueno, ctx, texto) {
+  if (!CONFIG.NOTIFICAR_COMENTARIOS) return [];
+  try {
+    var destinatarios = destinatariosDeComentario_(tipo, dueno, ctx);
+    if (!destinatarios.length) return [];
+
+    var esSolicitud = tipo === 'solicitud';
+    var id = esSolicitud ? dueno.ID_Solicitud : dueno.ID_Proyecto;
+    var nombre = esSolicitud ? dueno.Nombre_Solicitud : dueno.Nombre_Proyecto;
+
+    // El asunto es estable para un mismo tema: asi Gmail apila la conversacion
+    // en un solo hilo en vez de llenar la bandeja con mensajes sueltos.
+    MailApp.sendEmail({
+      to: destinatarios.join(','),
+      subject: 'Comentario en ' + id + ' · ' + nombre,
+      htmlBody: cuerpoComentario_(tipo, id, nombre, ctx, texto)
+    });
+    return [];
+  } catch (e) {
+    return ['El comentario quedó guardado, pero no se pudo avisar por correo: ' + e.message];
+  }
+}
+
+/**
+ * A quien le concierne un comentario.
+ *
+ * Dos grupos, y la diferencia importa:
+ *  - Los responsables del tema. En una solicitud, quien la pidio y quien la
+ *    tiene; en una iniciativa, su Business Owner y su Product Owner.
+ *  - Quien YA comento antes ahi. Sin esta segunda parte no hay conversacion:
+ *    el Business Owner pregunta algo en una solicitud, el responsable
+ *    contesta, y el BO no se entera nunca porque no es ninguna de las dos
+ *    cosas.
+ *
+ * Al autor no se le avisa de su propio comentario. Y a quien perdio el permiso
+ * de ver esa seccion tampoco: no tiene sentido avisarle de algo que no puede
+ * abrir.
+ *
+ * @param {string} tipo
+ * @param {!Object} dueno
+ * @param {!Object} ctx
+ * @return {!Array<string>} Correos, sin repetidos.
+ * @private
+ */
+function destinatariosDeComentario_(tipo, dueno, ctx) {
+  var esSolicitud = tipo === 'solicitud';
+  var idUsuarios = esSolicitud
+      ? [dueno.Solicitante_ID, dueno.Responsable_ID]
+      : [dueno.BO_Usuario, dueno.PO_Usuario];
+
+  var tabla = esSolicitud ? 'Observaciones_Solicitud' : 'Observaciones_Proyecto';
+  var llave = esSolicitud ? 'ID_Solicitud' : 'ID_Proyecto';
+  var id = esSolicitud ? dueno.ID_Solicitud : dueno.ID_Proyecto;
+  leerTabla_(tabla).forEach(function (o) {
+    if (o[llave] === id && o.Usuario_ID) idUsuarios.push(o.Usuario_ID);
+  });
+
+  var permiso = esSolicitud ? 'Ver_Gestion' : 'Ver_Iniciativas';
+  var correos = [];
+  idUsuarios.forEach(function (idUsuario) {
+    if (!idUsuario || idUsuario === ctx.idUsuario) return;      // no al autor
+    var u = buscarPorPk_('Usuarios', idUsuario);
+    if (!u || !u.Correo_ID) return;                             // sin correo, no hay aviso
+    if (String(u.Activo).toUpperCase() === 'NO') return;
+    if (!tienePermiso(u.Rol_ID, permiso)) return;
+    var correo = String(u.Correo_ID).trim().toLowerCase();
+    if (correo === String(ctx.correo || '').toLowerCase()) return;
+    if (correos.indexOf(correo) === -1) correos.push(correo);
+  });
+  return correos;
+}
+
+/**
+ * El correo del comentario: quien escribio, que escribio y como llegar.
+ *
+ * Lleva el texto completo a proposito: que haya que entrar a la aplicacion
+ * para saber de que se trata convierte el aviso en una molestia. El enlace
+ * abre directamente la solicitud o la iniciativa comentada.
+ *
+ * @private
+ */
+function cuerpoComentario_(tipo, id, nombre, ctx, texto) {
+  var esSolicitud = tipo === 'solicitud';
+  var base = getUrlAplicacion_();
+  var enlace = base
+      ? base + (base.indexOf('?') === -1 ? '?' : '&') +
+        'page=' + (esSolicitud ? 'gestion' : 'iniciativas') + '&id=' + encodeURIComponent(id)
+      : '';
+
+  var boton = enlace
+      ? '<div style="margin-top:20px"><a href="' + enlace + '" style="background:#1DD982;' +
+        'color:#00306E;text-decoration:none;font-weight:bold;padding:11px 18px;' +
+        'border-radius:8px;display:inline-block">Ver ' +
+        (esSolicitud ? 'la solicitud' : 'la iniciativa') + '</a></div>'
+      : '';
+
+  return '<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;' +
+    'border:1px solid #EDF1F8;border-radius:12px;overflow:hidden">' +
+    '<div style="background:#00306E;color:#fff;padding:16px 20px">' +
+    '<div style="font-size:16px;font-weight:bold">' + CONFIG.APP_NOMBRE + '</div></div>' +
+    '<div style="padding:20px">' +
+    '<p style="font-size:14px;color:#0D1F3C;margin:0 0 4px">' +
+      '<b>' + escaparHtml_(ctx.nombre || ctx.correo) + '</b> comentó en ' +
+      (esSolicitud ? 'la solicitud' : 'la iniciativa') + ':</p>' +
+    '<p style="font-size:13px;color:#5A6B8C;margin:0 0 14px">' +
+      escaparHtml_(id) + ' · ' + escaparHtml_(nombre) + '</p>' +
+    '<div style="border-left:3px solid #DFE6F2;padding:2px 0 2px 14px;font-size:14px;' +
+      'color:#0D1F3C;white-space:pre-wrap">' + escaparHtml_(texto) + '</div>' +
+    boton +
+    '<p style="font-size:12px;color:#8A98B4;margin-top:22px">No responda este mensaje. ' +
+    'Para contestar, escriba el comentario en la aplicación: así queda en el ' +
+    'seguimiento y lo ve todo el equipo.</p>' +
+    '</div></div>';
+}
+
+/**
+ * Escapa el texto que entra al HTML del correo.
+ *
+ * El comentario lo escribe una persona y puede traer < o &; sin esto, un
+ * comentario con una etiqueta HTML podria romper el correo o, peor, alterarlo.
+ *
+ * @param {*} valor
+ * @return {string}
+ * @private
+ */
+function escaparHtml_(valor) {
+  return String(valor === null || valor === undefined ? '' : valor)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
 }
 
 /**

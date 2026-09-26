@@ -1209,6 +1209,69 @@ defecto sería peor que no concederle nada. Se le marcan sus permisos en la mism
 **Si la hoja `Roles` queda vacía se usa la lista del código**, no una lista vacía: igual que con los
 demás catálogos, quedarse sin roles dejaría a todo el mundo sin acceso.
 
+### D-71 · Aviso cuando alguien comenta, y el enlace que lo hace útil
+
+Los comentarios se construyeron para coordinar (D-62, D-63) y no avisaban a nadie: quien escribía
+quedaba esperando una respuesta que el otro solo veía si entraba por su cuenta. Ahora hay correo.
+
+**A quién le llega**, que es la decisión de fondo y es distinta en cada caso:
+
+| | Responsables del tema | Más… |
+| --- | --- | --- |
+| Solicitud | Solicitante y responsable | Quien ya haya comentado ahí |
+| Iniciativa | Business Owner y Product Owner | Quien ya haya comentado ahí |
+
+La segunda columna es la que hace que esto funcione como conversación. Sin ella: el Business Owner
+pregunta algo en una solicitud, el responsable contesta, y el BO no se entera nunca porque no es ni
+solicitante ni responsable de esa solicitud.
+
+**Nunca al autor de su propio comentario.** Tampoco a un usuario inactivo, a uno sin correo
+registrado, ni a quien perdió el permiso de ver esa sección: avisarle de algo que no puede abrir es
+solo ruido.
+
+**Lo que se descartó:** avisarle a todos los solicitantes de todas las solicitudes de una iniciativa
+cuando alguien comenta la iniciativa. En INI-001 eso son veinte personas recibiendo algo que no les
+concierne, y a la tercera vez lo filtran a la papelera — junto con los avisos de bloqueo que sí
+importan.
+
+**Por correo y no por Chat.** La tarjeta de Chat va al espacio completo; un comentario es una
+conversación entre dos o tres. Si cada comentario publicara una tarjeta, en dos semanas alguien
+silencia el espacio y pierde también las alertas que sí son de equipo.
+
+**El asunto es estable** para un mismo tema (`Comentario en SOL-0042 · Pasarela de recaudo`), así
+Gmail apila la conversación en un hilo en vez de llenar la bandeja con mensajes sueltos. Es la
+defensa barata contra el ruido; si no alcanza, el siguiente paso sería acumular y mandar un resumen
+cada media hora, que es bastante más maquinaria.
+
+**El correo lleva el texto completo**, por decisión del negocio. Tener que entrar a la aplicación
+para saber de qué se trata convierte el aviso en una molestia. Con una consecuencia que conviene
+tener presente: el texto de los comentarios ahora sale hacia bandejas de entrada, incluidas las del
+dominio aliado cuando alguien de la fábrica es responsable o participante.
+
+**Responder el correo no publica nada**, y el correo lo dice. Hacer que una respuesta por Gmail se
+convierta en comentario es posible pero es otro proyecto, y frágil.
+
+### D-72 · Enlaces directos a una solicitud o a una iniciativa
+
+Sin esto el aviso valía la mitad. `doGet` solo aceptaba `?page=gestion`, que abre el tablero
+completo: el correo decía *"Sandra comentó en SOL-0042"* y dejaba a la persona buscando a mano
+entre noventa tarjetas. A la segunda vez deja de hacer clic.
+
+Ahora `?page=gestion&id=SOL-0042` abre el tablero **y** el detalle de esa solicitud, con su
+seguimiento a la vista; `?page=iniciativas&id=INI-004` abre Seguimiento con esa iniciativa
+desplegada y sus comentarios encima, que es de donde viene quien llegó por el correo.
+
+Sirve para más que la notificación: ahora se puede pegar el enlace de una solicitud en un chat o en
+un correo propio y quien lo abra cae exactamente ahí.
+
+Tres cuidados en la implementación:
+- **El identificador se limpia antes de tocar el HTML** (solo letras, números y guiones, 40
+  caracteres) porque viene de la barra de direcciones y termina dentro de la página.
+- **Se pasa a mayúsculas**: todos los códigos del sistema lo son, y un enlace escrito a mano en
+  minúsculas abriría un detalle que "no existe", que parece un error y no lo es.
+- **Si el rol no puede ver esa sección, el enlace simplemente no abre nada.** La página ya se
+  redirige a la primera que sí puede; el enlace no es una puerta trasera.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

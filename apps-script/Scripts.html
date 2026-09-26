@@ -307,6 +307,38 @@ function aplicarPermisosDeMenu() {
 }
 
 /** La primera pagina que el rol si puede abrir. */
+/**
+ * Abre lo que pedia el enlace: ?page=gestion&id=SOL-0042 o
+ * ?page=iniciativas&id=INI-004.
+ *
+ * Es lo que hace util al correo de un comentario: deja a la persona delante de
+ * la solicitud o la iniciativa que le mencionaron, con el seguimiento a la
+ * vista, en vez de en el tablero completo buscando a mano.
+ *
+ * Si el enlace apunta a algo que el rol no puede ver, no pasa nada: la pagina
+ * ya se redirigio a la que si puede, y aqui simplemente no se abre el detalle.
+ */
+function abrirRegistroDelEnlace() {
+  var id = (typeof REGISTRO_INICIAL === 'string' ? REGISTRO_INICIAL : '').trim();
+  if (!id) return;
+
+  if (/^SOL-/i.test(id) && permiso('Ver_Gestion')) {
+    verDetalle(id);
+    return;
+  }
+  if (/^INI-/i.test(id) && permiso('Ver_Iniciativas')) {
+    // Primero se despliega la fila en Seguimiento —para que al cerrar la
+    // ventana quede donde corresponde— y encima se abren los comentarios,
+    // que es de donde viene quien llego por el correo.
+    VISTA_INI = 'listado';
+    Array.prototype.forEach.call($('vistaIni').querySelectorAll('button'), function (b) {
+      b.classList.toggle('activa', b.dataset.vista === 'listado');
+    });
+    INI_ABIERTAS[id] = true;
+    comentariosIniciativa(id);
+  }
+}
+
 function primeraPaginaPermitida() {
   for (var i = 0; i < PAGINAS.length; i++) {
     if (permiso(PERMISO_DE_PAGINA[PAGINAS[i]])) return PAGINAS[i];
@@ -1599,6 +1631,9 @@ function conectarComentarios(metodo, id) {
       caja.value = '';
       $('obsLista').innerHTML = listaComentarios(r.Observaciones || []);
       toast('Comentario registrado.');
+      // Si el correo de aviso no salio, el comentario igual quedo guardado: se
+      // dice, pero como advertencia y no como error de lo que la persona hizo.
+      (r.avisos || []).forEach(function (a) { toast(a, true); });
     }).catch(fallo).then(function () {
       boton.textContent = 'Agregar comentario';
       contar();
@@ -2583,6 +2618,7 @@ function arrancar() {
     aplicarPermisosDeMenu();
     $('contenido').hidden = false;
     navegar(PAGINA_INICIAL || 'home');
+    abrirRegistroDelEnlace();
     precargarEnSegundoPlano();
   }).catch(function (err) {
     $('avisoAccesoMotivo').textContent = (err && err.message) ? err.message : String(err);

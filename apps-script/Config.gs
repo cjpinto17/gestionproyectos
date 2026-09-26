@@ -89,6 +89,16 @@ var CONFIG = {
   NOTIFICAR_CORREO: true,
 
   /**
+   * Aviso por correo cuando alguien comenta una solicitud o una iniciativa.
+   *
+   * Va aparte de NOTIFICAR_CORREO porque es de otra naturaleza: los avisos de
+   * creacion, avance y bloqueo son hechos del proceso, y un comentario es una
+   * conversacion. Si algun dia el equipo lo siente ruidoso, se apaga esto sin
+   * perder los otros tres.
+   */
+  NOTIFICAR_COMENTARIOS: true,
+
+  /**
    * Segundos que las lecturas de Sheets permanecen en memoria compartida.
    * Toda escritura invalida la tabla afectada, asi que subirlo no produce
    * datos viejos: solo evita releer lo mismo. En 0 se desactiva la cache.

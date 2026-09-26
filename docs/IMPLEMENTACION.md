@@ -230,6 +230,38 @@ entre paréntesis para ver qué haría, y luego con `true` entre paréntesis par
 3. Para verificar: ejecuta **`diagnosticoConfiguracion`** y revisa los registros. Debe decir
    `chatWebhookConfigurado: true`.
 
+### Qué avisa la aplicación
+
+| Cuándo | Canal | A quién |
+| --- | --- | --- |
+| Se registra una solicitud | Chat + correo | Solicitante y responsable |
+| Una solicitud cambia de fase | Chat + correo | Solicitante y responsable |
+| Se marca un bloqueo | Chat + correo | Solicitante y responsable |
+| **Alguien comenta una solicitud** | Correo | Solicitante, responsable y quien ya haya comentado ahí |
+| **Alguien comenta una iniciativa** | Correo | Business Owner, Product Owner y quien ya haya comentado ahí |
+| Correo de bienvenida (lo dispara el administrador) | Correo | El usuario, con copia a quien lo envía |
+| Código de acceso (ingreso por correo) | Correo | Quien lo pide |
+
+Los avisos de comentario **nunca le llegan al autor**, ni a un usuario inactivo, ni a uno sin correo
+registrado, ni a quien no tenga permiso de ver esa sección.
+
+Los tres interruptores generales están en **`Config.gs`**: `NOTIFICAR_CHAT`, `NOTIFICAR_CORREO` y
+`NOTIFICAR_COMENTARIOS`. El de comentarios va aparte porque es de otra naturaleza: los tres
+primeros son hechos del proceso y un comentario es una conversación.
+
+**Para que los correos lleven el enlace directo** hace falta haber ejecutado
+`configurarUrlAplicacion("https://…")` (archivo **`Config.gs`**). Sin eso el correo sale igual, pero
+sin el botón para abrir la solicitud.
+
+### Enlaces directos
+
+Se puede enlazar a una solicitud o a una iniciativa concreta agregando `&id=` a la dirección:
+
+- `…/exec?page=gestion&id=SOL-0042` abre el tablero y el detalle de esa solicitud.
+- `…/exec?page=iniciativas&id=INI-004` abre Seguimiento con esa iniciativa desplegada.
+
+Es lo que usan los correos de comentario, y sirve igual para pegar en un chat o en un correo propio.
+
 ---
 
 ## Parte 5 · Publicar la aplicación (5 min)
