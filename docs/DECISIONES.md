@@ -1272,6 +1272,26 @@ Tres cuidados en la implementación:
 - **Si el rol no puede ver esa sección, el enlace simplemente no abre nada.** La página ya se
   redirige a la primera que sí puede; el enlace no es una puerta trasera.
 
+### D-73 · Una instrucción que no se podía seguir
+
+`configurarUrlAplicacion("https://…")` pedía la dirección entre paréntesis. El desplegable de
+funciones del editor de Apps Script **no permite pasar argumentos**: ejecutarla desde ahí corría
+`configurarUrlAplicacion()` sin nada y fallaba. La guía resolvía esto pidiendo crear un archivo
+temporal con una función envoltorio, pegar código y borrarlo después — cuatro pasos y algo de
+programación para guardar una dirección.
+
+Ahora la función **se ejecuta sin escribir nada y averigua sola** la dirección, de la implementación
+publicada (`ScriptApp.getService().getUrl()`). Sigue aceptando un argumento para el caso raro de
+querer guardar otra. Y si la aplicación todavía no está publicada, lo dice con esas palabras en vez
+de fallar de una forma que no se entiende.
+
+Se agrega también `verUrlAplicacion()`, que responde "¿hay algo que hacer?" sin cambiar nada ni
+tener que mandarse un correo de prueba.
+
+**La lección, que vale para lo que venga:** una función pensada para que la ejecute una persona no
+técnica tiene que poder ejecutarse **desde el desplegable, sin argumentos**. Si necesita datos, o
+los averigua sola, o se pide desde una pantalla de la aplicación — no desde el editor.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

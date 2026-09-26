@@ -212,15 +212,65 @@ function getUrlAplicacion_() {
  */
 function configurarUrlAplicacion(url) {
   exigirOperador_();
+
+  // SIN argumento: se averigua sola. Es el caso normal, y existe porque el
+  // desplegable de funciones del editor de Apps Script no permite pasarle nada
+  // entre parentesis: pedirle a alguien que ejecute
+  // configurarUrlAplicacion("https://...") desde ahi es pedirle algo que la
+  // pantalla no deja hacer. Con argumento se sigue pudiendo, para el caso raro
+  // de querer guardar una direccion distinta a la de esta implementacion.
   var limpia = String(url || '').trim();
+  var automatica = false;
+  if (!limpia) {
+    try { limpia = String(ScriptApp.getService().getUrl() || '').trim(); } catch (e) { limpia = ''; }
+    automatica = true;
+    if (!limpia) {
+      throw new Error('No se pudo averiguar la direccion de la aplicacion. ' +
+                      'Probablemente todavia no esta publicada: publiquela primero ' +
+                      '(boton Implementar) y vuelva a ejecutar esta funcion.');
+    }
+  }
   if (!/^https:\/\//.test(limpia)) {
     throw new Error('Escriba la direccion completa, empezando por https://');
   }
+
   var valores = {};
   valores[PROP_KEYS.URL_APLICACION] = limpia;
   guardarConfiguracion_(valores);
-  var resultado = { ok: true, url: limpia,
-                    mensaje: 'Los correos de bienvenida enviaran a esta direccion.' };
+
+  var resultado = {
+    ok: true,
+    url: limpia,
+    comoSeObtuvo: automatica ? 'Se tomo de esta implementacion' : 'La escribio usted',
+    mensaje: 'Listo. Los correos de bienvenida y los avisos de comentario ' +
+             'llevaran el enlace a esta direccion.'
+  };
+  Logger.log(JSON.stringify(resultado, null, 2));
+  return resultado;
+}
+
+/**
+ * Dice que direccion tienen hoy los enlaces de los correos, sin cambiar nada.
+ *
+ * Sirve para responder "hay algo que hacer?" sin tener que mandarse un correo
+ * de prueba: si devuelve una direccion, los enlaces ya funcionan.
+ *
+ * @return {!Object}
+ */
+function verUrlAplicacion() {
+  exigirOperador_();
+  var guardada = getProp_(PROP_KEYS.URL_APLICACION, false);
+  var detectada = '';
+  try { detectada = String(ScriptApp.getService().getUrl() || ''); } catch (e) { /* sin publicar */ }
+
+  var resultado = {
+    urlQueSeUsa: guardada || detectada || '',
+    guardadaAMano: guardada || null,
+    detectadaDeLaImplementacion: detectada || null,
+    mensaje: (guardada || detectada)
+        ? 'Los correos ya llevan enlace. No hay nada que hacer.'
+        : 'Los correos saldran sin enlace. Ejecute configurarUrlAplicacion.'
+  };
   Logger.log(JSON.stringify(resultado, null, 2));
   return resultado;
 }

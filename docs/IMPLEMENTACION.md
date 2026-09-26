@@ -249,9 +249,13 @@ Los tres interruptores generales están en **`Config.gs`**: `NOTIFICAR_CHAT`, `N
 `NOTIFICAR_COMENTARIOS`. El de comentarios va aparte porque es de otra naturaleza: los tres
 primeros son hechos del proceso y un comentario es una conversación.
 
-**Para que los correos lleven el enlace directo** hace falta haber ejecutado
-`configurarUrlAplicacion("https://…")` (archivo **`Config.gs`**). Sin eso el correo sale igual, pero
-sin el botón para abrir la solicitud.
+**Para que los correos lleven el enlace directo** hace falta que la aplicación sepa su propia
+dirección. Para saber si ya la sabe, ejecute **`verUrlAplicacion`** (archivo **`Config.gs`**): si
+los registros muestran una dirección, no hay nada que hacer.
+
+Si no la sabe, ejecute **`configurarUrlAplicacion`** (mismo archivo), **sin escribir nada**: la
+averigua sola de la implementación publicada. Sin esto los correos salen igual, pero sin el botón
+para abrir la solicitud.
 
 ### Enlaces directos
 
@@ -549,7 +553,8 @@ lista las del archivo abierto.
 | `validarInstalacion` | `Setup.gs` | Comprobar que quedó todo bien. Debe decir `problemas: []` |
 | `registrarmeComoAdministrador` | `Setup.gs` | Darse de alta como usuario administrador |
 | `actualizarEstructura` | `Setup.gs` | **La más frecuente.** Poner las hojas al día cuando una versión agrega una tabla o una columna |
-| `configurarUrlAplicacion` | `Config.gs` | Guardar el enlace de la aplicación, que usan los correos de bienvenida |
+| `configurarUrlAplicacion` | `Config.gs` | Guardar la dirección de la aplicación, que usan los enlaces de los correos. Se ejecuta **sin escribir nada**: la averigua sola |
+| `verUrlAplicacion` | `Config.gs` | Decir qué dirección usan hoy los correos, sin cambiar nada |
 | `unificarAlcanceSolicitudes` | `Mantenimiento.gs` | Pasar a `Alcance` lo que estaba en `Objetivo` y `Entregable` |
 | `renumerarSolicitudes` | `Mantenimiento.gs` | Llevar los ID viejos al formato `SOL-0015` |
 | `verificarEstructura` | `Mantenimiento.gs` | Revisar que las hojas coincidan con el esquema |
