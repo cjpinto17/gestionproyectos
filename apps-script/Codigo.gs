@@ -866,6 +866,27 @@ function getDetalleIniciativa(idProyecto) {
     return String(x.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0;
   }).length;
 
+  // La lista de actividades, con lo justo para leerlas de un vistazo. No se
+  // manda la solicitud entera: son campos que el detalle no muestra y que
+  // engordarian la respuesta sin que nadie los mire.
+  var nombreFase = mapaFases();
+  var nombreEstado = mapaEstados();
+  var actividades = suyas.map(function (x) {
+    return {
+      id: x.ID_Solicitud,
+      nombre: x.Nombre_Solicitud,
+      fase: nombreFase[x.Fase_Actual] || x.Fase_Actual,
+      estado: nombreEstado[x.Estado_Actual] || x.Estado_Actual,
+      estadoId: x.Estado_Actual || '',
+      responsable: nombreUsuario[x.Responsable_ID] || '',
+      bloqueada: String(x.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0,
+      // Para ordenarlas con la misma regla del tablero (D-66).
+      Prioridad: x.Prioridad || '',
+      Fecha_Registro: x.Fecha_Registro || null,
+      ID_Solicitud: x.ID_Solicitud
+    };
+  });
+
   return {
     idProyecto: idProyecto,
     nombre: p.Nombre_Proyecto || idProyecto,
@@ -886,6 +907,7 @@ function getDetalleIniciativa(idProyecto) {
     solicitudes: suyas.length,
     solicitudesEnVuelo: enVuelo,
     solicitudesBloqueadas: bloqueadas,
+    actividades: actividades,
     avanceReal: avanceRealIniciativa_(suyas),
     avanceEsperado: avanceEsperadoIniciativa_(p.Fecha_Inicio, p.Fecha_Fin_Estimada),
     Observaciones: observacionesDe_('Observaciones_Proyecto', 'ID_Proyecto',

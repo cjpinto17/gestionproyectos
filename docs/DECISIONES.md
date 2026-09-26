@@ -1332,6 +1332,21 @@ debajo, la trazabilidad de comentarios con el cuadro para escribir uno nuevo.
 distintos para lo mismo serían peor que ninguno: quien viera 47,6% en la tabla y otra cosa aquí
 dejaría de creerle a los dos.
 
+**Tres columnas, no una.** La primera versión ponía todo en columna y había que desplazarse
+hasta el final para llegar a los comentarios, que son lo que más se consulta. Ahora la ventana es
+ancha y se lee de izquierda a derecha como se pregunta: **quién es** la iniciativa (datos, avance,
+documentación), **qué se está haciendo** (sus actividades con el estado de cada una) y **qué se ha
+dicho** (los comentarios). Por debajo de 1040 px las tres se apilan en ese mismo orden.
+
+El ancho es de la ventana del detalle y no de todas: un modal de 1160 px para un formulario de
+cuatro campos deja las etiquetas a un metro de sus casillas. `abrirModal` recibe el ancho de quien
+la abre, y lo quita al abrir cualquier otra.
+
+**Las actividades van ordenadas como en el tablero** (D-66): primero lo más prioritario, y a igual
+prioridad lo que se pidió antes. La misma regla, la misma función. Y de cada solicitud se manda al
+navegador solo lo que el detalle muestra —código, nombre, fase, estado, responsable y si está
+bloqueada—, no la fila entera: serían campos que nadie mira engordando cada consulta.
+
 **Lo ve todo el mundo; editar sigue siendo de dos roles.** Ver no es editar. Quien puede editar
 encuentra un botón que abre el formulario desde el mismo detalle, sin volver a la tabla.
 

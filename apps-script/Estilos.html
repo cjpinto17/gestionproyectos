@@ -381,6 +381,29 @@
   .velo{position:fixed;inset:0;background:rgba(6,18,38,.5);display:grid;place-items:center;padding:16px;z-index:60}
   .velo[hidden]{display:none!important}
   .modal{background:var(--surface);border-radius:12px;max-width:460px;width:100%;padding:22px;box-shadow:0 18px 40px rgba(6,18,38,.25)}
+  /* Ventana ancha: solo para el detalle de la iniciativa, que muestra tres
+     cosas a la vez. Un modal asi para un formulario de cuatro campos dejaria
+     las etiquetas a un metro de sus casillas. */
+  .modal.ancho{max-width:1160px;padding:24px 26px}
+
+  /* Tres columnas: quien es la iniciativa, que se esta haciendo, que se ha
+     dicho. En pantalla angosta se apilan en ese mismo orden. */
+  .det-ini{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr) minmax(0,1.15fr);
+           gap:22px;align-items:start;margin-top:14px}
+  .det-col{min-width:0}
+  .modal.ancho .det-col dl{margin-top:0}
+  @media (max-width:1040px){ .det-ini{grid-template-columns:1fr;gap:6px} }
+
+  /* Una actividad dentro del detalle: codigo y estado arriba, nombre, y al pie
+     la fase con quien la tiene. */
+  .act-lista{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow-y:auto}
+  .act{border:1px solid var(--line-soft);border-left:3px solid var(--line);
+       border-radius:8px;padding:8px 11px}
+  .act.bloqueada{border-left-color:var(--rojo);background:#FEF6F6}
+  .act-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .act-id{font-family:var(--display);font-weight:700;font-size:10.5px;color:var(--navy)}
+  .act-nombre{font-size:13px;font-weight:600;margin-top:3px;overflow-wrap:anywhere}
+  .act-pie{font-size:11.5px;color:var(--ink-muted);margin-top:3px;overflow-wrap:anywhere}
   .modal h2{font-size:16px;font-weight:700;margin-bottom:6px}
   .modal dl{margin:14px 0 16px;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
   .modal dt{color:var(--ink-faint);font-family:var(--display);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
@@ -420,6 +443,7 @@
   .obs-nueva .nota{margin:0}
   .obs-lista{display:flex;flex-direction:column;gap:9px;max-height:260px;
              overflow-y:auto;margin-top:12px}
+  .modal.ancho .obs-lista{max-height:46vh}
   .obs{border-left:3px solid var(--line);padding:2px 0 2px 10px}
   .obs-cab{display:flex;gap:8px;align-items:baseline;font-size:12px;flex-wrap:wrap}
   .obs-cab b{font-family:var(--display);font-size:12px}

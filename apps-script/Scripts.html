@@ -253,7 +253,10 @@ function fallo(err) {
 }
 
 /* ================= Modal ================= */
-function abrirModal(titulo, subtitulo, cuerpoHtml, alGuardar) {
+function abrirModal(titulo, subtitulo, cuerpoHtml, alGuardar, ancho) {
+  // La ventana crece solo cuando quien la abre lo pide. Un modal ancho para un
+  // formulario de cuatro campos deja las etiquetas a un metro de sus casillas.
+  document.querySelector('.modal').classList.toggle('ancho', !!ancho);
   $('modalTitulo').textContent = titulo;
   $('modalSub').textContent = subtitulo || '';
   $('modalCuerpo').innerHTML = cuerpoHtml;
@@ -1650,10 +1653,10 @@ function conectarComentarios(metodo, id) {
  * Ahora la conversacion queda debajo de los datos que la explican.
  */
 function verDetalleIniciativa(idProyecto) {
-  abrirModal('Iniciativa', idProyecto, '<p class="nota">Cargando…</p>', null);
+  abrirModal('Iniciativa', idProyecto, '<p class="nota">Cargando…</p>', null, true);
   api('getDetalleIniciativa', idProyecto).then(function (i) {
     abrirModal(i.nombre, i.idProyecto + (i.plataforma ? ' · ' + i.plataforma : ''),
-               cuerpoDetalleIniciativa(i), null);
+               cuerpoDetalleIniciativa(i), null, true);
     conectarComentarios('agregarObservacionIniciativa', idProyecto);
     if ($('btnEditarDesdeDetalle')) {
       $('btnEditarDesdeDetalle').addEventListener('click', function () {
@@ -1663,7 +1666,25 @@ function verDetalleIniciativa(idProyecto) {
   }).catch(function (err) { cerrarModal(); fallo(err); });
 }
 
+/**
+ * El detalle en tres columnas: quien es la iniciativa, que se esta haciendo y
+ * que se ha dicho.
+ *
+ * Antes iba todo en una sola columna y habia que desplazarse hasta el final
+ * para ver los comentarios, que son lo que mas se consulta. Puestos al lado,
+ * se leen junto a los datos que los explican. En pantalla angosta las tres
+ * columnas se apilan en ese mismo orden.
+ */
 function cuerpoDetalleIniciativa(i) {
+  return '<div class="det-ini">' +
+    '<div class="det-col">' + columnaDatosIniciativa(i) + '</div>' +
+    '<div class="det-col">' + columnaActividades(i) + '</div>' +
+    '<div class="det-col">' + bloqueComentarios(i.Observaciones) + '</div>' +
+  '</div>';
+}
+
+/** Columna 1: los datos de la iniciativa, su avance y su documentacion. */
+function columnaDatosIniciativa(i) {
   var filas = [
     ['Estado', i.estado],
     ['Prioridad', i.prioridad],
@@ -1682,28 +1703,20 @@ function cuerpoDetalleIniciativa(i) {
            '</dd>';
   }).join('');
 
-  var descripcion = i.descripcion
-      ? tituloSeccion('Descripción') + '<p class="alcance">' + esc(i.descripcion) + '</p>'
-      : '';
-
-  // El avance con las mismas reglas del listado: % real contra % esperado.
   var avance = tituloSeccion('Avance') +
     '<p style="font-size:13px;margin:0">' +
       (i.avanceReal === null
         ? '<span style="color:var(--ink-faint)">Todavía no tiene solicitudes relacionadas.</span>'
         : celdaAvanceReal({ avanceReal: i.avanceReal, avanceEsperado: i.avanceEsperado,
-                            actividades: i.solicitudes }) + ' de avance real' +
+                            actividades: i.solicitudes }) + ' real' +
           (i.avanceEsperado === null
             ? ' <span style="color:var(--ink-faint)">(sin fechas para comparar)</span>'
             : ' · se esperaba ' + formatoPorcentaje(i.avanceEsperado))) +
-    '</p>' +
-    '<p class="nota" style="margin:6px 0 0">' + i.solicitudes +
-      (i.solicitudes === 1 ? ' solicitud' : ' solicitudes') +
-      ' · ' + i.solicitudesEnVuelo + ' en curso' +
-      (i.solicitudesBloqueadas
-        ? ' · <b style="color:var(--rojo)">' + i.solicitudesBloqueadas + ' bloqueada' +
-          (i.solicitudesBloqueadas === 1 ? '' : 's') + '</b>'
-        : '') + '</p>';
+    '</p>';
+
+  var descripcion = i.descripcion
+      ? tituloSeccion('Descripción') + '<p class="alcance">' + esc(i.descripcion) + '</p>'
+      : '';
 
   var drive = i.driveUrl
       ? '<div style="margin-top:16px"><a class="btn-sec" target="_blank" rel="noopener" ' +
@@ -1713,12 +1726,39 @@ function cuerpoDetalleIniciativa(i) {
         (CTX.puedeEditarIniciativa ? ': se agrega editando la iniciativa.' : '.') + '</p>';
 
   var editar = CTX.puedeEditarIniciativa
-      ? '<div class="fila" style="margin-top:14px">' +
+      ? '<div style="margin-top:10px">' +
         '<button class="btn-sec" id="btnEditarDesdeDetalle">Editar iniciativa</button></div>'
       : '';
 
-  return '<dl>' + filas + '</dl>' + descripcion + avance + drive + editar +
-         bloqueComentarios(i.Observaciones);
+  return '<dl>' + filas + '</dl>' + avance + descripcion + drive + editar;
+}
+
+/** Columna 2: las actividades de la iniciativa y como va cada una. */
+function columnaActividades(i) {
+  var lista = (i.actividades || []).slice().sort(ordenDeAtencion);
+  var resumen = i.solicitudes + (i.solicitudes === 1 ? ' actividad' : ' actividades') +
+      ' · ' + i.solicitudesEnVuelo + ' en curso' +
+      (i.solicitudesBloqueadas ? ' · ' + i.solicitudesBloqueadas + ' bloqueada' +
+        (i.solicitudesBloqueadas === 1 ? '' : 's') : '');
+
+  if (!lista.length) {
+    return tituloSeccion('Actividades') +
+           '<p class="nota" style="margin:0">Esta iniciativa todavía no tiene solicitudes.</p>';
+  }
+
+  return tituloSeccion('Actividades · ' + i.solicitudes) +
+    '<p class="nota" style="margin:0 0 10px">' + esc(resumen) + '</p>' +
+    '<div class="act-lista">' + lista.map(function (a) {
+      return '<div class="act' + (a.bloqueada ? ' bloqueada' : '') + '">' +
+        '<div class="act-top"><span class="act-id">' + esc(a.id) + '</span>' +
+          '<span class="badge ' + (CLASE_ESTADO[a.estadoId] || 'e-por-iniciar') + '">' +
+          esc(a.estado) + '</span></div>' +
+        '<div class="act-nombre">' + esc(a.nombre) + '</div>' +
+        '<div class="act-pie">' + esc(a.fase) +
+          (a.responsable ? ' · ' + esc(a.responsable) : '') +
+          (a.bloqueada ? ' · <b style="color:var(--rojo)">bloqueada</b>' : '') +
+        '</div></div>';
+    }).join('') + '</div>';
 }
 
 function formularioBloqueo(id) {
