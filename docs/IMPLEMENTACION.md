@@ -250,12 +250,16 @@ Los tres interruptores generales están en **`Config.gs`**: `NOTIFICAR_CHAT`, `N
 primeros son hechos del proceso y un comentario es una conversación.
 
 **Para que los correos lleven el enlace directo** hace falta que la aplicación sepa su propia
-dirección. Para saber si ya la sabe, ejecute **`verUrlAplicacion`** (archivo **`Config.gs`**): si
-los registros muestran una dirección, no hay nada que hacer.
+dirección. Normalmente **no hay que hacer nada**: la aplicación la aprende sola la primera vez que
+alguien la abre.
 
-Si no la sabe, ejecute **`configurarUrlAplicacion`** (mismo archivo), **sin escribir nada**: la
-averigua sola de la implementación publicada. Sin esto los correos salen igual, pero sin el botón
-para abrir la solicitud.
+Para comprobarlo, entre a **Administración**: arriba está el recuadro *Dirección de la aplicación*
+con lo que se está usando hoy. Si hace falta corregirla, se escribe ahí y se guarda.
+
+⚠️ **Tiene que ser la dirección publicada, la que termina en `/exec`.** La otra que muestra Apps
+Script, la que termina en `/dev`, es la de pruebas: **solo la puede abrir quien tenga permiso de
+editar el código**, así que un usuario normal recibiría un error. La aplicación rechaza una `/dev`
+si se intenta guardar.
 
 ### Enlaces directos
 
@@ -553,8 +557,8 @@ lista las del archivo abierto.
 | `validarInstalacion` | `Setup.gs` | Comprobar que quedó todo bien. Debe decir `problemas: []` |
 | `registrarmeComoAdministrador` | `Setup.gs` | Darse de alta como usuario administrador |
 | `actualizarEstructura` | `Setup.gs` | **La más frecuente.** Poner las hojas al día cuando una versión agrega una tabla o una columna |
-| `configurarUrlAplicacion` | `Config.gs` | Guardar la dirección de la aplicación, que usan los enlaces de los correos. Se ejecuta **sin escribir nada**: la averigua sola |
-| `verUrlAplicacion` | `Config.gs` | Decir qué dirección usan hoy los correos, sin cambiar nada |
+| `configurarUrlAplicacion` | `Config.gs` | Guardar la dirección de la aplicación. Normalmente no hace falta: se configura desde **Administración** |
+| `verUrlAplicacion` | `Config.gs` | Decir qué dirección usan hoy los correos, sin cambiar nada. También se ve en **Administración** |
 | `unificarAlcanceSolicitudes` | `Mantenimiento.gs` | Pasar a `Alcance` lo que estaba en `Objetivo` y `Entregable` |
 | `renumerarSolicitudes` | `Mantenimiento.gs` | Llevar los ID viejos al formato `SOL-0015` |
 | `verificarEstructura` | `Mantenimiento.gs` | Revisar que las hojas coincidan con el esquema |

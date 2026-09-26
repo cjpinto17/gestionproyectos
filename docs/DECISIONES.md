@@ -1272,25 +1272,51 @@ Tres cuidados en la implementación:
 - **Si el rol no puede ver esa sección, el enlace simplemente no abre nada.** La página ya se
   redirige a la primera que sí puede; el enlace no es una puerta trasera.
 
-### D-73 · Una instrucción que no se podía seguir
+### D-73 · Una instrucción que no se podía seguir, y una dirección que no servía
 
-`configurarUrlAplicacion("https://…")` pedía la dirección entre paréntesis. El desplegable de
-funciones del editor de Apps Script **no permite pasar argumentos**: ejecutarla desde ahí corría
-`configurarUrlAplicacion()` sin nada y fallaba. La guía resolvía esto pidiendo crear un archivo
-temporal con una función envoltorio, pegar código y borrarlo después — cuatro pasos y algo de
-programación para guardar una dirección.
+**Primer problema.** `configurarUrlAplicacion("https://…")` pedía la dirección entre paréntesis, y
+el desplegable de funciones del editor de Apps Script **no permite pasar argumentos**: ejecutarla
+desde ahí corría la función sin nada y fallaba. La guía lo resolvía pidiendo crear un archivo
+temporal con una función envoltorio — cuatro pasos y algo de programación para guardar una
+dirección.
 
-Ahora la función **se ejecuta sin escribir nada y averigua sola** la dirección, de la implementación
-publicada (`ScriptApp.getService().getUrl()`). Sigue aceptando un argumento para el caso raro de
-querer guardar otra. Y si la aplicación todavía no está publicada, lo dice con esas palabras en vez
-de fallar de una forma que no se entiende.
+**Segundo problema, que el primero destapó.** Se hizo que la función averiguara la dirección sola,
+con `ScriptApp.getService().getUrl()`. Está mal: **esa llamada devuelve una dirección distinta según
+dónde se ejecute.**
 
-Se agrega también `verUrlAplicacion()`, que responde "¿hay algo que hacer?" sin cambiar nada ni
-tener que mandarse un correo de prueba.
+| | Qué es | Quién puede abrirla |
+| --- | --- | --- |
+| `…/dev` | La de pruebas. Corre el último código guardado | Solo quien tenga permiso de **editar el script** |
+| `…/exec` | La publicada, la de la implementación fija | Quien diga la configuración de la implementación |
 
-**La lección, que vale para lo que venga:** una función pensada para que la ejecute una persona no
-técnica tiene que poder ejecutarse **desde el desplegable, sin argumentos**. Si necesita datos, o
-los averigua sola, o se pide desde una pantalla de la aplicación — no desde el editor.
+Desde el editor devuelve la `/dev`; corriendo dentro de la aplicación publicada devuelve la
+`/exec`. Y la función de configuración se ejecuta justamente desde el editor — así que el "arreglo"
+guardaba la dirección de pruebas, y los correos habrían salido con un enlace que casi nadie puede
+abrir. Lo detectó el negocio al comparar las dos direcciones, antes de que llegara a un usuario.
+
+**Cómo quedó, con tres defensas:**
+
+1. **Una `/dev` no se guarda nunca.** Se rechaza explicando por qué, en vez de aceptarla y fallar
+   después en el buzón de alguien. Una dirección que no termine en `/exec` tampoco.
+2. **La aplicación aprende su propia dirección al ser usada.** `doGet` la anota la primera vez que
+   alguien la abre, que es el único momento en que el proyecto se está ejecutando *dentro* de su
+   implementación y puede conocerla. Se guarda en una clave aparte para no pisar nunca lo que
+   alguien haya escrito a mano.
+3. **Se puede escribir a mano desde Administración**, en un campo que valida lo mismo. Es el camino
+   garantizado, y es una pantalla y no el editor.
+
+Y si quedó una `/dev` guardada de antes, `getUrlAplicacion_()` la ignora y usa la aprendida, y el
+diagnóstico lo dice en mayúsculas.
+
+**Dos lecciones, que valen para lo que venga:**
+
+- Una función pensada para que la ejecute una persona no técnica tiene que poder ejecutarse **desde
+  el desplegable, sin argumentos**. Si necesita datos, o los averigua sola, o se piden desde una
+  pantalla de la aplicación.
+- **Automatizar un dato no es garantía de acertarlo.** Detectar la dirección sola parecía
+  estrictamente mejor que pedirla, y era peor: sustituyó un paso molesto pero visible por un valor
+  equivocado y silencioso. Cuando se automatiza un dato, hay que validar que el valor obtenido
+  sirva para lo que se va a usar.
 
 ## Supuestos abiertos
 

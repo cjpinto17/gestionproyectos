@@ -20,6 +20,11 @@
  * @return {!HtmlOutput}
  */
 function doGet(e) {
+  // La unica oportunidad de conocer la direccion publicada es esta: aqui la
+  // aplicacion se esta ejecutando DENTRO de su implementacion. Ejecutada desde
+  // el editor devolveria la de pruebas (/dev), que los usuarios no pueden abrir.
+  aprenderUrlAplicacion_();
+
   var plantilla = HtmlService.createTemplateFromFile('Index');
   var params = (e && e.parameter) || {};
   plantilla.paginaInicial = params.page || 'home';
@@ -2292,6 +2297,39 @@ function escribirMatriz_(tabla, columnas, marcada) {
   invalidarTabla_(tabla);
 }
 
+/**
+ * La direccion de la aplicacion, para la pantalla de Administracion.
+ * @return {!Object}
+ */
+function getUrlAplicacion() {
+  exigirPermiso_(PERMISO_ADMINISTRAR, 'Su rol no puede ver esta configuracion.');
+  var guardada = getProp_(PROP_KEYS.URL_APLICACION, false) || '';
+  var aprendida = urlAprendida_();
+  var enUso = (guardada && !/\/dev\/?$/.test(guardada)) ? guardada : aprendida;
+  return {
+    url: enUso,
+    escritaAMano: guardada,
+    aprendida: aprendida,
+    // Se avisa del caso que costo el error: una /dev guardada a mano.
+    esDePruebas: !!(guardada && /\/dev\/?$/.test(guardada))
+  };
+}
+
+/**
+ * Guarda la direccion que reparte al equipo, desde Administracion.
+ * @param {string} url
+ * @return {!Object}
+ */
+function guardarUrlAplicacion(url) {
+  exigirPermiso_(PERMISO_ADMINISTRAR, 'Su rol no puede cambiar esta configuracion.');
+  var limpia = String(url || '').trim();
+  validarUrlAplicacion_(limpia);
+  var valores = {};
+  valores[PROP_KEYS.URL_APLICACION] = limpia;
+  guardarConfiguracion_(valores);
+  return { ok: true, url: limpia };
+}
+
 var METODOS_PUBLICOS = {
   getArranque: true,
   getCatalogos: true,
@@ -2322,7 +2360,9 @@ var METODOS_PUBLICOS = {
   agregarObservacionIniciativa: true,
   getObservacionesIniciativa: true,
   getMatrizPermisos: true,
-  guardarPermisos: true
+  guardarPermisos: true,
+  getUrlAplicacion: true,
+  guardarUrlAplicacion: true
 };
 
 /**

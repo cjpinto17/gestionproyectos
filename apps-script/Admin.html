@@ -16,6 +16,21 @@
       </div>
     </div>
 
+    <div class="panel" id="panelUrl" style="margin-bottom:16px">
+      <div>
+        <h3>Direcci&oacute;n de la aplicaci&oacute;n</h3>
+        <div class="sub">La que se reparte al equipo y la que llevan los enlaces de los correos.
+        Es la publicada, la que <b>termina en <code>/exec</code></b>. La de pruebas
+        (<code>/dev</code>) solo la puede abrir quien edite el c&oacute;digo.</div>
+      </div>
+      <div class="fila" style="margin-top:12px;align-items:center">
+        <input type="url" id="urlApp" placeholder="https://script.google.com/…/exec"
+               style="flex:1;min-width:260px">
+        <button class="btn-sec" id="btnGuardarUrl">Guardar</button>
+      </div>
+      <div class="nota" id="urlAppEstado" style="margin-top:8px"></div>
+    </div>
+
     <div class="panel" id="panelPermisos" style="margin-bottom:16px">
       <div class="fila">
         <div>

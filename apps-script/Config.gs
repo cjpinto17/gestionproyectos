@@ -17,7 +17,8 @@ var PROP_KEYS = {
   CHAT_WEBHOOK_URL: 'CHAT_WEBHOOK_URL',
   DOMINIO_CORPORATIVO: 'DOMINIO_CORPORATIVO',
   DOMINIOS_ALIADOS: 'DOMINIOS_ALIADOS',
-  URL_APLICACION: 'URL_APLICACION'
+  URL_APLICACION: 'URL_APLICACION',
+  URL_DETECTADA: 'URL_DETECTADA'
 };
 
 var CONFIG = {
@@ -195,13 +196,12 @@ function getChatWebhookUrl_() {
  * @return {string} '' si no hay ninguna disponible.
  */
 function getUrlAplicacion_() {
+  // Primero lo que alguien escribio a mano; si no, lo que la aplicacion
+  // aprendio sola al ser usada. Lo que devuelve ScriptApp aqui NO sirve: desde
+  // una ejecucion de fondo puede ser la /dev, que los usuarios no pueden abrir.
   var propia = getProp_(PROP_KEYS.URL_APLICACION, false);
-  if (propia) return propia;
-  try {
-    return ScriptApp.getService().getUrl() || '';
-  } catch (e) {
-    return '';
-  }
+  if (propia && !/\/dev\/?$/.test(propia)) return propia;
+  return urlAprendida_();
 }
 
 /**
@@ -210,66 +210,147 @@ function getUrlAplicacion_() {
  * @param {string} url
  * @return {!Object}
  */
+/**
+ * Por que existe esta distincion, que costo un error.
+ *
+ * Apps Script publica DOS direcciones para el mismo proyecto:
+ *   .../dev   la de pruebas. Corre siempre el ultimo codigo guardado y SOLO la
+ *             abre quien tenga permiso de editar el script. Un usuario normal
+ *             recibe un error.
+ *   .../exec  la publicada. Es la que apunta a la implementacion fija y la que
+ *             se le reparte a la gente.
+ *
+ * Y ScriptApp.getService().getUrl() devuelve una u otra segun DONDE se ejecute:
+ * desde el editor devuelve la /dev; corriendo dentro de la aplicacion publicada
+ * devuelve la /exec. Como la funcion de configuracion se ejecuta justamente
+ * desde el editor, averiguarla sola guardaba la direccion equivocada, y los
+ * correos salian con un enlace que casi nadie podia abrir.
+ *
+ * De ahi las tres defensas de este archivo: no se guarda una /dev, la
+ * aplicacion aprende su propia /exec cuando alguien la usa, y se puede escribir
+ * a mano desde Administracion.
+ *
+ * @param {string=} url Opcional. Sin argumento se intenta averiguar.
+ * @return {!Object}
+ */
 function configurarUrlAplicacion(url) {
   exigirOperador_();
 
-  // SIN argumento: se averigua sola. Es el caso normal, y existe porque el
-  // desplegable de funciones del editor de Apps Script no permite pasarle nada
-  // entre parentesis: pedirle a alguien que ejecute
-  // configurarUrlAplicacion("https://...") desde ahi es pedirle algo que la
-  // pantalla no deja hacer. Con argumento se sigue pudiendo, para el caso raro
-  // de querer guardar una direccion distinta a la de esta implementacion.
   var limpia = String(url || '').trim();
-  var automatica = false;
+  var comoSeObtuvo = 'La escribio usted';
+
   if (!limpia) {
-    try { limpia = String(ScriptApp.getService().getUrl() || '').trim(); } catch (e) { limpia = ''; }
-    automatica = true;
+    limpia = urlAprendida_();
+    comoSeObtuvo = 'La aprendio la aplicacion al ser usada';
     if (!limpia) {
-      throw new Error('No se pudo averiguar la direccion de la aplicacion. ' +
-                      'Probablemente todavia no esta publicada: publiquela primero ' +
-                      '(boton Implementar) y vuelva a ejecutar esta funcion.');
+      try { limpia = String(ScriptApp.getService().getUrl() || '').trim(); } catch (e) { limpia = ''; }
+      comoSeObtuvo = 'Se tomo del proyecto';
+    }
+    if (!limpia) {
+      throw new Error('No se pudo averiguar la direccion. Abra la aplicacion publicada ' +
+                      'una vez (la direccion que termina en /exec) y vuelva a ejecutar ' +
+                      'esta funcion; o escribala desde Administracion.');
     }
   }
-  if (!/^https:\/\//.test(limpia)) {
-    throw new Error('Escriba la direccion completa, empezando por https://');
-  }
+
+  validarUrlAplicacion_(limpia);
 
   var valores = {};
   valores[PROP_KEYS.URL_APLICACION] = limpia;
   guardarConfiguracion_(valores);
 
   var resultado = {
-    ok: true,
-    url: limpia,
-    comoSeObtuvo: automatica ? 'Se tomo de esta implementacion' : 'La escribio usted',
-    mensaje: 'Listo. Los correos de bienvenida y los avisos de comentario ' +
-             'llevaran el enlace a esta direccion.'
+    ok: true, url: limpia, comoSeObtuvo: comoSeObtuvo,
+    mensaje: 'Listo. Los correos llevaran el enlace a esta direccion.'
   };
   Logger.log(JSON.stringify(resultado, null, 2));
   return resultado;
 }
 
 /**
+ * Rechaza una direccion que no sirve para repartir.
+ * @param {string} url
+ * @private
+ */
+function validarUrlAplicacion_(url) {
+  if (!/^https:\/\//.test(url)) {
+    throw new Error('Escriba la direccion completa, empezando por https://');
+  }
+  if (/\/dev\/?$/.test(url)) {
+    throw new Error('Esa es la direccion de PRUEBAS (termina en /dev). Solo la puede abrir ' +
+                    'quien edite el script; sus usuarios verian un error. Use la direccion ' +
+                    'publicada, la que termina en /exec.');
+  }
+  if (!/\/exec\/?$/.test(url)) {
+    throw new Error('La direccion de la aplicacion publicada termina en /exec. ' +
+                    'Revise que la haya copiado completa.');
+  }
+}
+
+/**
+ * La direccion /exec que la aplicacion aprendio sola.
+ *
+ * Se guarda aparte de la que configura una persona para no pisarsela nunca: si
+ * alguien escribio una a mano, esa manda.
+ *
+ * @return {string}
+ * @private
+ */
+function urlAprendida_() {
+  return getProp_(PROP_KEYS.URL_DETECTADA, false) || '';
+}
+
+/**
+ * Deja anotada la direccion /exec la primera vez que alguien abre la aplicacion.
+ *
+ * Es lo que hace que en la practica no haya que configurar nada: la aplicacion
+ * solo puede conocer su direccion publicada mientras la estan usando, no cuando
+ * se ejecuta una funcion desde el editor.
+ *
+ * Nunca interrumpe la carga de la pagina: si falla, se ignora y ya.
+ * @private
+ */
+function aprenderUrlAplicacion_() {
+  try {
+    if (urlAprendida_()) return;                       // ya se sabe
+    var url = String(ScriptApp.getService().getUrl() || '').trim();
+    if (!/^https:\/\/.+\/exec\/?$/.test(url)) return;  // no es la publicada
+    var valores = {};
+    valores[PROP_KEYS.URL_DETECTADA] = url;
+    guardarConfiguracion_(valores);
+  } catch (e) { /* aprender es una cortesia, no un requisito */ }
+}
+
+/**
  * Dice que direccion tienen hoy los enlaces de los correos, sin cambiar nada.
  *
  * Sirve para responder "hay algo que hacer?" sin tener que mandarse un correo
- * de prueba: si devuelve una direccion, los enlaces ya funcionan.
+ * de prueba.
  *
  * @return {!Object}
  */
 function verUrlAplicacion() {
   exigirOperador_();
-  var guardada = getProp_(PROP_KEYS.URL_APLICACION, false);
-  var detectada = '';
-  try { detectada = String(ScriptApp.getService().getUrl() || ''); } catch (e) { /* sin publicar */ }
+  var guardada = getProp_(PROP_KEYS.URL_APLICACION, false) || '';
+  var aprendida = urlAprendida_();
+  var enUso = guardada || aprendida;
+
+  var problema = null;
+  if (!enUso) {
+    problema = 'Los correos saldran sin enlace. Abra la aplicacion publicada (la ' +
+               'direccion que termina en /exec) y vuelva a ejecutar esta funcion.';
+  } else if (/\/dev\/?$/.test(enUso)) {
+    problema = 'ATENCION: la direccion guardada es la de PRUEBAS (/dev). Solo la puede ' +
+               'abrir quien edite el script, asi que los enlaces de los correos no le ' +
+               'sirven a los usuarios. Corrijala desde Administracion o ejecute ' +
+               'configurarUrlAplicacion despues de abrir la aplicacion publicada.';
+  }
 
   var resultado = {
-    urlQueSeUsa: guardada || detectada || '',
-    guardadaAMano: guardada || null,
-    detectadaDeLaImplementacion: detectada || null,
-    mensaje: (guardada || detectada)
-        ? 'Los correos ya llevan enlace. No hay nada que hacer.'
-        : 'Los correos saldran sin enlace. Ejecute configurarUrlAplicacion.'
+    urlQueSeUsa: enUso,
+    escritaAMano: guardada || null,
+    aprendidaAlUsarla: aprendida || null,
+    mensaje: problema || 'Los correos ya llevan el enlace correcto. No hay nada que hacer.'
   };
   Logger.log(JSON.stringify(resultado, null, 2));
   return resultado;

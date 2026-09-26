@@ -2024,6 +2024,7 @@ function cargarAdmin() {
   // pestana dejando abierta la cuadricula, al volver no se encuentra con una
   // pantalla que no recuerda haber pedido.
   if (!$('vistaPermisos').hidden) { PERMISOS_SUCIOS = false; mostrarPermisos(false); }
+  cargarUrlAplicacion();
   if (!$('botoneraTablas').innerHTML) {
     $('botoneraTablas').innerHTML = TABLAS_ADMIN.map(function (t) {
       return '<button class="btn-sec" data-tabla="' + t + '" aria-pressed="' +
@@ -2213,6 +2214,40 @@ function formularioRegistro(valorPk) {
 }
 
 /* --- Migracion de solicitudes (solo Administrador) --- */
+/* --- Direccion de la aplicacion --- */
+$('btnGuardarUrl').addEventListener('click', function () {
+  var url = $('urlApp').value.trim();
+  if (!url) { toast('Escriba la dirección.', true); return; }
+  api('guardarUrlAplicacion', url).then(function (r) {
+    toast('Dirección guardada.');
+    pintarUrlAplicacion({ url: r.url, escritaAMano: r.url, esDePruebas: false });
+  }).catch(fallo);
+});
+
+function cargarUrlAplicacion() {
+  api('getUrlAplicacion').then(pintarUrlAplicacion).catch(function () {
+    $('urlAppEstado').textContent = '';
+  });
+}
+
+function pintarUrlAplicacion(r) {
+  $('urlApp').value = r.url || '';
+  var estado = $('urlAppEstado');
+  if (r.esDePruebas) {
+    estado.innerHTML = '<b style="color:var(--rojo)">La dirección guardada es la de pruebas ' +
+      '(/dev).</b> Los enlaces de los correos no le sirven a sus usuarios: reemplácela por ' +
+      'la que termina en /exec.';
+    return;
+  }
+  if (!r.url) {
+    estado.textContent = 'Todavía no hay dirección: los correos salen sin enlace.';
+    return;
+  }
+  estado.textContent = r.escritaAMano
+      ? 'Escrita a mano. Es la que llevan los correos.'
+      : 'La aprendió la aplicación sola al ser usada. Si es la correcta, no tiene que hacer nada.';
+}
+
 /* --- Permisos por rol --- */
 $('btnPermisos').addEventListener('click', abrirPermisos);
 $('btnVolverAdmin').addEventListener('click', function () { mostrarPermisos(false); });
