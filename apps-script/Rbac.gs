@@ -38,7 +38,7 @@
 var CATALOGO_PERMISOS = [
   { grupo: 'Menú principal', campo: 'Ver_Home', nombre: 'Home' },
   { grupo: 'Menú principal', campo: 'Ver_Iniciativas', nombre: 'Iniciativas' },
-  { grupo: 'Menú principal', campo: 'Ver_Gestion', nombre: 'Gestión fábrica' },
+  { grupo: 'Menú principal', campo: 'Ver_Gestion', nombre: 'Gestión' },
   { grupo: 'Menú principal', campo: 'Ver_Roadmap', nombre: 'Roadmap' },
   { grupo: 'Menú principal', campo: 'Ver_Reportes', nombre: 'Reportes' },
   { grupo: 'Menú principal', campo: 'Administrar', nombre: 'Administración' },
@@ -54,6 +54,8 @@ var CATALOGO_PERMISOS = [
   { grupo: 'Gestión fábrica', campo: 'Bloquear_Solicitud', nombre: 'Marcar y levantar bloqueos' },
   { grupo: 'Gestión fábrica', campo: 'Comentar_Solicitud', nombre: 'Comentar' },
   { grupo: 'Gestión fábrica', campo: 'Migrar_Solicitud', nombre: 'Migrar históricas' },
+
+  { grupo: 'Tareas', campo: 'Mover_Estado_Tarea', nombre: 'Cambiar el estado de una tarea' },
 
   { grupo: 'Roadmap', campo: 'Gestionar_Versiones', nombre: 'Crear y editar versiones' }
 ];
@@ -147,6 +149,9 @@ function permisosDeFabrica_(rolId) {
     Saltar_Fases: !!f.admin,
     Migrar_Solicitud: !!f.admin,
     Bloquear_Solicitud: !!f.embudo,
+    // Quien opera el embudo tambien mueve tareas de fabrica; se separa para
+    // poder darselo a quien atiende tareas sin darle el tablero completo.
+    Mover_Estado_Tarea: !!f.embudo,
     Gestionar_Versiones: !!f.versiones
   };
 }
@@ -260,6 +265,11 @@ function puedeOperarTablero(rolId) {
 /** @return {boolean} */
 function puedeBloquear(rolId) {
   return tienePermiso(rolId, 'Bloquear_Solicitud');
+}
+
+/** @return {boolean} True si el rol puede mover tareas entre estados. */
+function puedeMoverTarea(rolId) {
+  return tienePermiso(rolId, 'Mover_Estado_Tarea');
 }
 
 /** @return {boolean} */

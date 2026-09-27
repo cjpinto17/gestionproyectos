@@ -201,6 +201,11 @@
   .t-nombre{font-size:13px;font-weight:600;line-height:1.35;margin-bottom:8px;overflow-wrap:anywhere}
   .t-pie{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-muted);flex-wrap:wrap}
   .t-ver{font-family:var(--display);font-weight:700;color:var(--verde);background:#E8FBF1;border-radius:4px;padding:1px 5px;font-size:10.5px}
+  /* Compromiso de una tarea: el reemplazo del SLA por fase. En rojo cuando ya
+     paso y la tarea sigue abierta. */
+  .t-compromiso{font-family:var(--display);font-weight:700;font-size:10.5px;border-radius:4px;
+                padding:1px 5px;background:#EDF1F8;color:#42557A;font-variant-numeric:tabular-nums}
+  .t-compromiso.vencida{background:var(--rojo-bg);color:var(--rojo)}
   /* Enlaces de la tarjeta: la carpeta y el documento. Van al final del pie,
      empujados a la derecha, para que no compitan con el responsable. */
   .t-links{margin-left:auto;display:flex;gap:2px;flex:none}

@@ -1425,6 +1425,71 @@ detalle, de la carga masiva y de la migración. La columna sigue en la hoja con 
 publicando esos enlaces fuera de la aplicación. En D-77 se habían dejado porque el pedido era sobre
 el correo; con el modelo ya claro no tiene sentido sostener la excepción.
 
+### D-79 · Dos gobiernos sobre la misma tabla: la fábrica y las tareas
+
+Las solicitudes no son todas de la misma naturaleza, y hasta ahora el sistema las trataba como si
+lo fueran: las cuatro clases pasaban por el mismo embudo de ocho fases. Para *Nuevo*, *Mejora* y
+*Ajuste* eso describe bien el trabajo. Para una **Tarea** no: una tarea se pide, se hace y se
+cierra. Obligarla a recorrer *Análisis y diseño*, *Pruebas UAT* y *Aceptación TI* llenaba el tablero
+de tarjetas que nadie iba a mover y ensuciaba todos los indicadores del embudo.
+
+Se separan los dos gobiernos:
+
+| | Tipos | Se mueve por | Tablero |
+| --- | --- | --- | --- |
+| **Fábrica** | Nuevo, Mejora, Ajuste (`TIP-01`…`TIP-03`) | Las 8 fases | Gestión › **Fábrica** |
+| **Tarea** | Tarea (`TIP-04`) | El estado | Gestión › **Tareas** |
+
+**Una sola tabla, no dos.** Una tarea sigue siendo una solicitud: cuelga de su iniciativa, cuenta
+en su avance, recibe comentarios y aparece en el detalle de seguimiento. Partirla en otra hoja
+habría duplicado toda esa maquinaria para ganar nada. Lo que cambia es cómo se gobierna, no dónde
+vive. En el código eso es una sola pregunta, `esTipoTarea(tipo)` sobre `TIPOS_SIN_EMBUDO`
+(`Esquema.gs`): si mañana otro tipo deja de pasar por el embudo, se agrega ahí y todo lo demás
+—validación, tableros, métricas, avance— lo sigue solo.
+
+**La fase deja de ser obligatoria, pero no queda suelta.** `Fase_Actual` pasó a opcional en el
+esquema, y la regla se mudó a `validarSolicitud_`: una solicitud de fábrica *exige* fase, y una
+tarea *exige* que esté vacía. Se rechazan los dos errores, no solo uno. Una tarea con fase sería
+peor que una tarea sin ella: aparecería en el embudo y en los indicadores de fábrica como si fuera
+un requerimiento.
+
+**Las cuatro columnas del tablero de tareas** son `Por iniciar · En progreso · Bloqueada ·
+Terminada`. *Aprobada* no está porque una tarea no pasa por aprobación, y *Cancelada* tampoco:
+son un archivo, no un paso del trabajo, y una columna que solo crece no aporta. Para que el número
+no desconcierte, el subtítulo dice cuántas quedaron fuera de columna cuando las hay.
+
+**Bloquear es mover.** Arrastrar una tarea a *Bloqueada* pone `Tiene_Bloqueo` en SÍ, y sacarla de
+ahí lo levanta. Antes el bloqueo era un campo aparte que había que acordarse de sincronizar con el
+estado; ahora el gesto y el dato son lo mismo y no pueden contradecirse.
+
+**El SLA por fase se reemplaza por una fecha compromiso.** Una tarea no tiene embudo contra el cual
+medirse, así que sin `Fecha_Compromiso` no habría forma de que llegara tarde. Se muestra al pie de
+la tarjeta, y en rojo si ya pasó —salvo que la tarea esté cerrada: una tarea terminada nunca llega
+tarde, por tarde que se haya terminado—. El formulario de nueva solicitud muestra *Versión
+estimada* o *Fecha compromiso* según el tipo, porque ninguno de los dos aplica a la otra clase.
+
+**Cambiar el estado de una tarea es un permiso propio** (`Mover_Estado_Tarea`, grupo *Tareas* en
+Administración › Permisos). No se reutilizó `Mover_Fase`: quien atiende las tareas del día a día no
+es necesariamente quien mueve requerimientos por el embudo, y con el permiso separado eso se
+configura. En la primera instalación lo reciben los mismos roles que ya operaban el tablero.
+
+**Ningún indicador del embudo cuenta tareas.** `cargarDatos_` reparte la tabla en `solicitudesFabrica`
+y `tareas`, y todo lo que mide fases —lead time, throughput, embudo, first pass yield— lee el
+primero. Si no se hubiera hecho, agregar tareas habría torcido cada métrica histórica sin que nadie
+lo notara. A cambio el Home gana su propio bloque: `calcularTareasAbiertas_` informa abiertas,
+cerradas en la ventana, bloqueadas y vencidas.
+
+**El avance de la iniciativa sí las cuenta, y debe contarlas**: una tarea es una actividad del plan
+como cualquier otra. Como no tiene fases, su avance se lee del estado —terminada 100 %, en progreso
+50 %, el resto 0 %— y se promedia con el de las de fábrica en un solo porcentaje. Un número por
+iniciativa, no dos: quien mira la tarjeta quiere saber cómo va el proyecto, no cómo va cada
+gobierno interno.
+
+**Para las tareas que ya existen** hay `normalizarTareas` (`Mantenimiento.gs`): vacía la fase de las
+`TIP-04` y la traduce a estado —`FAS-08` a *Terminada*, con bloqueo a *Bloqueada*, `FAS-03` a
+`FAS-07` a *En progreso*—. Nunca toca una que ya esté *Terminada* o *Cancelada*, y por defecto
+**solo simula**: hay que llamarla con `true` para que escriba.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

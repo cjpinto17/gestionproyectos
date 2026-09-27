@@ -74,6 +74,34 @@ var TIPOS_SOLICITUD = [
   { id: 'TIP-04', nombre: 'Tarea' }
 ];
 
+/**
+ * Tipos que NO recorren el embudo de ocho fases (D-79).
+ *
+ * Una tarea se hace y se cierra: obligarla a pasar por Analisis, QA y UAT es
+ * pedirle al equipo que mantenga una ficcion, y el dia que deje de moverla los
+ * indicadores quedan mintiendo. Se gobierna por estado.
+ *
+ * Vive en el codigo y no en la hoja porque de esto depende que metricas cuentan
+ * cada registro, que tablero lo muestra y como aporta al avance de su
+ * iniciativa. Agregar un tipo desde Administracion no puede decidir eso.
+ */
+var TIPOS_SIN_EMBUDO = ['TIP-04'];
+
+/**
+ * @param {string} tipoSolicitud
+ * @return {boolean} True si el tipo se gobierna por estado y no por fase.
+ */
+function esTipoTarea(tipoSolicitud) {
+  return TIPOS_SIN_EMBUDO.indexOf(String(tipoSolicitud || '')) !== -1;
+}
+
+/**
+ * Estados que se muestran como columnas del tablero de tareas.
+ * "Aprobada" se deja por fuera —es un concepto de fabrica— y "Cancelada"
+ * tambien: no es trabajo pendiente y no merece una columna permanente.
+ */
+var ESTADOS_TABLERO_TAREA = ['EST-01', 'EST-02', 'EST-04', 'EST-06'];
+
 /** Tipo de iniciativa: naturaleza de la inversion. */
 var TIPOS_INICIATIVA = [
   { id: 'TIN-01', nombre: 'Negocio' },
@@ -202,6 +230,7 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'Bloquear_Solicitud', etiqueta: 'Marcar y levantar bloqueos', tipo: 'boolSN' },
       { campo: 'Comentar_Solicitud', etiqueta: 'Comentar solicitud', tipo: 'boolSN' },
       { campo: 'Migrar_Solicitud', etiqueta: 'Migrar solicitudes historicas', tipo: 'boolSN' },
+      { campo: 'Mover_Estado_Tarea', etiqueta: 'Cambiar el estado de una tarea', tipo: 'boolSN' },
       // Roadmap.
       { campo: 'Gestionar_Versiones', etiqueta: 'Crear y editar versiones', tipo: 'boolSN' }
     ]
@@ -384,12 +413,18 @@ var ESQUEMA_TRANSACCIONAL = {
       // Aqui vivia Orden_Iniciativa, retirado en D-66: se llenaba solo y nadie
       // lo reordenaba, asi que ordenaba por antiguedad disfrazada de decision.
       { campo: 'Proceso_Impactado', etiqueta: 'Proceso impactado', tipo: 'text' },
+      // Para las tareas, que no tienen SLA por fase contra el cual medirse.
+      { campo: 'Fecha_Compromiso', etiqueta: 'Fecha compromiso', tipo: 'date',
+        ayuda: 'Para qué día se comprometió. Aplica a las tareas: las de fábrica se miden ' +
+               'contra el SLA de su fase.' },
       { campo: 'Doc_Requerimiento_URL', etiqueta: 'Documento de requerimiento', tipo: 'url',
         ayuda: 'Enlace al documento del requerimiento. Se pega a mano.' },
       // Aqui vivia Carpeta_Drive_URL, retirado en D-78. La carpeta es de la
       // INICIATIVA (Drive_URL) y no de cada solicitud: la solicitud solo tiene
       // el enlace de su requerimiento.
-      { campo: 'Fase_Actual', etiqueta: 'Fase actual', tipo: 'enum', fk: 'Fases', requerido: true },
+      // La fase la exige validarSolicitud_ solo para los tipos de fabrica: una
+      // tarea no tiene embudo y la deja vacia (D-79).
+      { campo: 'Fase_Actual', etiqueta: 'Fase actual', tipo: 'enum', fk: 'Fases' },
       { campo: 'Estado_Actual', etiqueta: 'Estado actual', tipo: 'enum', fk: 'Estados', requerido: true },
       { campo: 'Tiene_Bloqueo', etiqueta: 'Tiene bloqueo', tipo: 'boolSN', requerido: true },
       { campo: 'Causal_Bloqueo', etiqueta: 'Causal de bloqueo', tipo: 'enum', fk: 'Causales_Bloqueo' },

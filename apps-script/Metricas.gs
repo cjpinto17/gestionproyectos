@@ -30,6 +30,43 @@ var ESTADO_TERMINADA = 'EST-06';
 /** Estado de solicitud que se descuenta del avance: ya nadie la va a hacer. */
 var ESTADO_CANCELADA = 'EST-05';
 
+/**
+ * Los numeros de las tareas, que son otros que los del embudo.
+ *
+ * Una tarea no tiene lead time por fase ni SLA: lo que importa es cuantas hay
+ * abiertas, cuantas se cerraron en la ventana y cuantas estan trabadas o
+ * vencidas contra su fecha compromiso.
+ *
+ * @param {!Array<!Object>} tareas
+ * @param {number} meses Ventana de la consulta.
+ * @return {!Object}
+ * @private
+ */
+function calcularTareasAbiertas_(tareas, meses) {
+  var desde = new Date();
+  desde.setMonth(desde.getMonth() - (meses || 12));
+  var hoy = new Date();
+  hoy.setHours(23, 59, 59, 999);
+
+  var cerradas = 0, abiertas = 0, bloqueadas = 0, vencidas = 0;
+  tareas.forEach(function (t) {
+    var estado = t.Estado_Actual;
+    if (estado === ESTADO_TERMINADA) {
+      var cierre = aFecha_(t.Fecha_Ultimo_Cambio);
+      if (cierre && cierre >= desde) cerradas++;
+      return;
+    }
+    if (estado === ESTADO_CANCELADA) return;        // no es trabajo pendiente
+    abiertas++;
+    if (estado === 'EST-04') bloqueadas++;
+    var compromiso = aFecha_(t.Fecha_Compromiso);
+    if (compromiso && compromiso < hoy) vencidas++;
+  });
+
+  return { total: tareas.length, abiertas: abiertas, cerradasEnVentana: cerradas,
+           bloqueadas: bloqueadas, vencidas: vencidas };
+}
+
 /* ================================================================== */
 /* Avance de una iniciativa: lo que lleva y lo que deberia llevar      */
 /* ================================================================== */
@@ -49,6 +86,15 @@ var ESTADO_CANCELADA = 'EST-05';
  */
 function avanceDeSolicitud_(solicitud) {
   if (solicitud.Estado_Actual === ESTADO_TERMINADA) return 1;
+
+  // Una tarea no tiene embudo del cual leer su posicion, asi que aporta por
+  // estado (D-79). El 0,5 de "en progreso" es el unico numero convenido de
+  // todo el calculo: se prefirio a contarla binaria porque una tarea que lleva
+  // tres semanas en curso no es lo mismo que una que no ha empezado.
+  if (esTipoTarea(solicitud.Tipo_Solicitud)) {
+    return solicitud.Estado_Actual === 'EST-02' ? 0.5 : 0;
+  }
+
   var pasos = FASES.length - 1;
   if (pasos <= 0) return 0;
   var orden = 0;
@@ -200,8 +246,17 @@ function contarPor_(lista, fn) {
  * @private
  */
 function cargarDatos_() {
+  var solicitudes = leerTabla_('Solicitudes');
   return {
-    solicitudes: leerTabla_('Solicitudes'),
+    solicitudes: solicitudes,
+    // Los indicadores del embudo —lead time, SLA, throughput, WIP, first pass
+    // yield— cuentan la fase de cada registro. Una tarea no tiene fase, asi que
+    // o inflaria la demanda quedandose en la primera o inflaria el throughput
+    // si alguien la empujara a la ultima. Se separan en el origen (D-79).
+    solicitudesFabrica: solicitudes.filter(function (s) {
+      return !esTipoTarea(s.Tipo_Solicitud);
+    }),
+    tareas: solicitudes.filter(function (s) { return esTipoTarea(s.Tipo_Solicitud); }),
     auditoria: leerTabla_('Auditoria_Transiciones'),
     proyectos: leerTabla_('Proyectos'),
     usuarios: leerTabla_('Usuarios'),
@@ -631,16 +686,16 @@ function calcularMetricasHome_(n) {
   var datos = cargarDatos_();
   var sla = mapaSla_(datos.sla);
 
-  anotarDiasHabiles_(datos.auditoria, datos.solicitudes);
-  var leadTime = calcularLeadTime_(datos.solicitudes);
-  var wip = calcularWip_(datos.solicitudes);
-  var throughput = calcularThroughput_(datos.solicitudes, n);
+  anotarDiasHabiles_(datos.auditoria, datos.solicitudesFabrica);
+  var leadTime = calcularLeadTime_(datos.solicitudesFabrica);
+  var wip = calcularWip_(datos.solicitudesFabrica);
+  var throughput = calcularThroughput_(datos.solicitudesFabrica, n);
   var entregadasVentana = throughput.reduce(function (a, m) { return a + m.entregadas; }, 0);
   // La grafica de throughput no sigue el filtro del Home: va siempre a medio
   // ano. Con la ventana en tres meses quedaban tres barras, y tres puntos no
   // dibujan una tendencia. El indicador numerico si respeta el filtro, porque
   // ahi lo que se quiere saber es el ritmo del periodo que se esta mirando.
-  var throughputGrafica = calcularThroughput_(datos.solicitudes, MESES_GRAFICA_THROUGHPUT);
+  var throughputGrafica = calcularThroughput_(datos.solicitudesFabrica, MESES_GRAFICA_THROUGHPUT);
 
   return {
     generado: new Date().toISOString(),
@@ -654,11 +709,11 @@ function calcularMetricasHome_(n) {
       iniciativasPorIniciar: datos.proyectos.filter(function (p) {
         return p.Estado_Iniciativa === 'EIN-01';
       }).length,
-      solicitudesTotales: datos.solicitudes.length,
-      solicitudesEnVuelo: datos.solicitudes.filter(function (s) {
+      solicitudesTotales: datos.solicitudesFabrica.length,
+      solicitudesEnVuelo: datos.solicitudesFabrica.filter(function (s) {
         return FASES_EN_VUELO.indexOf(s.Fase_Actual) !== -1;
       }).length,
-      enProduccion: datos.solicitudes.filter(function (s) {
+      enProduccion: datos.solicitudesFabrica.filter(function (s) {
         return s.Fase_Actual === 'FAS-08';
       }).length
     },
@@ -671,7 +726,7 @@ function calcularMetricasHome_(n) {
       throughputMensual: throughputGrafica,
       mesesGraficaThroughput: MESES_GRAFICA_THROUGHPUT,
       throughputPromedioMes: red_(entregadasVentana / n),
-      tiempoConstruccionDias: calcularTiempoConstruccion_(datos.solicitudes),
+      tiempoConstruccionDias: calcularTiempoConstruccion_(datos.solicitudesFabrica),
       cycleTimePorFase: calcularCycleTimePorFase_(datos.auditoria, sla)
     },
 
@@ -685,10 +740,10 @@ function calcularMetricasHome_(n) {
       tiempoEsperadoEntregaDias: entregadasVentana
           ? red_(wip.total / (entregadasVentana / n / 30))
           : null,
-      demandaVsEntrega: calcularDemandaVsEntrega_(datos.solicitudes, n)
+      demandaVsEntrega: calcularDemandaVsEntrega_(datos.solicitudesFabrica, n)
     },
 
-    calidad: calcularReprocesos_(datos.auditoria, datos.solicitudes),
+    calidad: calcularReprocesos_(datos.auditoria, datos.solicitudesFabrica),
 
     predictibilidad: {
       cumplimientoSlaPorFase: calcularCumplimientoSla_(datos.auditoria, sla),
@@ -696,14 +751,15 @@ function calcularMetricasHome_(n) {
       eficienciaFlujoPct: calcularEficienciaFlujo_(datos.auditoria, leadTime)
     },
 
-    bloqueos: calcularBloqueos_(datos.solicitudes),
-    envejecimiento: calcularEnvejecimiento_(datos.solicitudes, sla),
+    tareas: calcularTareasAbiertas_(datos.tareas, n),
+    bloqueos: calcularBloqueos_(datos.solicitudesFabrica),
+    envejecimiento: calcularEnvejecimiento_(datos.solicitudesFabrica, sla),
 
     distribucion: {
-      porPlataforma: contarPor_(datos.solicitudes, function (s) { return s.Plataforma_ID; }),
-      porTipo: contarPor_(datos.solicitudes, function (s) { return s.Tipo_Solicitud; }),
-      porPrioridad: contarPor_(datos.solicitudes, function (s) { return s.Prioridad; }),
-      porFase: contarPor_(datos.solicitudes, function (s) { return s.Fase_Actual; })
+      porPlataforma: contarPor_(datos.solicitudesFabrica, function (s) { return s.Plataforma_ID; }),
+      porTipo: contarPor_(datos.solicitudesFabrica, function (s) { return s.Tipo_Solicitud; }),
+      porPrioridad: contarPor_(datos.solicitudesFabrica, function (s) { return s.Prioridad; }),
+      porFase: contarPor_(datos.solicitudesFabrica, function (s) { return s.Fase_Actual; })
     }
   };
 }

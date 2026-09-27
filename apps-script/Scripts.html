@@ -806,6 +806,22 @@ function enlacesDeSolicitud(s) {
     'aria-label="Documento de requerimiento">&#128196;</a></span>';
 }
 
+/**
+ * La fecha compromiso de una tarea, en rojo si ya paso.
+ *
+ * Es el reemplazo del SLA por fase: una tarea no tiene embudo contra el cual
+ * medirse, asi que sin esta fecha no habria forma de que llegara tarde.
+ */
+function compromisoDeTarea(s) {
+  if (!s.Fecha_Compromiso) return '';
+  var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  var f = new Date(s.Fecha_Compromiso);
+  var cerrada = s.Estado_Actual === 'EST-06' || s.Estado_Actual === 'EST-05';
+  var vencida = !cerrada && !isNaN(f.getTime()) && f < hoy;
+  return '<span class="t-compromiso' + (vencida ? ' vencida' : '') + '" ' +
+         'title="Fecha compromiso">' + esc(fecha(s.Fecha_Compromiso)) + '</span>';
+}
+
 function sinAsignarTexto() {
   return '<span style="color:var(--ink-faint)">sin asignar</span>';
 }
@@ -1285,26 +1301,87 @@ $('btnLimpiarFiltros').addEventListener('click', function () {
   pintarKanban();
 });
 
+/**
+ * Vista activa de Gestion: el embudo de la fabrica o el tablero de tareas.
+ *
+ * Son dos gobiernos distintos sobre la misma tabla: las de fabrica (Nuevo,
+ * Mejora, Ajuste) recorren ocho fases; una tarea se hace y se cierra, y se
+ * mueve por estado (D-79).
+ */
+var VISTA_GESTION = 'fabrica';
+
+/** Columnas del tablero de tareas. Sin "Aprobada" ni "Cancelada" (D-79). */
+var ESTADOS_TAREA = ['EST-01', 'EST-02', 'EST-04', 'EST-06'];
+
+$('vistaGestion').addEventListener('click', function (e) {
+  var boton = e.target.closest('button[data-vista]');
+  if (!boton || boton.dataset.vista === VISTA_GESTION) return;
+  VISTA_GESTION = boton.dataset.vista;
+  Array.prototype.forEach.call(this.querySelectorAll('button'), function (b) {
+    b.classList.toggle('activa', b.dataset.vista === VISTA_GESTION);
+  });
+  pintarKanban();
+});
+
+function esTarea(s) { return !!s.esTarea; }
+
 function pintarKanban() {
+  var tareas = VISTA_GESTION === 'tareas';
+  $('notaFabrica').hidden = tareas;
+  $('notaTareas').hidden = !tareas;
+  if (tareas) pintarTableroTareas(); else pintarTableroFabrica();
+}
+
+function pintarTableroFabrica() {
   var r = DATOS.kanban;
-  var visibles = solicitudesFiltradas();
+  var visibles = solicitudesFiltradas().filter(function (s) { return !esTarea(s); });
   $('kanban').innerHTML = r.fases.map(function (f) {
     var enFase = visibles.filter(function (s) { return s.Fase_Actual === f.id; })
         .sort(ordenDeAtencion);
-    return '<div class="col" data-fase="' + f.id + '">' +
-      '<div class="col-cab"><span class="orden num">' + f.orden + '</span>' +
-      '<h3>' + esc(f.nombre) + '</h3>' +
-      '<span class="cuenta">' + enFase.length + '</span></div>' +
-      (enFase.length
-        ? enFase.slice(0, 40).map(tarjetaActividad).join('') +
-          (enFase.length > 40 ? '<div class="vacia">y ' + (enFase.length - 40) + ' más</div>' : '')
-        : '<div class="vacia">Sin actividades</div>') + '</div>';
+    return columnaTablero('data-fase="' + esc(f.id) + '"',
+      '<span class="orden num">' + f.orden + '</span><h3>' + esc(f.nombre) + '</h3>', enFase);
   }).join('');
 
-  $('subGestion').textContent = visibles.length + ' de ' + r.solicitudes.length +
-      ' solicitudes · ' + (CTX.puedeOperarTablero
+  var total = r.solicitudes.filter(function (s) { return !esTarea(s); }).length;
+  $('subGestion').textContent = visibles.length + ' de ' + total +
+      ' solicitudes de fábrica · ' + (permiso('Mover_Fase')
         ? 'arrastre las tarjetas para cambiarlas de fase'
-        : 'tablero de consulta: mover tarjetas es exclusivo del Product Owner y el Administrador');
+        : 'tablero de consulta: su rol no mueve solicitudes de fase');
+}
+
+function pintarTableroTareas() {
+  var r = DATOS.kanban;
+  var visibles = solicitudesFiltradas().filter(esTarea);
+  $('kanban').innerHTML = ESTADOS_TAREA.map(function (id, i) {
+    var enEstado = visibles.filter(function (s) { return s.Estado_Actual === id; })
+        .sort(ordenDeAtencion);
+    return columnaTablero('data-estado="' + esc(id) + '"',
+      '<span class="orden num">' + (i + 1) + '</span><h3>' + esc(nombreEstado(id)) + '</h3>',
+      enEstado);
+  }).join('');
+
+  var total = r.solicitudes.filter(esTarea).length;
+  // Las canceladas no tienen columna, asi que se dice cuantas quedaron fuera:
+  // que un total no cuadre con la suma de las columnas desconcierta.
+  var fuera = visibles.filter(function (s) {
+    return ESTADOS_TAREA.indexOf(s.Estado_Actual) === -1;
+  }).length;
+  $('subGestion').textContent = visibles.length + ' de ' + total + ' tareas' +
+      (fuera ? ' · ' + fuera + ' sin columna (canceladas o aprobadas)' : '') +
+      ' · ' + (permiso('Mover_Estado_Tarea')
+        ? 'arrastre las tarjetas para cambiarles el estado'
+        : 'tablero de consulta: su rol no cambia el estado de las tareas');
+}
+
+/** El armazon de una columna, igual para los dos tableros. */
+function columnaTablero(atributo, cabecera, lista) {
+  return '<div class="col" ' + atributo + '>' +
+    '<div class="col-cab">' + cabecera +
+    '<span class="cuenta">' + lista.length + '</span></div>' +
+    (lista.length
+      ? lista.slice(0, 40).map(tarjetaActividad).join('') +
+        (lista.length > 40 ? '<div class="vacia">y ' + (lista.length - 40) + ' más</div>' : '')
+      : '<div class="vacia">Sin actividades</div>') + '</div>';
 }
 
 /**
@@ -1345,7 +1422,8 @@ function tarjetaActividad(s) {
     '<div class="t-ini">' + esc(s.Nombre_Iniciativa) + '</div>' +
     '<div class="t-nombre">' + esc(s.Nombre_Solicitud) + '</div>' +
     '<div class="t-pie">' +
-      (s.Version_Semantica ? '<span class="t-ver num">' + esc(s.Version_Semantica) + '</span>' : '') +
+      (esTarea(s) ? compromisoDeTarea(s)
+        : (s.Version_Semantica ? '<span class="t-ver num">' + esc(s.Version_Semantica) + '</span>' : '')) +
       (s.Nombre_Plataforma ? '<span class="t-plat">' + esc(s.Nombre_Plataforma) + '</span>' : '') +
       '<span>' + esc(s.Nombre_Responsable || '—') + '</span>' +
       enlacesDeSolicitud(s) + '</div>' +
@@ -1373,36 +1451,62 @@ document.addEventListener('dragover', function (e) {
   var col = e.target.closest('.col');
   if (!col || !arrastrada) return;
   e.preventDefault();
-  var s = solicitudPorId(arrastrada);
-  var v = validarTransicionCliente(s.Fase_Actual, col.dataset.fase);
+  var v = validarSoltar_(solicitudPorId(arrastrada), col);
   document.querySelectorAll('.col').forEach(function (c) {
     c.classList.remove('destino', 'vetada');
   });
   col.classList.add(v.permitido ? 'destino' : 'vetada');
 });
+
+/**
+ * Si esta tarjeta puede caer en esta columna. Reparte segun el gobierno del
+ * registro: una de fabrica se valida contra el embudo; una tarea, contra el
+ * permiso de mover tareas. Y ninguna cruza al tablero del otro.
+ */
+function validarSoltar_(s, col) {
+  if (esTarea(s)) {
+    if (!col.dataset.estado) {
+      return { permitido: false, motivo: 'Una tarea no recorre el embudo de fases.' };
+    }
+    if (!permiso('Mover_Estado_Tarea')) {
+      return { permitido: false, motivo: 'Su rol no puede cambiar el estado de las tareas.' };
+    }
+    if (s.Estado_Actual === col.dataset.estado) {
+      return { permitido: false, motivo: 'La tarea ya se encuentra en ese estado.' };
+    }
+    return { permitido: true, motivo: '' };
+  }
+  if (!col.dataset.fase) {
+    return { permitido: false, motivo: 'Esta solicitud se mueve por fase, no por estado.' };
+  }
+  return validarTransicionCliente(s.Fase_Actual, col.dataset.fase);
+}
 document.addEventListener('drop', function (e) {
   var col = e.target.closest('.col');
   if (!col || !arrastrada) return;
   e.preventDefault();
   var id = arrastrada;
   var s = solicitudPorId(id);
-  var destino = col.dataset.fase;
 
   // Validacion optimista en el navegador; el backend vuelve a validarla.
-  var v = validarTransicionCliente(s.Fase_Actual, destino);
+  var v = validarSoltar_(s, col);
   if (!v.permitido) { toast(v.motivo, true); return; }
 
-  var faseOrigen = s.Fase_Actual;
-  s.Fase_Actual = destino;
+  var tarea = esTarea(s);
+  var campo = tarea ? 'Estado_Actual' : 'Fase_Actual';
+  var destino = tarea ? col.dataset.estado : col.dataset.fase;
+  var original = s[campo];
+
+  s[campo] = destino;               // se mueve ya, y se revierte si el servidor dice que no
   pintarKanban();
 
-  api('cambiarFaseSolicitud', id, destino).then(function (r) {
-    toast(id + ' pasó a ' + nombreFase(destino) + '.');
+  api(tarea ? 'cambiarEstadoTarea' : 'cambiarFaseSolicitud', id, destino).then(function (r) {
+    toast(id + ' pasó a ' + (tarea ? nombreEstado(destino) : nombreFase(destino)) + '.');
     (r.avisos || []).forEach(function (a) { toast(a, true); });
     invalidarCacheCliente();
     cargarGestion(true);
   }).catch(function (err) {
-    s.Fase_Actual = faseOrigen;     // el backend rechazo: se revierte la tarjeta
+    s[campo] = original;
     pintarKanban();
     fallo(err);
   });
@@ -1810,7 +1914,7 @@ $('btnNueva').addEventListener('click', function () {
       return '<option value="' + esc(x[valor]) + '">' + esc(x[texto]) + '</option>';
     }).join('') + '</select>';
   };
-  abrirModal('Nueva solicitud', 'Se creará la carpeta en Drive para esta solicitud',
+  abrirModal('Nueva solicitud', 'Elija el tipo: una tarea no recorre el embudo de fases',
     '<div class="formulario">' +
     '<label class="campo"><span>Iniciativa *</span>' +
       '<input type="text" id="nsProyecto" list="dlNsProyecto" autocomplete="off" ' +
@@ -1833,13 +1937,18 @@ $('btnNueva').addEventListener('click', function () {
     '<label class="campo"><span>Responsable</span>' +
       sel('nsResponsable', CAT.usuarios, 'ID_Usuario', 'Nombre_Completo') + '</label>' +
     '<label class="campo"><span>Proceso impactado</span><input type="text" id="nsProceso"></label>' +
-    '<label class="campo"><span>Versión estimada</span>' +
+    '<label class="campo solo-fabrica"><span>Versión estimada</span>' +
       '<select id="nsVersion"><option value="">(sin asignar)</option>' +
       (DATOS.kanban.versiones || []).map(function (v) {
         return '<option value="' + esc(v.valor) + '">' + esc(v.texto) + '</option>';
       }).join('') + '</select>' +
       '<small style="color:var(--ink-faint)">Se listan las versiones del roadmap: ' +
       'plataforma y versión. En la solicitud queda solo el código.</small>' +
+    '</label>' +
+    '<label class="campo solo-tarea" hidden><span>Fecha compromiso</span>' +
+      '<input type="date" id="nsCompromiso">' +
+      '<small style="color:var(--ink-faint)">Para qué día se comprometió. Sin esta fecha una ' +
+      'tarea no puede llegar tarde: las de fábrica se miden contra el SLA de su fase.</small>' +
     '</label>' +
     '<label class="campo"><span>Documento de requerimiento (enlace de Drive)</span>' +
       '<input type="url" id="nsDoc" placeholder="https://docs.google.com/…">' +
@@ -1872,7 +1981,8 @@ $('btnNueva').addEventListener('click', function () {
         Prioridad: $('nsPrioridad').value,
         Responsable_ID: $('nsResponsable').value,
         Proceso_Impactado: $('nsProceso').value,
-        Version_Semantica: $('nsVersion').value,
+        Version_Semantica: tipoEsTarea() ? '' : $('nsVersion').value,
+        Fecha_Compromiso: tipoEsTarea() ? $('nsCompromiso').value : '',
         Doc_Requerimiento_URL: $('nsDoc').value.trim()
       }).then(function (r) {
         toast('Solicitud ' + r.idSolicitud + ' creada.');
@@ -1881,6 +1991,11 @@ $('btnNueva').addEventListener('click', function () {
         cargarGestion(true);
       });
     });
+
+  // El formulario se adapta al tipo: una tarea no tiene version comprometida
+  // —no pasa por el roadmap— y en cambio si tiene fecha compromiso (D-79).
+  $('nsTipo').addEventListener('change', ajustarFormularioPorTipo);
+  ajustarFormularioPorTipo();
 
   // La lista se llena despues de pintar la ventana, cuando el <datalist> ya
   // existe en el documento. llenarCombo la deja en orden alfabetico.
@@ -2344,6 +2459,18 @@ function formularioRegistro(valorPk) {
 }
 
 /* --- Migracion de solicitudes (solo Administrador) --- */
+/** True si el tipo elegido en el formulario de alta es una tarea. */
+function tipoEsTarea() {
+  return (CAT.tiposTarea || []).indexOf($('nsTipo').value) !== -1;
+}
+
+/** Muestra u oculta los campos que solo aplican a un gobierno u otro. */
+function ajustarFormularioPorTipo() {
+  var tarea = tipoEsTarea();
+  document.querySelectorAll('.solo-fabrica').forEach(function (n) { n.hidden = tarea; });
+  document.querySelectorAll('.solo-tarea').forEach(function (n) { n.hidden = !tarea; });
+}
+
 /* --- Direccion de la aplicacion --- */
 $('btnGuardarUrl').addEventListener('click', function () {
   var url = $('urlApp').value.trim();

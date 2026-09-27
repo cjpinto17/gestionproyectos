@@ -513,7 +513,34 @@ function validarRegistro_(tabla, registro, esNuevo) {
     }
   }
   if (tabla === 'Proyectos') validarFechasIniciativa_(registro, errores);
+  if (tabla === 'Solicitudes') validarSolicitud_(registro, errores);
   if (errores.length) throw new Error(errores.join(' '));
+}
+
+/**
+ * Lo que exige una solicitud segun su tipo.
+ *
+ * Las de fabrica (Nuevo, Mejora, Ajuste) viven en el embudo y sin fase no se
+ * pueden ubicar en el tablero. Una tarea no tiene embudo: se gobierna por
+ * estado y su fase queda vacia a proposito. Exigirle una fase la obligaria a
+ * declararse en un sitio del proceso por el que nunca va a pasar (D-79).
+ *
+ * @param {!Object} registro
+ * @param {!Array<string>} errores Se agregan aqui.
+ * @private
+ */
+function validarSolicitud_(registro, errores) {
+  var tarea = esTipoTarea(registro.Tipo_Solicitud);
+
+  if (!tarea && !registro.Fase_Actual) {
+    errores.push('"Fase actual" es obligatorio para las solicitudes de fabrica.');
+  }
+  if (tarea && registro.Fase_Actual) {
+    errores.push('Una tarea no recorre el embudo: deje la fase vacia.');
+  }
+  if (!registro.Estado_Actual) {
+    errores.push('"Estado actual" es obligatorio.');
+  }
 }
 
 /**
@@ -586,6 +613,10 @@ function getCatalogos() {
     prioridades: PRIORIDADES,
     causales: getCausalesBloqueo_(),
     roles: getRoles_(),
+    // Cuales de los tipos se gobiernan por estado y no por fase: el formulario
+    // y los dos tableros lo necesitan para repartir (D-79).
+    tiposTarea: TIPOS_SIN_EMBUDO,
+    estadosTarea: ESTADOS_TABLERO_TAREA,
     lineasEstrategicas: getLineasEstrategicas_(),
     verticales: getVerticales_()
   };
@@ -676,7 +707,9 @@ function armarDatosKanban_(filtros) {
 
     var desde = aFecha_(s.Fecha_Ultimo_Cambio) || aFecha_(s.Fecha_Registro);
     s.Dias_En_Fase = desde ? diasHabilesEntre(desde, ahora) : null;
-    s.Sla_Fase = sla[s.Fase_Actual] || null;
+    // Una tarea no tiene SLA de fase: su compromiso es una fecha (D-79).
+    s.esTarea = esTipoTarea(s.Tipo_Solicitud);
+    s.Sla_Fase = s.esTarea ? null : (sla[s.Fase_Actual] || null);
     return s;
   });
 
@@ -792,6 +825,64 @@ function marcaDeTiempo_(valor) {
 }
 
 /**
+ * Cambia el estado de una tarea. Es el equivalente de cambiar de fase, para los
+ * tipos que no recorren el embudo (D-79).
+ *
+ * Deja rastro en la misma bitacora que las transiciones de fase: la historia de
+ * una actividad no puede depender de por que tablero se movio.
+ *
+ * @param {string} idSolicitud
+ * @param {string} estadoDestino
+ * @return {!Object}
+ */
+function cambiarEstadoTarea(idSolicitud, estadoDestino) {
+  var ctx = exigirPermiso_('Mover_Estado_Tarea',
+      'Su rol no puede cambiar el estado de las tareas.');
+
+  return conBloqueo_(function () {
+    var s = buscarPorPk_('Solicitudes', idSolicitud);
+    if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+    if (!esTipoTarea(s.Tipo_Solicitud)) {
+      throw new Error('Esta solicitud recorre el embudo: se mueve de fase, no de estado.');
+    }
+    if (!mapaEstados()[estadoDestino]) {
+      throw new Error('El estado ' + estadoDestino + ' no existe.');
+    }
+    if (s.Estado_Actual === estadoDestino) {
+      throw new Error('La tarea ya se encuentra en ese estado.');
+    }
+
+    var ahora = new Date();
+    var nuevo = {};
+    Object.keys(s).forEach(function (k) { if (k !== '_fila') nuevo[k] = s[k]; });
+    nuevo.Estado_Actual = estadoDestino;
+    nuevo.Fecha_Ultimo_Cambio = ahora;
+    // El bloqueo de una tarea es su estado: mover la tarjeta a "Bloqueada" y que
+    // la marca de bloqueo dijera otra cosa serian dos verdades para lo mismo.
+    nuevo.Tiene_Bloqueo = estadoDestino === 'EST-04' ? 'SI' : 'NO';
+    if (nuevo.Tiene_Bloqueo === 'NO') {
+      nuevo.Causal_Bloqueo = '';
+      nuevo.Observacion_Bloqueo = '';
+    }
+
+    escribirFila_('Solicitudes', s._fila, nuevo);
+
+    registrarTransicionAudit_({
+      idSolicitud: idSolicitud,
+      faseOrigen: '',
+      faseDestino: '',
+      estadoOrigen: s.Estado_Actual,
+      estadoDestino: estadoDestino,
+      desde: aFecha_(s.Fecha_Ultimo_Cambio) || aFecha_(s.Fecha_Registro),
+      correoUsuario: ctx.correo
+    });
+
+    return { ok: true, idSolicitud: idSolicitud, estadoActual: estadoDestino,
+             avisos: notificar_(nuevo, 'cambio_fase') };
+  });
+}
+
+/**
  * Registra una observacion de seguimiento sobre una solicitud.
  *
  * La puede escribir CUALQUIER usuario con sesion: el seguimiento es justamente
@@ -859,8 +950,12 @@ function getDetalleIniciativa(idProyecto) {
   var suyas = leerTabla_('Solicitudes').filter(function (x) {
     return x.ID_Proyecto === idProyecto;
   });
+  // "En curso" es lo que todavia no termino, en los dos gobiernos: una de
+  // fabrica que sigue en el embudo, o una tarea que no esta cerrada (D-79).
   var enVuelo = suyas.filter(function (x) {
-    return FASES_EN_VUELO.indexOf(x.Fase_Actual) !== -1;
+    return esTipoTarea(x.Tipo_Solicitud)
+        ? ['EST-05', 'EST-06'].indexOf(x.Estado_Actual) === -1
+        : FASES_EN_VUELO.indexOf(x.Fase_Actual) !== -1;
   }).length;
   var bloqueadas = suyas.filter(function (x) {
     return String(x.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0;
@@ -875,7 +970,10 @@ function getDetalleIniciativa(idProyecto) {
     return {
       id: x.ID_Solicitud,
       nombre: x.Nombre_Solicitud,
-      fase: nombreFase[x.Fase_Actual] || x.Fase_Actual,
+      // Una tarea no tiene fase que mostrar: en su lugar se dice que es tarea.
+      esTarea: esTipoTarea(x.Tipo_Solicitud),
+      fase: esTipoTarea(x.Tipo_Solicitud) ? 'Tarea'
+          : (nombreFase[x.Fase_Actual] || x.Fase_Actual),
       estado: nombreEstado[x.Estado_Actual] || x.Estado_Actual,
       estadoId: x.Estado_Actual || '',
       responsable: nombreUsuario[x.Responsable_ID] || '',
@@ -1124,10 +1222,12 @@ function crearSolicitud(datos) {
       Tipo_Solicitud: datos.Tipo_Solicitud || '',
       Prioridad: datos.Prioridad || '',
       Proceso_Impactado: datos.Proceso_Impactado || '',
+      Fecha_Compromiso: aFechaDeFormulario_(datos.Fecha_Compromiso),
       // Si la persona ya tiene el documento en Drive se conserva su enlace y no
       // se clona la plantilla: quedaria un duplicado vacio al lado del bueno.
       Doc_Requerimiento_URL: String(datos.Doc_Requerimiento_URL || '').trim(),
-      Fase_Actual: 'FAS-01',
+      // Una tarea nace sin fase: no recorre el embudo (D-79).
+      Fase_Actual: esTipoTarea(datos.Tipo_Solicitud) ? '' : 'FAS-01',
       Estado_Actual: 'EST-01',
       Tiene_Bloqueo: 'NO',
       Causal_Bloqueo: '',
@@ -1162,7 +1262,7 @@ function crearSolicitud(datos) {
     registrarTransicionAudit_({
       idSolicitud: id,
       faseOrigen: '',
-      faseDestino: 'FAS-01',
+      faseDestino: registro.Fase_Actual,
       estadoOrigen: '',
       estadoDestino: 'EST-01',
       desde: ahora,
@@ -2347,6 +2447,7 @@ var METODOS_PUBLICOS = {
   crearSolicitud: true,
   actualizarSolicitudCompleta: true,
   cambiarFaseSolicitud: true,
+  cambiarEstadoTarea: true,
   marcarBloqueo: true,
   refrescarDatos: true,
   adminCargarTabla: true,

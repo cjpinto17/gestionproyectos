@@ -155,6 +155,98 @@ function repararSolicitudesDesalineadas() {
 }
 
 /**
+ * Saca del embudo las tareas que hoy estan recorriendo fases.
+ *
+ * Hasta D-79 toda solicitud nacia en la fase 1, incluidas las de tipo Tarea.
+ * Ahora una tarea se gobierna por estado y su fase va vacia; las que quedaron
+ * con fase siguen apareciendo en el tablero de fabrica y contando en los
+ * indicadores del embudo, que es justo lo que se quiso evitar.
+ *
+ * Lo que hace: vaciar la fase de cada tarea, y traducir a estado la posicion en
+ * la que hubiera quedado, para no perder lo que ya se sabia de ella:
+ *   - En Produccion  -> Terminada
+ *   - Con bloqueo    -> Bloqueada
+ *   - En cualquier fase de trabajo (3 a 7) -> En progreso
+ *   - En demanda o backlog -> se le deja el estado que tenga
+ *
+ * No toca el estado de una tarea que ya este Terminada o Cancelada: eso ya es
+ * una decision de alguien.
+ *
+ * Es segura de repetir: la segunda vez no encuentra nada.
+ *
+ * @param {boolean=} aplicar false (o sin valor) solo informa lo que haria.
+ * @return {!Object} Reporte.
+ */
+function normalizarTareas(aplicar) {
+  exigirOperador_();
+  return conBloqueo_(function () {
+    var columnas = asegurarColumnas_('Solicitudes');
+    var iId = columnas.indexOf('ID_Solicitud');
+    var iTipo = columnas.indexOf('Tipo_Solicitud');
+    var iFase = columnas.indexOf('Fase_Actual');
+    var iEstado = columnas.indexOf('Estado_Actual');
+    var iBloqueo = columnas.indexOf('Tiene_Bloqueo');
+    if (iTipo === -1 || iFase === -1 || iEstado === -1) {
+      throw new Error('La hoja Solicitudes no tiene las columnas de tipo, fase y estado.');
+    }
+
+    var hoja = getHoja_('Solicitudes');
+    var ultimaFila = hoja.getLastRow();
+    if (ultimaFila < 2) return { total: 0, porCambiar: 0, mensaje: 'No hay solicitudes.' };
+
+    var rango = hoja.getRange(2, 1, ultimaFila - 1, columnas.length);
+    var valores = rango.getValues();
+    var porCambiar = 0, muestra = [];
+    var enTrabajo = ['FAS-03', 'FAS-04', 'FAS-05', 'FAS-06', 'FAS-07'];
+
+    for (var i = 0; i < valores.length; i++) {
+      var fila = valores[i];
+      if (!String(fila[iId] || '').trim()) continue;
+      if (!esTipoTarea(fila[iTipo])) continue;
+      var fase = String(fila[iFase] || '').trim();
+      if (!fase) continue;                                  // ya esta normalizada
+
+      var estado = String(fila[iEstado] || '');
+      var nuevoEstado = estado;
+      if (estado !== 'EST-06' && estado !== 'EST-05') {
+        if (fase === 'FAS-08') nuevoEstado = 'EST-06';
+        else if (iBloqueo !== -1 &&
+                 String(fila[iBloqueo]).toUpperCase().indexOf('S') === 0) nuevoEstado = 'EST-04';
+        else if (enTrabajo.indexOf(fase) !== -1) nuevoEstado = 'EST-02';
+      }
+
+      if (aplicar) {
+        fila[iFase] = '';
+        fila[iEstado] = nuevoEstado;
+      }
+      porCambiar++;
+      if (muestra.length < 8) {
+        muestra.push({ id: fila[iId], faseQueTenia: fase,
+                       estadoQueTenia: estado, quedaEn: nuevoEstado });
+      }
+    }
+
+    if (aplicar && porCambiar) {
+      rango.setValues(valores);
+      invalidarTabla_('Solicitudes');
+    }
+
+    var reporte = {
+      total: valores.length,
+      porCambiar: porCambiar,
+      muestra: muestra,
+      mensaje: aplicar
+          ? 'Se sacaron ' + porCambiar + ' tareas del embudo. Ya no cuentan en los ' +
+            'indicadores de fabrica y aparecen en el tablero de Tareas.'
+          : 'Simulacion: se sacarian ' + porCambiar + ' tareas del embudo. ' +
+            'Vuelva a ejecutar con normalizarTareas(true) para aplicarlo.'
+    };
+    Logger.log(JSON.stringify(reporte, null, 2));
+    return reporte;
+  });
+}
+
+/**
  * Pasa a "Alcance" lo que estaba escrito en "Objetivo" y "Entregable".
  *
  * Los dos campos se unieron en uno (D-66). Las columnas viejas siguen en la

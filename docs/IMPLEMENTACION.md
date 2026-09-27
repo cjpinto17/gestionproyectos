@@ -199,9 +199,17 @@ administre, y quitarle la administración al rol de quien está guardando. Para 
 administración, cambie de rol al usuario en la tabla `Usuarios`.
 
 Cuando además hay que **mover datos** de una columna vieja a una nueva, la versión trae una
-función aparte para eso y se dice al publicar. Hoy hay una: **`unificarAlcanceSolicitudes`** (archivo **`Mantenimiento.gs`**), que
-pasa a `Alcance` lo que estaba escrito en `Objetivo` y `Entregable`. Se ejecuta primero sin nada
-entre paréntesis para ver qué haría, y luego con `true` entre paréntesis para aplicarlo.
+función aparte para eso y se dice al publicar. Hoy hay dos, ambas en **`Mantenimiento.gs`**:
+
+- **`unificarAlcanceSolicitudes`**, que pasa a `Alcance` lo que estaba escrito en `Objetivo` y
+  `Entregable`.
+- **`normalizarTareas`**, que saca del embudo las solicitudes de tipo *Tarea*: les vacía la fase y
+  la traduce a estado (*Producción* pasa a *Terminada*; una bloqueada, a *Bloqueada*; las que
+  estaban entre *Análisis y diseño* y *Aceptación TI*, a *En progreso*). No toca las que ya están
+  *Terminada* o *Cancelada*.
+
+Las dos se ejecutan primero sin nada entre paréntesis para ver qué harían, y luego con `true`
+entre paréntesis para aplicarlo.
 
 ---
 
@@ -560,6 +568,7 @@ lista las del archivo abierto.
 | `configurarUrlAplicacion` | `Config.gs` | Guardar la dirección de la aplicación. Normalmente no hace falta: se configura desde **Administración** |
 | `verUrlAplicacion` | `Config.gs` | Decir qué dirección usan hoy los correos, sin cambiar nada. También se ve en **Administración** |
 | `unificarAlcanceSolicitudes` | `Mantenimiento.gs` | Pasar a `Alcance` lo que estaba en `Objetivo` y `Entregable` |
+| `normalizarTareas` | `Mantenimiento.gs` | Sacar del embudo las solicitudes de tipo *Tarea* y traducir su fase a estado |
 | `renumerarSolicitudes` | `Mantenimiento.gs` | Llevar los ID viejos al formato `SOL-0015` |
 | `verificarEstructura` | `Mantenimiento.gs` | Revisar que las hojas coincidan con el esquema |
 | `diagnosticarSolicitudes` | `Mantenimiento.gs` | Buscar filas con datos inconsistentes |
@@ -567,7 +576,8 @@ lista las del archivo abierto.
 | `sincronizarCatalogos` | `Setup.gs` | Reponer catálogos maestros que falten |
 | `medirRendimiento` | `Cache.gs` | Medir cuánto tarda cada consulta |
 
-Las que aceptan `true` entre paréntesis (`unificarAlcanceSolicitudes`, `renumerarSolicitudes`)
+Las que aceptan `true` entre paréntesis (`unificarAlcanceSolicitudes`, `normalizarTareas`,
+`renumerarSolicitudes`)
 **primero se ejecutan sin nada** para ver qué harían, y solo después con `true` para aplicarlo.
 
 ## Si algo sale mal

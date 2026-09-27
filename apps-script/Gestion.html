@@ -1,4 +1,5 @@
-<!-- Gestion.html | Pagina 3: Tablero Kanban de 8 fases -->
+<!-- Gestion.html | Pagina 3: dos tableros. El de FABRICA, por las ocho fases
+     del embudo, y el de TAREAS, por estado: una tarea no recorre el embudo. -->
 <section class="pagina" id="pg-gestion" hidden>
     <div class="fila encabezado">
       <div>
@@ -6,6 +7,11 @@
         <p id="subGestion">Tablero operativo del embudo de 8 fases.</p>
       </div>
       <div class="fila ml-auto">
+        <div class="combo"><label>Vista</label>
+          <div class="vista-toggle" id="vistaGestion">
+            <button type="button" data-vista="fabrica" class="activa">F&aacute;brica</button>
+            <button type="button" data-vista="tareas">Tareas</button>
+          </div></div>
         <div class="combo"><label for="fLen">L&iacute;nea estrat&eacute;gica</label>
           <input type="text" id="fLen" list="dlLen" placeholder="Todas" autocomplete="off">
           <datalist id="dlLen"></datalist></div>
@@ -30,5 +36,6 @@
       </div>
     </div>
     <div class="kanban" id="kanban"></div>
-    <p class="nota">Arrastre una tarjeta a otra columna para cambiarla de fase. El sistema valida su rol antes de guardar: si la transición no le corresponde, la tarjeta regresa a su lugar y se explica el motivo. Los filtros se aplican al instante, sin recargar.</p>
+    <p class="nota" id="notaFabrica">Arrastre una tarjeta a otra columna para cambiarla de fase. El sistema valida su rol antes de guardar: si la transición no le corresponde, la tarjeta regresa a su lugar y se explica el motivo. Los filtros se aplican al instante, sin recargar.</p>
+    <p class="nota" id="notaTareas" hidden>Las tareas no recorren el embudo de ocho fases: se gobiernan por estado. Arrastre una tarjeta para cambiarlo. Mover una tarea a <b>Bloqueada</b> la marca como bloqueada, y sacarla de ahí le levanta el bloqueo. En rojo las que ya pasaron su fecha compromiso. Las canceladas no ocupan columna: se ven filtrando por estado desde Administración.</p>
 </section>
