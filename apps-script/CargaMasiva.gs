@@ -294,7 +294,6 @@ function crearSolicitudDesdeCarga_(datos, ctx) {
       Prioridad: datos.Prioridad || '',
       Proceso_Impactado: datos.Proceso_Impactado || '',
       Doc_Requerimiento_URL: '',
-      Carpeta_Drive_URL: '',
       Fase_Actual: fase,
       Estado_Actual: datos.Estado_Actual || 'EST-01',
       Tiene_Bloqueo: bloqueo,

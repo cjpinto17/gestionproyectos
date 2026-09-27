@@ -384,8 +384,11 @@ var ESQUEMA_TRANSACCIONAL = {
       // Aqui vivia Orden_Iniciativa, retirado en D-66: se llenaba solo y nadie
       // lo reordenaba, asi que ordenaba por antiguedad disfrazada de decision.
       { campo: 'Proceso_Impactado', etiqueta: 'Proceso impactado', tipo: 'text' },
-      { campo: 'Doc_Requerimiento_URL', etiqueta: 'Documento de requerimiento', tipo: 'url' },
-      { campo: 'Carpeta_Drive_URL', etiqueta: 'Carpeta en Drive', tipo: 'url' },
+      { campo: 'Doc_Requerimiento_URL', etiqueta: 'Documento de requerimiento', tipo: 'url',
+        ayuda: 'Enlace al documento del requerimiento. Se pega a mano.' },
+      // Aqui vivia Carpeta_Drive_URL, retirado en D-78. La carpeta es de la
+      // INICIATIVA (Drive_URL) y no de cada solicitud: la solicitud solo tiene
+      // el enlace de su requerimiento.
       { campo: 'Fase_Actual', etiqueta: 'Fase actual', tipo: 'enum', fk: 'Fases', requerido: true },
       { campo: 'Estado_Actual', etiqueta: 'Estado actual', tipo: 'enum', fk: 'Estados', requerido: true },
       { campo: 'Tiene_Bloqueo', etiqueta: 'Tiene bloqueo', tipo: 'boolSN', requerido: true },

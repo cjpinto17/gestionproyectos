@@ -1127,7 +1127,6 @@ function crearSolicitud(datos) {
       // Si la persona ya tiene el documento en Drive se conserva su enlace y no
       // se clona la plantilla: quedaria un duplicado vacio al lado del bueno.
       Doc_Requerimiento_URL: String(datos.Doc_Requerimiento_URL || '').trim(),
-      Carpeta_Drive_URL: '',
       Fase_Actual: 'FAS-01',
       Estado_Actual: 'EST-01',
       Tiene_Bloqueo: 'NO',
@@ -1178,8 +1177,6 @@ function crearSolicitud(datos) {
 
 
 /** Campos que administra el sistema y no se editan a mano. */
-// Carpeta_Drive_URL salio de aqui en D-76: como el sistema ya no la crea,
-// tiene que poder pegarse a mano igual que el enlace del documento.
 var CAMPOS_NO_EDITABLES = ['ID_Solicitud', 'Fecha_Ultimo_Cambio'];
 
 /**
@@ -1608,16 +1605,8 @@ function notificarChat_(solicitud, evento) {
     }
   }
 
-  var botones = [];
-  if (solicitud.Carpeta_Drive_URL) {
-    botones.push({ text: 'Carpeta en Drive',
-                   onClick: { openLink: { url: solicitud.Carpeta_Drive_URL } } });
-  }
-  if (solicitud.Doc_Requerimiento_URL) {
-    botones.push({ text: 'Requerimiento',
-                   onClick: { openLink: { url: solicitud.Doc_Requerimiento_URL } } });
-  }
-  if (botones.length) campos.push({ buttonList: { buttons: botones } });
+  // Sin botones de Drive: los enlaces viven en la solicitud dentro de la
+  // aplicacion, que es donde estan tambien su estado y su seguimiento (D-77).
 
   var payload = {
     cardsV2: [{

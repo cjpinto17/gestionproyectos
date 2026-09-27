@@ -13,7 +13,7 @@
  */
 
 /** Campos que calcula el sistema y no se piden en el formulario. */
-var CAMPOS_NO_MIGRABLES = ['Carpeta_Drive_URL', 'Fecha_Ultimo_Cambio'];
+var CAMPOS_NO_MIGRABLES = ['Fecha_Ultimo_Cambio'];
 
 /**
  * Devuelve la definicion del formulario de migracion: las columnas de
@@ -86,7 +86,6 @@ function migrarSolicitud(datos, opciones) {
       Prioridad: datos.Prioridad || '',
       Proceso_Impactado: datos.Proceso_Impactado || '',
       Doc_Requerimiento_URL: String(datos.Doc_Requerimiento_URL || '').trim(),
-      Carpeta_Drive_URL: '',
       Fase_Actual: datos.Fase_Actual || 'FAS-02',
       Estado_Actual: datos.Estado_Actual || 'EST-01',
       Tiene_Bloqueo: bloqueo,

@@ -788,26 +788,22 @@ function filaSolicitud(s) {
 }
 
 /**
- * Los enlaces de la solicitud, en su propia tarjeta.
+ * El enlace del requerimiento, en la propia tarjeta de la solicitud.
  *
- * Antes iban en el correo de creacion. Alli envejecian: el correo se recibe una
+ * Antes iba en el correo de creacion. Alli envejecia: el correo se recibe una
  * vez y despues hay que buscarlo, mientras que la tarjeta se tiene delante cada
- * vez que se mira el tablero. Se marcan con data-enlace para que el manejador
- * del tablero los deje pasar en vez de abrir el detalle.
+ * vez que se mira el tablero. Se marca con data-enlace para que el manejador
+ * del tablero lo deje pasar en vez de abrir el detalle.
+ *
+ * Es el UNICO enlace de una solicitud: la carpeta de Drive es de la iniciativa
+ * (D-78), no de cada una de sus solicitudes.
  */
 function enlacesDeSolicitud(s) {
-  var enlaces = '';
-  if (s.Carpeta_Drive_URL) {
-    enlaces += '<a class="t-link" data-enlace href="' + esc(s.Carpeta_Drive_URL) + '" ' +
-               'target="_blank" rel="noopener" title="Carpeta en Drive" ' +
-               'aria-label="Carpeta en Drive">&#128193;</a>';
-  }
-  if (s.Doc_Requerimiento_URL) {
-    enlaces += '<a class="t-link" data-enlace href="' + esc(s.Doc_Requerimiento_URL) + '" ' +
-               'target="_blank" rel="noopener" title="Documento de requerimiento" ' +
-               'aria-label="Documento de requerimiento">&#128196;</a>';
-  }
-  return enlaces ? '<span class="t-links">' + enlaces + '</span>' : '';
+  if (!s.Doc_Requerimiento_URL) return '';
+  return '<span class="t-links">' +
+    '<a class="t-link" data-enlace href="' + esc(s.Doc_Requerimiento_URL) + '" ' +
+    'target="_blank" rel="noopener" title="Documento de requerimiento" ' +
+    'aria-label="Documento de requerimiento">&#128196;</a></span>';
 }
 
 function sinAsignarTexto() {
@@ -1538,10 +1534,6 @@ function verDetalle(id) {
         : '';
 
     var enlaces = '';
-    if (s.Carpeta_Drive_URL) {
-      enlaces += '<a class="btn-sec" style="text-decoration:none;display:inline-block" href="' +
-                 esc(s.Carpeta_Drive_URL) + '" target="_blank" rel="noopener">Carpeta en Drive</a> ';
-    }
     if (s.Doc_Requerimiento_URL) {
       enlaces += '<a class="btn-sec" style="text-decoration:none;display:inline-block" href="' +
                  esc(s.Doc_Requerimiento_URL) + '" target="_blank" rel="noopener">Requerimiento</a>';

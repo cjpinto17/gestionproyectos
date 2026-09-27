@@ -358,7 +358,8 @@ gobernar el avance del embudo.
 Si la edición cambia la fase o el estado, **queda en la bitácora** igual que un arrastre: la
 trazabilidad no puede depender de por dónde se hizo el cambio. `ID_Solicitud` y
 `Carpeta_Drive_URL` no son editables, porque son la identidad del registro. *(La fecha de
-registro sí se volvió editable más adelante: ver D-42.)*
+registro sí se volvió editable más adelante: ver D-42; y `Carpeta_Drive_URL` se retiró de la
+solicitud en D-78.)*
 
 ### D-36 · La versión se elige, y el catálogo manda
 El campo de versión es una lista con las versiones registradas en `Roadmap_Versiones`. La
@@ -1379,10 +1380,9 @@ Se va todo lo que colgaba de eso: la creación de la carpeta al registrar, la mi
 carga masiva, y la plantilla de requerimiento que el instalador creaba en Drive y que ya no se
 clona en ninguna parte.
 
-**Los dos campos siguen existiendo** —`Carpeta_Drive_URL` y `Doc_Requerimiento_URL`— porque los
-enlaces siguen siendo útiles; lo que cambia es que los pega una persona en vez de inventarlos el
-sistema. El del documento ya se podía escribir al crear la solicitud; el de la carpeta salió de la
-lista de campos que administra el sistema, para que también pueda pegarse editando.
+**Los campos de enlace siguen existiendo** porque los enlaces siguen siendo útiles; lo que cambia
+es que los pega una persona en vez de inventarlos el sistema. *(El de la carpeta se retiró de la
+solicitud poco después: ver D-78.)*
 
 ### D-77 · Los enlaces de la solicitud van en su tarjeta, no en el correo
 
@@ -1401,6 +1401,29 @@ deja pasar al navegador: sin eso, abrir la carpeta de Drive abriría además el 
 
 La tarjeta de Google Chat conserva sus botones. Se dejó así porque el negocio pidió el cambio
 sobre el correo, y porque con los campos ya casi siempre vacíos esos botones rara vez aparecerán.
+
+### D-78 · Un enlace por cosa: la carpeta es de la iniciativa, el requerimiento es de la solicitud
+
+Al quitar la creación automática (D-76) quedaron dos campos de enlace en la solicitud —la carpeta
+de Drive y el documento— y uno más en la iniciativa. El negocio precisó el modelo, y es más simple:
+
+| | Enlace | Quién lo pone |
+| --- | --- | --- |
+| **Iniciativa** | La carpeta de Drive con la documentación del proyecto | Una persona, a mano |
+| **Solicitud** | El documento del requerimiento | Una persona, a mano |
+
+Así que `Carpeta_Drive_URL` **se retira de la solicitud**. No era un campo de más por casualidad:
+venía de cuando el sistema creaba una carpeta por solicitud, y al dejar de crearlas quedó como un
+sitio donde se podía pegar algo que ya vive un nivel más arriba. Dos lugares donde guardar la misma
+carpeta es garantía de que un día no coincidan.
+
+Se va de la solicitud, de su tarjeta —que ahora muestra un solo ícono, el del requerimiento—, de su
+detalle, de la carga masiva y de la migración. La columna sigue en la hoja con lo que tuviera
+(D-60): el sistema ya no la lee ni la escribe, pero tampoco borra lo que alguien guardó ahí.
+
+**Y de paso se van los botones de la tarjeta de Google Chat**, que era lo único que seguía
+publicando esos enlaces fuera de la aplicación. En D-77 se habían dejado porque el pedido era sobre
+el correo; con el modelo ya claro no tiene sentido sostener la excepción.
 
 ## Supuestos abiertos
 

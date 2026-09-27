@@ -107,7 +107,7 @@ hoja, con cuatro dígitos (ver D-43).
 **Clasificación:** `ID_Proyecto`, `ID_Aplicacion`, `Solicitante_Correo`, `Tipo_Solicitud`,
 `Prioridad`, `Plataforma`.
 
-**Documentación:** `Doc_Requerimiento_URL`, `Carpeta_Drive_URL`, `Link_Taiga`.
+**Documentación:** `Doc_Requerimiento_URL` (se pega a mano), `Link_Taiga`. La carpeta de Drive es de la **iniciativa** (`Proyectos.Drive_URL`), no de cada solicitud.
 
 **Control de flujo:** `Fase_Actual`, `Estado_Actual`, `Tiene_Bloqueo` (SÍ/NO),
 `Causal_Bloqueo`, `Observacion_Bloqueo` (texto libre opcional: qué está trabando la solicitud;
