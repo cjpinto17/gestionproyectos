@@ -1104,7 +1104,7 @@ function formatearIdSolicitud_(numero) {
  * inicial y notifica.
  *
  * @param {!Object} datos Campos del formulario.
- * @return {!Object} { ok, idSolicitud, carpetaUrl, docUrl, avisos }
+ * @return {!Object} { ok, idSolicitud, avisos }
  */
 function crearSolicitud(datos) {
   var ctx = exigirSesion_();
@@ -1146,26 +1146,17 @@ function crearSolicitud(datos) {
       throw new Error('La iniciativa ' + registro.ID_Proyecto + ' no existe.');
     }
 
-    var docPropio = !!registro.Doc_Requerimiento_URL;
-    if (docPropio && !/^https?:\/\//i.test(registro.Doc_Requerimiento_URL)) {
+    if (registro.Doc_Requerimiento_URL &&
+        !/^https?:\/\//i.test(registro.Doc_Requerimiento_URL)) {
       throw new Error('El enlace del documento debe empezar por http:// o https://');
     }
 
+    // El sistema ya NO crea carpeta en Drive ni clona una plantilla al
+    // registrar (D-76). Creaba una carpeta por solicitud aunque nadie fuera a
+    // usarla, y un documento en blanco que casi siempre quedaba vacio al lado
+    // del que el equipo si estaba trabajando. Los enlaces se pegan a mano,
+    // cuando existen, desde la propia solicitud.
     var avisos = [];
-    var contenedor = { carpetaUrl: '', docUrl: '' };
-    // Cuando la persona trae el enlace de su documento no se toca Drive: no se
-    // crea carpeta ni se clona plantilla. El sistema solo guarda y muestra ese
-    // enlace, que es donde el equipo ya esta trabajando.
-    if (!docPropio) {
-      try {
-        contenedor = crearContenedorDrive_(id, registro.Plataforma_ID, registro.Nombre_Solicitud);
-        registro.Carpeta_Drive_URL = contenedor.carpetaUrl;
-        registro.Doc_Requerimiento_URL = contenedor.docUrl;
-      } catch (e) {
-        // La solicitud no se pierde por un problema de Drive: se avisa y sigue.
-        avisos.push('No se pudo crear la carpeta en Drive: ' + e.message);
-      }
-    }
 
     agregarFila_('Solicitudes', registro);
 
@@ -1181,14 +1172,15 @@ function crearSolicitud(datos) {
 
     avisos = avisos.concat(notificar_(registro, 'creacion'));
 
-    return { ok: true, idSolicitud: id, carpetaUrl: contenedor.carpetaUrl,
-             docUrl: contenedor.docUrl, avisos: avisos };
+    return { ok: true, idSolicitud: id, avisos: avisos };
   });
 }
 
 
 /** Campos que administra el sistema y no se editan a mano. */
-var CAMPOS_NO_EDITABLES = ['ID_Solicitud', 'Carpeta_Drive_URL', 'Fecha_Ultimo_Cambio'];
+// Carpeta_Drive_URL salio de aqui en D-76: como el sistema ya no la crea,
+// tiene que poder pegarse a mano igual que el enlace del documento.
+var CAMPOS_NO_EDITABLES = ['ID_Solicitud', 'Fecha_Ultimo_Cambio'];
 
 /**
  * Devuelve el formulario de edicion de una solicitud: sus columnas editables,
@@ -1534,36 +1526,6 @@ function registrarTransicionAudit_(datos) {
 /* 8. Drive: carpeta y documento por solicitud                         */
 /* ================================================================== */
 
-/**
- * Crea la carpeta dedicada de la solicitud dentro de la Unidad Compartida y
- * clona alli la plantilla del formato de requerimiento.
- *
- * Nomenclatura: ID_Solicitud_YYYYMMDD_[Plataforma]_NombreLimpio
- *
- * @param {string} idSolicitud
- * @param {string} idPlataforma
- * @param {string} nombreSolicitud
- * @return {{carpetaUrl: string, docUrl: string}}
- * @private
- */
-function crearContenedorDrive_(idSolicitud, idPlataforma, nombreSolicitud) {
-  var raiz = DriveApp.getFolderById(CONFIG.DRIVE_UNIDAD_RAIZ_ID);
-  var hoy = Utilities.formatDate(new Date(), CONFIG.ZONA_HORARIA, 'yyyyMMdd');
-  var plataforma = mapaPlataformas()[idPlataforma] || idPlataforma || 'Sin plataforma';
-
-  var nombreCarpeta = idSolicitud + '_' + hoy + '_[' + plataforma + ']_' +
-                      limpiarNombre_(nombreSolicitud);
-  var carpeta = raiz.createFolder(nombreCarpeta);
-
-  var docUrl = '';
-  var idPlantilla = getProp_(PROP_KEYS.PLANTILLA_REQUERIMIENTO, false);
-  if (idPlantilla) {
-    var copia = DriveApp.getFileById(idPlantilla)
-        .makeCopy('Requerimiento_' + idSolicitud, carpeta);
-    docUrl = copia.getUrl();
-  }
-  return { carpetaUrl: carpeta.getUrl(), docUrl: docUrl };
-}
 
 /**
  * Normaliza un texto para el nombre de carpeta: sin tildes, sin caracteres
@@ -1892,18 +1854,6 @@ function cuerpoCorreo_(solicitud, evento) {
            '</td><td style="padding:6px 12px;font-size:13px"><b>' + f[1] + '</b></td></tr>';
   }).join('');
 
-  var botones = '';
-  if (solicitud.Carpeta_Drive_URL) {
-    botones += '<a href="' + solicitud.Carpeta_Drive_URL + '" style="background:#1DD982;' +
-               'color:#00306E;text-decoration:none;font-weight:bold;padding:10px 16px;' +
-               'border-radius:8px;display:inline-block;margin-right:8px">Carpeta en Drive</a>';
-  }
-  if (solicitud.Doc_Requerimiento_URL) {
-    botones += '<a href="' + solicitud.Doc_Requerimiento_URL + '" style="background:#FFFFFF;' +
-               'color:#00306E;border:1px solid #DFE6F2;text-decoration:none;padding:10px 16px;' +
-               'border-radius:8px;display:inline-block">Documento de requerimiento</a>';
-  }
-
   return '<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;' +
          'border:1px solid #EDF1F8;border-radius:12px;overflow:hidden">' +
          '<div style="background:#00306E;color:#fff;padding:16px 20px">' +
@@ -1911,7 +1861,9 @@ function cuerpoCorreo_(solicitud, evento) {
          '<div style="padding:20px">' +
          '<p style="font-size:14px;color:#0D1F3C">' + (mensajes[evento] || '') + '</p>' +
          '<table style="width:100%;border-collapse:collapse">' + filas + '</table>' +
-         '<div style="margin-top:18px">' + botones + '</div></div></div>';
+         // Sin enlaces a Drive: viven en la solicitud dentro de la aplicacion,
+         // que es donde estan tambien su estado y su seguimiento (D-76).
+         '</div></div>';
 }
 
 /* ================================================================== */

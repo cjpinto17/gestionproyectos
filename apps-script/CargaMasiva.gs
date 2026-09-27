@@ -307,13 +307,7 @@ function crearSolicitudDesdeCarga_(datos, ctx) {
     };
     validarRegistro_('Solicitudes', registro, true);
 
-    try {
-      var contenedor = crearContenedorDrive_(id, registro.Plataforma_ID, registro.Nombre_Solicitud);
-      registro.Carpeta_Drive_URL = contenedor.carpetaUrl;
-      registro.Doc_Requerimiento_URL = contenedor.docUrl;
-    } catch (e) {
-      // Igual que en el alta individual: la solicitud no se pierde por Drive.
-    }
+    // Sin carpeta en Drive: el sistema dejo de crearlas (D-76).
 
     agregarFila_('Solicitudes', registro);
 

@@ -475,8 +475,8 @@ Cuando haya que registrar de golpe el trabajo que ya venía en curso:
 2. Llena la hoja con calma. Solo el nombre y la iniciativa son obligatorios; lo demás se puede
    completar después desde la aplicación.
 3. Vuelve al editor, elige **`procesarCargaMasiva`** y ejecuta. Por cada fila se crea la
-   actividad con su carpeta en Drive y su registro de auditoría, y en la columna **Resultado**
-   queda el ID generado (`SOL-…`) o el motivo del rechazo.
+   actividad con su registro de auditoría, y en la columna **Resultado** queda el ID generado
+   (`SOL-…`) o el motivo del rechazo.
 4. Corrige las filas que hayan quedado con `ERROR:` y vuelve a ejecutar. Las que ya tienen ID
    no se repiten.
 
@@ -576,7 +576,6 @@ Las que aceptan `true` entre paréntesis (`unificarAlcanceSolicitudes`, `renumer
 | --- | --- | --- |
 | *Su correo no está asociado a ningún usuario* | No estás en la hoja Usuarios | Ejecuta `registrarmeComoAdministrador` en `Setup.gs` (Parte 6) |
 | *Configuración faltante: ID_LIBRO_…* | No se ejecutó el instalador | Parte 3 |
-| *No se pudo crear la carpeta en Drive* | Falta permiso en la Unidad Compartida | Pide acceso de editor a la unidad `1ib9cr7o47ecPQ3KSpcAn_mBjiY9LzqaY` |
 | *Specified permissions are not sufficient…* | El proyecto cambió su lista de permisos | Vuelve a ejecutar la función: Google mostrará de nuevo la pantalla de autorización y hay que aceptarla |
 | *Su rol no tiene permiso sobre la fase…* | El RBAC funcionando | Revisa el rol del usuario en Admin |
 | *El sistema está ocupado atendiendo otro cambio* | Dos personas guardaron a la vez | Reintenta en unos segundos |

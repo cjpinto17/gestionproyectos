@@ -787,6 +787,29 @@ function filaSolicitud(s) {
   '</div>';
 }
 
+/**
+ * Los enlaces de la solicitud, en su propia tarjeta.
+ *
+ * Antes iban en el correo de creacion. Alli envejecian: el correo se recibe una
+ * vez y despues hay que buscarlo, mientras que la tarjeta se tiene delante cada
+ * vez que se mira el tablero. Se marcan con data-enlace para que el manejador
+ * del tablero los deje pasar en vez de abrir el detalle.
+ */
+function enlacesDeSolicitud(s) {
+  var enlaces = '';
+  if (s.Carpeta_Drive_URL) {
+    enlaces += '<a class="t-link" data-enlace href="' + esc(s.Carpeta_Drive_URL) + '" ' +
+               'target="_blank" rel="noopener" title="Carpeta en Drive" ' +
+               'aria-label="Carpeta en Drive">&#128193;</a>';
+  }
+  if (s.Doc_Requerimiento_URL) {
+    enlaces += '<a class="t-link" data-enlace href="' + esc(s.Doc_Requerimiento_URL) + '" ' +
+               'target="_blank" rel="noopener" title="Documento de requerimiento" ' +
+               'aria-label="Documento de requerimiento">&#128196;</a>';
+  }
+  return enlaces ? '<span class="t-links">' + enlaces + '</span>' : '';
+}
+
 function sinAsignarTexto() {
   return '<span style="color:var(--ink-faint)">sin asignar</span>';
 }
@@ -1328,7 +1351,8 @@ function tarjetaActividad(s) {
     '<div class="t-pie">' +
       (s.Version_Semantica ? '<span class="t-ver num">' + esc(s.Version_Semantica) + '</span>' : '') +
       (s.Nombre_Plataforma ? '<span class="t-plat">' + esc(s.Nombre_Plataforma) + '</span>' : '') +
-      '<span>' + esc(s.Nombre_Responsable || '—') + '</span></div>' +
+      '<span>' + esc(s.Nombre_Responsable || '—') + '</span>' +
+      enlacesDeSolicitud(s) + '</div>' +
   '</article>';
 }
 
@@ -1449,6 +1473,9 @@ document.addEventListener('click', function (e) {
   if (lapiz) { editarSolicitud(lapiz.dataset.editarSol); return; }
   var alerta = e.target.closest('[data-alerta]');
   if (alerta) { verDetalle(alerta.dataset.alerta); return; }
+  // Un enlace de la tarjeta se deja pasar al navegador: si no, abrir la
+  // carpeta de Drive abriria ademas el detalle por detras.
+  if (e.target.closest('[data-enlace]')) return;
   var t = e.target.closest('.tarjeta');
   if (t) verDetalle(t.dataset.id);
 });
@@ -1824,8 +1851,8 @@ $('btnNueva').addEventListener('click', function () {
     '</label>' +
     '<label class="campo"><span>Documento de requerimiento (enlace de Drive)</span>' +
       '<input type="url" id="nsDoc" placeholder="https://docs.google.com/…">' +
-      '<small style="color:var(--ink-faint)">Si lo deja vacío, el sistema clona la plantilla ' +
-      'oficial dentro de la carpeta nueva.</small></label>' +
+      '<small style="color:var(--ink-faint)">Opcional. Si todavía no existe, se puede pegar ' +
+      'después editando la solicitud.</small></label>' +
     '</div>',
     function () {
       var nombre = $('nsNombre').value.trim();

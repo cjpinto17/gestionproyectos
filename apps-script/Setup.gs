@@ -31,7 +31,6 @@ function setupInicial() {
   crearHojas_(libroParam, ESQUEMA_PARAMETRIZACION);
   crearHojas_(libroTrans, ESQUEMA_TRANSACCIONAL);
   sembrarCatalogos_(libroParam);
-  asegurarPlantillaRequerimiento_(resumen);
 
   resumen.libroParametrizacionUrl = libroParam.getUrl();
   resumen.libroTransaccionalUrl = libroTrans.getUrl();
@@ -316,45 +315,6 @@ function sembrarSiVacio_(libro, nombreHoja, filas) {
   hoja.getRange(2, 1, filas.length, filas[0].length).setValues(filas);
 }
 
-/**
- * Verifica que exista la plantilla de requerimiento; si no, crea un Google Doc
- * base con la estructura minima del formato oficial.
- * @param {!Object} resumen
- * @private
- */
-function asegurarPlantillaRequerimiento_(resumen) {
-  var id = getProp_(PROP_KEYS.PLANTILLA_REQUERIMIENTO, false);
-  if (id) {
-    try {
-      DriveApp.getFileById(id);
-      resumen.reutilizado.push(CONFIG.NOMBRE_PLANTILLA_REQUERIMIENTO + ' (' + id + ')');
-      return;
-    } catch (e) {
-      Logger.log('Plantilla ' + id + ' inaccesible: ' + e.message + '. Se creara una nueva.');
-    }
-  }
-
-  var doc = DocumentApp.create(CONFIG.NOMBRE_PLANTILLA_REQUERIMIENTO);
-  var cuerpo = doc.getBody();
-  cuerpo.appendParagraph('FORMATO DE REQUERIMIENTO')
-        .setHeading(DocumentApp.ParagraphHeading.TITLE);
-  ['1. Identificacion de la solicitud',
-   '2. Objetivo de negocio',
-   '3. Alcance y entregable',
-   '4. Proceso impactado',
-   '5. Criterios de aceptacion',
-   '6. Analisis tecnico y arquitectura',
-   '7. Plan de pruebas (QA / UAT)',
-   '8. Plan de despliegue y rollback'].forEach(function (titulo) {
-    cuerpo.appendParagraph(titulo).setHeading(DocumentApp.ParagraphHeading.HEADING1);
-    cuerpo.appendParagraph('');
-  });
-  doc.saveAndClose();
-
-  moverAUnidadCompartida_(doc.getId());
-  guardarConfiguracion_(defineProp_(PROP_KEYS.PLANTILLA_REQUERIMIENTO, doc.getId()));
-  resumen.creado.push(CONFIG.NOMBRE_PLANTILLA_REQUERIMIENTO + ' (' + doc.getId() + ')');
-}
 
 /**
  * @return {!Array<string>} Lista de configuraciones que siguen pendientes.

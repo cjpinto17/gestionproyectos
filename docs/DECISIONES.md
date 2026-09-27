@@ -1368,6 +1368,40 @@ caso de negocio, los diseños y las actas. Son dos cosas distintas y por eso son
 Se llena editando la iniciativa y se lee desde el detalle, con un botón. Cuando está vacío, el
 detalle lo dice —y a quien puede editar le recuerda dónde se agrega— en vez de callar.
 
+### D-76 · El sistema deja de crear carpetas y documentos en Drive
+
+Al registrar una solicitud, el sistema creaba una carpeta en Drive y clonaba dentro una plantilla
+de requerimiento en blanco. Se retira: **creaba una carpeta por cada solicitud aunque nadie fuera a
+usarla**, y un documento vacío que casi siempre terminaba al lado del que el equipo sí estaba
+trabajando. Drive se llenaba de contenedores que nadie abría.
+
+Se va todo lo que colgaba de eso: la creación de la carpeta al registrar, la misma creación en la
+carga masiva, y la plantilla de requerimiento que el instalador creaba en Drive y que ya no se
+clona en ninguna parte.
+
+**Los dos campos siguen existiendo** —`Carpeta_Drive_URL` y `Doc_Requerimiento_URL`— porque los
+enlaces siguen siendo útiles; lo que cambia es que los pega una persona en vez de inventarlos el
+sistema. El del documento ya se podía escribir al crear la solicitud; el de la carpeta salió de la
+lista de campos que administra el sistema, para que también pueda pegarse editando.
+
+### D-77 · Los enlaces de la solicitud van en su tarjeta, no en el correo
+
+El correo de creación llevaba dos botones: la carpeta en Drive y el documento. Se retiran.
+
+**El correo se recibe una vez y después hay que buscarlo**; la tarjeta se tiene delante cada vez
+que se abre el tablero. Un enlace que se necesita durante semanas no pertenece a un mensaje que
+envejece en la bandeja el mismo día.
+
+Ahora aparecen como dos íconos al pie de la tarjeta —📁 la carpeta, 📄 el documento— solo cuando
+esa solicitud los tiene. Siguen también en el detalle, donde ya estaban.
+
+**Un clic en el ícono no abre el detalle.** El tablero abre la solicitud al hacer clic en
+cualquier parte de la tarjeta, así que los enlaces se marcan con `data-enlace` y el manejador los
+deja pasar al navegador: sin eso, abrir la carpeta de Drive abriría además el detalle por detrás.
+
+La tarjeta de Google Chat conserva sus botones. Se dejó así porque el negocio pidió el cambio
+sobre el correo, y porque con los campos ya casi siempre vacíos esos botones rara vez aparecerán.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
