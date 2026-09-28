@@ -12,27 +12,27 @@
             <button type="button" data-vista="fabrica" class="activa">F&aacute;brica</button>
             <button type="button" data-vista="tareas">Tareas</button>
           </div></div>
-        <div class="combo"><label for="fLen">L&iacute;nea estrat&eacute;gica</label>
-          <input type="text" id="fLen" list="dlLen" placeholder="Todas" autocomplete="off">
-          <datalist id="dlLen"></datalist></div>
-        <div class="combo"><label for="fVertical">Vertical</label>
-          <input type="text" id="fVertical" list="dlVertical" placeholder="Todas" autocomplete="off">
-          <datalist id="dlVertical"></datalist></div>
         <div class="combo"><label for="fProyecto">Iniciativa</label>
           <input type="text" id="fProyecto" list="dlProyecto" placeholder="Todas" autocomplete="off">
           <datalist id="dlProyecto"></datalist></div>
         <div class="combo"><label for="fPlataforma">Plataforma</label>
           <input type="text" id="fPlataforma" list="dlPlataforma" placeholder="Todas" autocomplete="off">
           <datalist id="dlPlataforma"></datalist></div>
+        <div class="combo"><label for="fSolicitante">Solicitante</label>
+          <input type="text" id="fSolicitante" list="dlSolicitante" placeholder="Todos" autocomplete="off">
+          <datalist id="dlSolicitante"></datalist></div>
         <div class="combo"><label for="fResponsable">Responsable</label>
           <input type="text" id="fResponsable" list="dlResponsable" placeholder="Todos" autocomplete="off">
           <datalist id="dlResponsable"></datalist></div>
         <div class="combo"><label for="fTexto">Buscar</label>
           <input type="search" id="fTexto" placeholder="C&oacute;digo o nombre&hellip;"></div>
+        <!-- Los dos botones comparten una sola casilla: cada uno en la suya
+             gastaba el ancho de dos filtros para no decir nada. -->
         <div class="combo"><label>&nbsp;</label>
-          <button class="btn-sec" id="btnLimpiarFiltros">Limpiar</button></div>
-        <div class="combo"><label>&nbsp;</label>
-          <button class="btn-primario" id="btnNueva">+ Nueva Solicitud</button></div>
+          <div class="fila-botones">
+            <button class="btn-sec" id="btnLimpiarFiltros">Limpiar</button>
+            <button class="btn-primario" id="btnNueva">+ Nueva Solicitud</button>
+          </div></div>
       </div>
     </div>
     <div class="kanban" id="kanban"></div>

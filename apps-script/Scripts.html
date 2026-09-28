@@ -1191,24 +1191,14 @@ function prepararFiltrosKanban(r) {
   r.proyectos.forEach(function (p) { proyectoPorId[p.ID_Proyecto] = p; });
   DATOS.proyectoPorId = proyectoPorId;
 
-  // Solo se ofrecen las LEN y verticales que realmente tienen iniciativas.
-  var lenUsadas = {}, verticalesUsadas = {};
-  r.proyectos.forEach(function (p) {
-    if (p.LEN_ID) lenUsadas[p.LEN_ID] = true;
-    if (p.Vertical_ID) verticalesUsadas[p.Vertical_ID] = true;
-  });
-
-  llenarCombo('dlLen', CAT.lineasEstrategicas
-      .filter(function (l) { return lenUsadas[l.id]; })
-      .map(function (l) { return { id: l.id, texto: l.nombre }; }));
-  llenarCombo('dlVertical', CAT.verticales
-      .filter(function (v) { return verticalesUsadas[v.id]; })
-      .map(function (v) { return { id: v.id, texto: v.nombre }; }));
   llenarCombo('dlProyecto', r.proyectos.map(function (p) {
     return { id: p.ID_Proyecto, texto: p.Nombre_Proyecto };
   }));
   llenarCombo('dlPlataforma', r.plataformas.map(function (p) {
     return { id: p.id, texto: p.nombre };
+  }));
+  llenarCombo('dlSolicitante', r.usuarios.map(function (u) {
+    return { id: u.ID_Usuario, texto: u.Nombre_Completo };
   }));
   llenarCombo('dlResponsable', r.usuarios.map(function (u) {
     return { id: u.ID_Usuario, texto: u.Nombre_Completo };
@@ -1268,19 +1258,16 @@ function valorCombo(idCampo, idLista) {
 /** Aplica todos los filtros sobre las actividades ya cargadas. */
 function solicitudesFiltradas() {
   var r = DATOS.kanban;
-  var len = valorCombo('fLen', 'dlLen');
-  var vertical = valorCombo('fVertical', 'dlVertical');
   var proyecto = valorCombo('fProyecto', 'dlProyecto');
   var plataforma = valorCombo('fPlataforma', 'dlPlataforma');
+  var solicitante = valorCombo('fSolicitante', 'dlSolicitante');
   var responsable = valorCombo('fResponsable', 'dlResponsable');
   var texto = $('fTexto').value.trim().toLowerCase();
 
   return r.solicitudes.filter(function (s) {
-    var proy = DATOS.proyectoPorId[s.ID_Proyecto] || {};
-    if (len && proy.LEN_ID !== len) return false;
-    if (vertical && proy.Vertical_ID !== vertical) return false;
     if (proyecto && s.ID_Proyecto !== proyecto) return false;
     if (plataforma && s.Plataforma_ID !== plataforma) return false;
+    if (solicitante && s.Solicitante_ID !== solicitante) return false;
     if (responsable && s.Responsable_ID !== responsable) return false;
     if (texto) {
       var pajar = (s.ID_Solicitud + ' ' + s.Nombre_Solicitud + ' ' + s.Nombre_Iniciativa).toLowerCase();
@@ -1290,11 +1277,11 @@ function solicitudesFiltradas() {
   });
 }
 
-['fLen', 'fVertical', 'fProyecto', 'fPlataforma', 'fResponsable', 'fTexto'].forEach(function (id) {
+['fProyecto', 'fPlataforma', 'fSolicitante', 'fResponsable', 'fTexto'].forEach(function (id) {
   $(id).addEventListener('input', function () { if (DATOS.kanban) pintarKanban(); });
 });
 $('btnLimpiarFiltros').addEventListener('click', function () {
-  ['fLen', 'fVertical', 'fProyecto', 'fPlataforma', 'fResponsable', 'fTexto'].forEach(function (id) {
+  ['fProyecto', 'fPlataforma', 'fSolicitante', 'fResponsable', 'fTexto'].forEach(function (id) {
     $(id).value = '';
     $(id).classList.remove('sin-coincidencia');
   });
@@ -1914,6 +1901,16 @@ $('btnNueva').addEventListener('click', function () {
       return '<option value="' + esc(x[valor]) + '">' + esc(x[texto]) + '</option>';
     }).join('') + '</select>';
   };
+  // Igual, pero dejando marcada de entrada a una persona: el solicitante y el
+  // responsable son casi siempre quien esta registrando, y sin marcarla el
+  // combo mostraba a la primera de la lista alfabetica como si fuera ella.
+  var selUsuario = function (id, marcado) {
+    return '<select id="' + id + '">' + CAT.usuarios.map(function (u) {
+      return '<option value="' + esc(u.ID_Usuario) + '"' +
+             (u.ID_Usuario === marcado ? ' selected' : '') + '>' +
+             esc(u.Nombre_Completo) + '</option>';
+    }).join('') + '</select>';
+  };
   abrirModal('Nueva solicitud', 'Elija el tipo: una tarea no recorre el embudo de fases',
     '<div class="formulario">' +
     '<label class="campo"><span>Iniciativa *</span>' +
@@ -1933,9 +1930,13 @@ $('btnNueva').addEventListener('click', function () {
       sel('nsTipo', CAT.tipos, 'id', 'nombre') + '</label>' +
     '<label class="campo"><span>Prioridad *</span>' +
       sel('nsPrioridad', CAT.prioridades, 'id', 'nombre') + '</label>' +
+    campoFaseInicial() +
 
+    '<label class="campo"><span>Solicitante</span>' +
+      selUsuario('nsSolicitante', CTX.idUsuario) +
+      '<small style="color:var(--ink-faint)">Quien pide el trabajo. Por defecto usted.</small></label>' +
     '<label class="campo"><span>Responsable</span>' +
-      sel('nsResponsable', CAT.usuarios, 'ID_Usuario', 'Nombre_Completo') + '</label>' +
+      selUsuario('nsResponsable', CTX.idUsuario) + '</label>' +
     '<label class="campo"><span>Proceso impactado</span><input type="text" id="nsProceso"></label>' +
     '<label class="campo solo-fabrica"><span>Versión estimada</span>' +
       '<select id="nsVersion"><option value="">(sin asignar)</option>' +
@@ -1979,6 +1980,10 @@ $('btnNueva').addEventListener('click', function () {
         Plataforma_ID: $('nsPlataforma').value,
         Tipo_Solicitud: $('nsTipo').value,
         Prioridad: $('nsPrioridad').value,
+        // Sin campo de fase (el rol no mueve fases, o es una tarea) va vacia y
+        // el servidor pone la que corresponda.
+        Fase_Actual: (!tipoEsTarea() && $('nsFase')) ? $('nsFase').value : '',
+        Solicitante_ID: $('nsSolicitante').value,
         Responsable_ID: $('nsResponsable').value,
         Proceso_Impactado: $('nsProceso').value,
         Version_Semantica: tipoEsTarea() ? '' : $('nsVersion').value,
@@ -2465,6 +2470,33 @@ function tipoEsTarea() {
 }
 
 /** Muestra u oculta los campos que solo aplican a un gobierno u otro. */
+/**
+ * El campo "Fase inicial" del formulario de nueva solicitud, o nada.
+ *
+ * Casi toda solicitud entra por "Gestion de la demanda", pero no todas: una que
+ * llega ya analizada, o una que se registra cuando el trabajo va avanzado, no
+ * tiene por que empezar en la primera casilla y que alguien la arrastre cinco
+ * veces para ponerla donde de verdad esta.
+ *
+ * Solo se ofrecen las fases en las que ese rol podria dejarla, y se preguntan
+ * con la misma regla que valida un arrastre: registrar una solicitud en la fase
+ * X es lo mismo que crearla en la primera y moverla hasta X. Si no hay ninguna
+ * otra, el campo no se dibuja: un combo de una sola opcion no es una decision.
+ */
+function campoFaseInicial() {
+  var permitidas = CAT.fases.filter(function (f) {
+    return f.id === 'FAS-01' || validarTransicionCliente('FAS-01', f.id).permitido;
+  });
+  if (permitidas.length < 2) return '';
+  return '<label class="campo solo-fabrica"><span>Fase inicial</span>' +
+    '<select id="nsFase">' + permitidas.map(function (f) {
+      return '<option value="' + esc(f.id) + '">' + esc(f.nombre) + '</option>';
+    }).join('') + '</select>' +
+    '<small style="color:var(--ink-faint)">En que fase entra. Por omision la ' +
+    'primera. Solo se listan las que su rol puede operar. Una tarea no lleva ' +
+    'fase: se gobierna por estado.</small></label>';
+}
+
 function ajustarFormularioPorTipo() {
   var tarea = tipoEsTarea();
   document.querySelectorAll('.solo-fabrica').forEach(function (n) { n.hidden = tarea; });

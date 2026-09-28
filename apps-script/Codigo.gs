@@ -1204,12 +1204,41 @@ function formatearIdSolicitud_(numero) {
  * @param {!Object} datos Campos del formulario.
  * @return {!Object} { ok, idSolicitud, avisos }
  */
+/**
+ * La fase por la que entra una solicitud nueva.
+ *
+ * Por omision la primera, como siempre. Si se pide otra, se valida con la misma
+ * regla que valida un arrastre en el tablero: registrar una solicitud ya en
+ * "Desarrollo" es exactamente lo mismo que crearla en la primera fase y
+ * moverla hasta ahi, asi que debe costar lo mismo en permisos. Sin esto, quien
+ * solo puede crear solicitudes podria colocarlas donde quisiera y los permisos
+ * de mover fase —y de saltarlas— no servirian de nada.
+ *
+ * Una tarea siempre entra sin fase: no recorre el embudo (D-79).
+ * @param {!Object} datos
+ * @param {string} rolId
+ * @return {string}
+ * @private
+ */
+function faseDeIngreso_(datos, rolId) {
+  if (esTipoTarea(datos.Tipo_Solicitud)) return '';
+  var pedida = String(datos.Fase_Actual || '').trim();
+  if (!pedida || pedida === 'FAS-01') return 'FAS-01';
+
+  var v = validarTransicion(rolId, 'FAS-01', pedida);
+  if (!v.permitido) {
+    throw new Error('No se puede registrar la solicitud directamente en esa fase. ' + v.motivo);
+  }
+  return pedida;
+}
+
 function crearSolicitud(datos) {
   var ctx = exigirSesion_();
 
   return conBloqueo_(function () {
     var ahora = new Date();
     var id = generarIdSolicitud_();
+    var fase = faseDeIngreso_(datos, ctx.rolId);
 
     var registro = {
       ID_Solicitud: id,
@@ -1227,8 +1256,8 @@ function crearSolicitud(datos) {
       // se clona la plantilla: quedaria un duplicado vacio al lado del bueno.
       Doc_Requerimiento_URL: String(datos.Doc_Requerimiento_URL || '').trim(),
       // Una tarea nace sin fase: no recorre el embudo (D-79).
-      Fase_Actual: esTipoTarea(datos.Tipo_Solicitud) ? '' : 'FAS-01',
-      Estado_Actual: 'EST-01',
+      Fase_Actual: fase,
+      Estado_Actual: estadoInicial_(fase),
       Tiene_Bloqueo: 'NO',
       Causal_Bloqueo: '',
       Observacion_Bloqueo: '',
@@ -1257,6 +1286,12 @@ function crearSolicitud(datos) {
     // cuando existen, desde la propia solicitud.
     var avisos = [];
 
+    // La fase de entrada deja su estampa de tiempo, igual que si se hubiera
+    // llegado a ella arrastrando: si no, una solicitud registrada ya en
+    // Desarrollo no tendria fecha de inicio de desarrollo y el tiempo neto de
+    // construccion la dejaria fuera del indicador sin decir por que.
+    sellarEstampas_(registro, '', registro.Fase_Actual, ahora);
+
     agregarFila_('Solicitudes', registro);
 
     registrarTransicionAudit_({
@@ -1264,7 +1299,7 @@ function crearSolicitud(datos) {
       faseOrigen: '',
       faseDestino: registro.Fase_Actual,
       estadoOrigen: '',
-      estadoDestino: 'EST-01',
+      estadoDestino: registro.Estado_Actual,
       desde: ahora,
       correoUsuario: ctx.correo
     });
@@ -1472,6 +1507,27 @@ function estadoSugerido_(faseDestino, estadoOrigen) {
   if (faseDestino === 'FAS-08') return 'EST-06';   // Terminada
   if (estadoOrigen === 'EST-01') return 'EST-02';  // arranca el trabajo
   return estadoOrigen === 'EST-04' ? 'EST-02' : (estadoOrigen || 'EST-02');
+}
+
+/**
+ * El estado con el que nace una solicitud, segun la fase por la que entra.
+ *
+ * Una solicitud que se registra directamente en Desarrollo no esta "por
+ * iniciar": ya arranco, y por eso se registra ahi. Dejar siempre EST-01 habria
+ * puesto en el tablero tarjetas que se contradicen a si mismas, y habria hecho
+ * que el avance de la iniciativa contara como no empezado un trabajo que si lo
+ * esta. No es un dato que se pregunte: se deduce de la fase, que es lo unico
+ * que se pregunto.
+ * @param {string} fase Vacia para una tarea, que no recorre el embudo.
+ * @return {string}
+ * @private
+ */
+function estadoInicial_(fase) {
+  if (!fase) return 'EST-01';                  // una tarea nace por iniciar
+  if (fase === 'FAS-08') return 'EST-06';      // registrada ya en produccion
+  var orden = ordenDeFase(fase);
+  // Gestion de la demanda y Backlog son antesala: ahi nada se esta trabajando.
+  return orden > 2 ? 'EST-02' : 'EST-01';
 }
 
 /**

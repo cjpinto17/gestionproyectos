@@ -47,6 +47,13 @@
   .sesion select{background:var(--navy-900);color:#fff;border:1px solid #1B4788;border-radius:7px;padding:6px 9px;font-family:var(--body);font-size:13px}
 
   main{max-width:1560px;margin:0 auto;padding-block:22px 48px;padding-left:16px;padding-right:16px}
+  /* Esconder de verdad lo que lleva el atributo "hidden".
+     El navegador le da display:none, pero cualquier regla nuestra que fije un
+     display lo pisa, porque una clase y un atributo pesan igual y gana la
+     ultima. Asi quedaron visibles los campos que el formulario de nueva
+     solicitud esconde segun el tipo: .campo trae display:flex. Se resuelve
+     una vez y para todo, en lugar de ir parchando clase por clase. */
+  [hidden]{display:none!important}
   .pagina[hidden]{display:none!important}
   .encabezado{margin-bottom:18px}
   .encabezado h1{font-size:23px;font-weight:800;letter-spacing:-.02em}
@@ -433,6 +440,10 @@
   .combo>input:focus{outline:2px solid var(--esmeralda);outline-offset:-1px}
   .combo>input.sin-coincidencia{border-color:var(--rojo);background:#FFF5F5}
 
+  /* Los dos botones de la barra de filtros, en una sola casilla. */
+  .fila-botones{display:flex;gap:8px;align-items:stretch}
+  .fila-botones>button{white-space:nowrap}
+
   /* Plataforma en la tarjeta del tablero */
   .t-plat{background:#EDF1F8;color:#42557A;border-radius:4px;padding:1px 6px;font-size:10.5px;
           font-family:var(--display);font-weight:600}
@@ -513,6 +524,7 @@
     .fila.ml-auto,.fila{width:100%}
     .ml-auto{margin-left:0}
     .combo,.combo>input,input[type=search],select.filtro,.btn-primario{width:100%}
+    .fila-botones>button{flex:1}
     .btn-primario{padding:11px 15px}
 
     /* Tablero: una columna a la vez, con arrastre lateral */

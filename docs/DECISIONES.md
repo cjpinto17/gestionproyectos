@@ -1490,6 +1490,80 @@ gobierno interno.
 `FAS-07` a *En progreso*—. Nunca toca una que ya esté *Terminada* o *Cancelada*, y por defecto
 **solo simula**: hay que llamarla con `true` para que escriba.
 
+### D-80 · La solicitud se registra donde de verdad está, y por quién de verdad la pidió
+
+Dos datos que el formulario no preguntaba y el sistema decidía solo:
+
+**El solicitante.** Se guardaba siempre a quien estaba registrando. Casi siempre es lo mismo, pero
+no siempre: alguien de la gerencia registra lo que pidió un líder de otra área, y esa solicitud
+quedaba a nombre de quien la tecleó. Ahora es un campo del formulario, marcado de entrada con quien
+registra —que es la respuesta correcta la mayoría de las veces— y cambiable cuando no lo sea. El
+servidor conserva la regla vieja como respaldo: si no llega solicitante, es quien registra.
+
+**La fase de entrada.** Toda solicitud nacía en *Gestión de la demanda*. Una que llega ya analizada,
+o que se registra cuando el trabajo va avanzado, obligaba a arrastrar la tarjeta cinco veces hasta
+donde de verdad estaba. Ahora se elige al crearla, con *Gestión de la demanda* por omisión.
+
+**Registrar en una fase cuesta lo mismo que llegar a ella arrastrando.** Es la misma regla, no una
+segunda: `faseDeIngreso_` llama a `validarTransicion(rol, 'FAS-01', fase)`. Sin esto, cualquiera que
+pudiera crear una solicitud podría colocarla donde quisiera, y los permisos de mover fase —y de
+saltarlas, que acabábamos de hacer configurables— no servirían de nada: bastaría con crear la
+tarjeta directamente en *Producción*. El combo del formulario se arma con la misma pregunta, así que
+solo ofrece lo que el rol podría operar; si no queda más que una fase, el campo no se dibuja,
+porque un combo de una sola opción no es una decisión. Y una tarea nunca lleva fase: no recorre el
+embudo (D-79).
+
+**El estado se deduce de la fase, no se pregunta.** Una solicitud registrada en *Desarrollo* no está
+"por iniciar": ya arrancó, y por eso se registra ahí. *Gestión de la demanda* y *Backlog* son
+antesala y nacen *Por iniciar*; de *Análisis y diseño* a *Aceptación TI*, *En progreso*;
+*Producción*, *Terminada*. Dejar siempre `EST-01` habría puesto en el tablero tarjetas que se
+contradicen a sí mismas, y habría hecho que el avance de la iniciativa contara como no empezado un
+trabajo que sí lo está. La auditoría guarda ese estado real, no el `EST-01` fijo que guardaba antes.
+
+**Y deja su estampa de tiempo.** Entrar en *Desarrollo* escribe `Fecha_Inicio_Dev`, igual que si se
+hubiera llegado arrastrando. Sin eso, el tiempo neto de construcción habría dejado fuera del
+indicador a esa solicitud sin decir por qué. Las fases por las que nunca pasó quedan en blanco, que
+es la verdad.
+
+### D-81 · Los filtros de Gestión, reducidos a los que se usan
+
+La barra traía seis filtros y dos botones, y ocupaba dos filas enteras por encima del tablero.
+Queda así, en este orden: **Iniciativa, Plataforma, Solicitante, Responsable, Buscar.**
+
+**Se retiran línea estratégica y vertical.** Son atributos de la iniciativa, no de la solicitud:
+filtraban de rebote, a través del proyecto al que pertenece cada tarjeta. Quien quiere ver una línea
+completa la mira en Iniciativas, que es donde vive esa lectura; en el tablero operativo nadie
+preguntaba por ellas.
+
+**Entra solicitante**, que sí es un dato de la solicitud y hasta ahora no se podía filtrar aunque se
+guardara desde el principio.
+
+**Los dos botones comparten una casilla.** *Limpiar* y *+ Nueva Solicitud* ocupaban cada uno el
+ancho de un filtro, con una etiqueta vacía encima para alinearse. Juntos en una sola casilla, y con
+dos filtros menos, la barra completa cabe en una línea y el tablero gana una fila entera de alto.
+
+### D-82 · Lo que se esconde tenía que esconderse de verdad
+
+Al revisar el formulario en el navegador apareció que los campos que D-79 muestra según el tipo
+—*Versión estimada* para fábrica, *Fecha compromiso* para tarea— **seguían viéndose los dos**. El
+código estaba bien; la hoja de estilos, no.
+
+El atributo `hidden` da `display:none`, pero es el navegador quien lo da, y **cualquier regla propia
+que fije un `display` lo pisa**: una clase y un atributo pesan igual, y entre iguales gana la última.
+`.campo` declara `display:flex`, así que `.campo[hidden]` se seguía pintando.
+
+Ya había cinco parches de este mismo problema en la hoja —`.pagina[hidden]`, `.velo[hidden]`,
+`.toast[hidden]`, `.prioridades[hidden]`, `.ingreso[hidden]`—, cada uno puesto el día que alguien
+notó que algo no se escondía. Se reemplaza el goteo por una sola regla: `[hidden]{display:none
+!important}`. Con `!important` gana siempre, sin depender del orden ni de en cuál de los dos bloques
+`<style>` esté la otra regla.
+
+**Por qué no se había visto:** el ensayo con el que se prueban las pantallas en el navegador traía
+su propia copia de los estilos del formulario y solo cargaba el primero de los dos bloques `<style>`
+del archivo real. Probaba una hoja de estilos que no existe. Los ocho armadores de ensayo ahora
+concatenan todos los bloques, y la prueba comprueba que quitar la regla vuelve a mostrar los campos:
+sin eso, verificaría que el atributo está puesto, no que sirve de algo.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

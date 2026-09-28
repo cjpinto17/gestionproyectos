@@ -110,7 +110,8 @@ hoja, con cuatro dígitos (ver D-43).
 **Documentación:** `Doc_Requerimiento_URL` (se pega a mano), `Link_Taiga`. La carpeta de Drive es de la **iniciativa** (`Proyectos.Drive_URL`), no de cada solicitud.
 
 **Control de flujo:** `Fase_Actual` —solo las de fábrica: una *Tarea* la lleva vacía y se
-gobierna por estado (D-79)—, `Estado_Actual`, `Fecha_Compromiso` (la fecha comprometida de
+gobierna por estado (D-79). Se elige al registrar, con la primera fase por omisión, y entrar
+en una fase posterior exige el mismo permiso que llegar a ella arrastrando (D-80)—, `Estado_Actual`, `Fecha_Compromiso` (la fecha comprometida de
 una tarea, que reemplaza al SLA por fase), `Tiene_Bloqueo` (SÍ/NO),
 `Causal_Bloqueo`, `Observacion_Bloqueo` (texto libre opcional: qué está trabando la solicitud;
 se borra al levantar el bloqueo), `Responsable_Actual`, `Version_Semantica`,
