@@ -644,7 +644,7 @@ function pintarListadoIniciativas() {
   };
 
   var columnas = ['Iniciativa', 'Estado', 'Solicitante', 'BO', 'PO', 'Inicio', 'Fin planeado',
-                  '% real', '% esperado', 'Prioridad', 'Tipo', 'Plataforma'];
+                  '% real', '% esperado', 'Prioridad', 'Tipo de iniciativa', 'Plataforma'];
 
   $('listadoIni').innerHTML =
     '<thead><tr><th style="width:26px"></th>' + columnas.map(function (c) {
@@ -669,8 +669,8 @@ function pintarListadoIniciativas() {
                          '">' + esc(estado) + '</span>'
                        : sinDato('sin estado')) + '</td>' +
             '<td>' + (i.solicitante ? esc(i.solicitante) : sinDato('sin asignar')) + '</td>' +
-            '<td>' + iniciales(i.bo) + '</td>' +
-            '<td>' + iniciales(i.po) + '</td>' +
+            '<td>' + (i.bo ? esc(i.bo) : sinDato('sin asignar')) + '</td>' +
+            '<td>' + (i.po ? esc(i.po) : sinDato('sin asignar')) + '</td>' +
             '<td class="num">' + (i.fechaInicio ? esc(fecha(i.fechaInicio))
                                                 : sinDato('sin fecha')) + '</td>' +
             '<td class="num">' + (i.fechaFinPlaneada ? esc(fecha(i.fechaFinPlaneada))
@@ -686,32 +686,13 @@ function pintarListadoIniciativas() {
             '<td>' + (i.plataforma ? esc(i.plataforma) : sinDato('sin plataforma')) + '</td>' +
           '</tr>' +
           (abierta
-            ? '<tr class="ini-abierta"><td></td><td colspan="' + columnas.length +
+            ? '<tr class="ini-detalle"><td></td><td colspan="' + columnas.length +
               '" style="padding-top:0">' + detalleIniciativa(i.idProyecto) + '</td></tr>'
             : '');
         }).join('')
       : '<tr><td colspan="' + (columnas.length + 1) + '" style="color:var(--ink-faint);' +
         'text-align:center">Ninguna iniciativa coincide con los filtros.</td></tr>') +
     '</tbody>';
-}
-
-/**
- * Las iniciales de una persona, con su nombre completo en el titulo emergente.
- *
- * El BO y el PO ocupaban una columna entera cada uno para repetir los mismos
- * cuatro o cinco nombres fila tras fila. En iniciales se leen igual de rapido y
- * dejan sitio a lo que cambia de una iniciativa a otra. Se toman la primera y
- * la ultima palabra —el nombre de pila y el primer apellido que quede al
- * final—, no las dos primeras: "Sandra Milena Orejarena" da SO y no SM.
- */
-function iniciales(nombre) {
-  var partes = String(nombre || '').trim().split(/\s+/).filter(Boolean);
-  if (!partes.length) return '<span style="color:var(--ink-faint)">—</span>';
-  var letras = partes.length === 1
-      ? partes[0].charAt(0)
-      : partes[0].charAt(0) + partes[partes.length - 1].charAt(0);
-  return '<abbr class="iniciales" title="' + esc(nombre) + '">' +
-         esc(letras.toUpperCase()) + '</abbr>';
 }
 
 /** Iniciativas desplegadas en el listado, por ID. */
@@ -755,37 +736,42 @@ function alternarIniciativa(idProyecto) {
 }
 
 /**
- * Las solicitudes de una iniciativa, con su avance por el embudo.
+ * Las actividades de una iniciativa, con su avance.
  *
  * Responde "como va cada tema" sin salir del listado: hasta donde llego cada
- * solicitud, si esta trabada y cuando se espera que salga, que es la fecha
+ * actividad, si esta trabada y cuando se espera que salga, que es la fecha
  * planeada de la version que tiene asignada.
+ *
+ * Aqui se llaman actividades y no solicitudes a proposito. Desde la iniciativa
+ * son los renglones de su plan —lo que hay que hacer para sacarla adelante— y
+ * dentro caben tanto las de fabrica como las tareas. "Solicitud" es como se
+ * llaman cuando se piden y se gestionan, que es el lenguaje de Gestion.
  */
 function detalleIniciativa(idProyecto) {
   if (!DATOS.kanban) {
-    return '<div class="sol-cab">Cargando las solicitudes…</div>';
+    return '<div class="sol-cab">Cargando las actividades…</div>';
   }
 
-  var solicitudes = DATOS.kanban.solicitudes.filter(function (s) {
+  var actividades = DATOS.kanban.solicitudes.filter(function (s) {
     return s.ID_Proyecto === idProyecto;
   }).sort(ordenDeAtencion);
 
-  if (!solicitudes.length) {
-    return '<div class="sol-cab">Esta iniciativa todavía no tiene solicitudes.</div>';
+  if (!actividades.length) {
+    return '<div class="sol-cab">Esta iniciativa todavía no tiene actividades.</div>';
   }
 
   var bloqueadas = 0, vencidas = 0;
-  solicitudes.forEach(function (s) {
+  actividades.forEach(function (s) {
     if (estaBloqueada(s)) bloqueadas++;
     else if (estaVencida(s)) vencidas++;
   });
 
-  var resumen = solicitudes.length + (solicitudes.length === 1 ? ' solicitud' : ' solicitudes') +
+  var resumen = actividades.length + (actividades.length === 1 ? ' actividad' : ' actividades') +
       (bloqueadas ? ' · ' + bloqueadas + (bloqueadas === 1 ? ' bloqueada' : ' bloqueadas') : '') +
       (vencidas ? ' · ' + vencidas + (vencidas === 1 ? ' vencida' : ' vencidas') + ' en su fase' : '');
 
   return '<div class="sol-cab">' + esc(resumen) + '</div>' +
-         solicitudes.map(filaSolicitud).join('');
+         actividades.map(filaSolicitud).join('');
 }
 
 function estaBloqueada(s) {
@@ -795,27 +781,50 @@ function estaVencida(s) {
   return s.Sla_Fase && s.Dias_En_Fase !== null && s.Dias_En_Fase > s.Sla_Fase;
 }
 
-/** Una solicitud dentro del desplegable de su iniciativa. */
+/**
+ * Las casillas de avance de una actividad.
+ *
+ * Una de fabrica lleva una casilla por fase del embudo, llenas hasta donde va.
+ * Una tarea no recorre el embudo (D-79), asi que lleva tres —por iniciar, en
+ * progreso, terminada—, que son los tres momentos que de verdad tiene. Pintarle
+ * ocho casillas de las que seis nunca se llenarian la haria parecer atrasada
+ * siempre.
+ *
+ * Una tarea bloqueada se cuenta como en progreso y se pinta en rojo: empezo y
+ * esta trabada, que es distinto de no haber empezado.
+ */
+function casillasDeAvance(s, bloqueada, vencida) {
+  var total, indice;
+  if (esTarea(s)) {
+    total = 3;
+    indice = { 'EST-01': 1, 'EST-02': 2, 'EST-03': 2, 'EST-04': 2, 'EST-06': 3 }[s.Estado_Actual] || 0;
+  } else {
+    total = CAT.fases.length;
+    indice = 0;
+    CAT.fases.forEach(function (f, i) { if (f.id === s.Fase_Actual) indice = i + 1; });
+  }
+
+  var casillas = '';
+  for (var i = 1; i <= total; i++) {
+    if (i < indice) casillas += '<i class="hecha"></i>';
+    else if (i === indice) {
+      casillas += '<i class="actual' + (bloqueada ? ' mal' : (vencida ? ' ojo' : '')) + '"></i>';
+    } else casillas += '<i></i>';
+  }
+  return '<span class="fases' + (esTarea(s) ? ' de-tarea' : '') + '">' + casillas + '</span>';
+}
+
+/** Una actividad dentro del desplegable de su iniciativa. */
 function filaSolicitud(s) {
   var bloqueada = estaBloqueada(s);
   var vencida = !bloqueada && estaVencida(s);
   var alerta = bloqueada ? 'bloqueada' : (vencida ? 'vencida' : '');
-
-  // La barra: una casilla por fase del embudo, llenas hasta donde va.
-  var indice = 0;
-  CAT.fases.forEach(function (f, i) { if (f.id === s.Fase_Actual) indice = i + 1; });
-  var barra = CAT.fases.map(function (f, i) {
-    if (i + 1 < indice) return '<i class="hecha"></i>';
-    if (i + 1 === indice) {
-      return '<i class="actual' + (bloqueada ? ' mal' : (vencida ? ' ojo' : '')) + '"></i>';
-    }
-    return '<i></i>';
-  }).join('');
-
-  var version = versionDeSolicitud(s);
+  var tarea = esTarea(s);
 
   return '<div class="sol ' + alerta + '">' +
-    '<span class="sol-id">' + esc(s.ID_Solicitud) + '</span>' +
+    '<span class="sol-id">' + esc(s.ID_Solicitud) +
+      '<span class="sol-tipo">' + esc(nombreDeCatalogo(CAT.tipos, s.Tipo_Solicitud) ||
+        'sin tipo') + '</span></span>' +
     '<span class="sol-nombre">' + esc(s.Nombre_Solicitud) +
       (bloqueada
         ? '<div class="causal">&#9888;&#65039; ' +
@@ -827,13 +836,15 @@ function filaSolicitud(s) {
           'el objetivo son ' + s.Sla_Fase + '</div>'
         : '') +
     '</span>' +
-    '<span class="fases">' + barra + '</span>' +
-    '<span class="sol-fase">' + esc(nombreFase(s.Fase_Actual)) + ' · ' +
+    casillasDeAvance(s, bloqueada, vencida) +
+    // Una tarea no tiene fase que mostrar: sin esto quedaba un " · " suelto
+    // delante del estado, como si faltara un dato.
+    '<span class="sol-fase">' + (tarea ? '' : esc(nombreFase(s.Fase_Actual)) + ' · ') +
       '<span class="badge ' + (CLASE_ESTADO[s.Estado_Actual] || 'e-por-iniciar') + '">' +
       esc(nombreEstado(s.Estado_Actual)) + '</span></span>' +
-    '<span class="sol-quien">' +
+    '<span class="sol-quien"><span class="sol-rot">Responsable</span>' +
       (s.Nombre_Responsable ? esc(s.Nombre_Responsable) : sinAsignarTexto()) + '</span>' +
-    '<span class="sol-ver">' + version + '</span>' +
+    '<span class="sol-ver">' + versionDeSolicitud(s) + '</span>' +
   '</div>';
 }
 
@@ -882,8 +893,13 @@ function sinAsignarTexto() {
  * pedirle al equipo que registre fechas una por una.
  */
 function versionDeSolicitud(s) {
+  // La plataforma acompana a la version porque una misma version —v2.4.0— la
+  // tienen varias plataformas: el numero solo no dice de cual se habla.
+  var plataforma = s.Nombre_Plataforma
+      ? '<span class="sol-plat">' + esc(s.Nombre_Plataforma) + '</span>' : '';
+
   if (!s.Version_Semantica) {
-    return '<b style="color:var(--ink-faint)">—</b><br>' +
+    return '<b style="color:var(--ink-faint)">—</b>' + plataforma + '<br>' +
            '<span style="color:var(--ink-faint)">sin versión</span>';
   }
   var v = null;
@@ -896,7 +912,7 @@ function versionDeSolicitud(s) {
   if (v && v.fechaReal) pie = 'salió ' + fecha(v.fechaReal);
   else if (v && v.fechaPlaneada) pie = 'planeada ' + fecha(v.fechaPlaneada);
 
-  return '<b>' + esc(s.Version_Semantica) + '</b><br>' + esc(pie);
+  return '<b>' + esc(s.Version_Semantica) + '</b>' + plataforma + '<br>' + esc(pie);
 }
 
 /**
@@ -948,11 +964,11 @@ function filtroIniciativas() {
 function celdaAvanceReal(i) {
   if (i.avanceReal === null || i.avanceReal === undefined) {
     return '<span style="color:var(--ink-faint)" title="La iniciativa todavía no ' +
-           'tiene solicitudes relacionadas">sin solicitudes</span>';
+           'tiene actividades relacionadas">sin actividades</span>';
   }
   var clase = 'av-neutro';
   var ayuda = 'Promedio del avance de sus ' + i.actividades +
-              (i.actividades === 1 ? ' solicitud' : ' solicitudes') + ' por el embudo';
+              (i.actividades === 1 ? ' actividad' : ' actividades');
   if (i.avanceEsperado !== null && i.avanceEsperado !== undefined) {
     var brecha = i.avanceReal - i.avanceEsperado;
     clase = brecha >= 0 ? 'av-bien' : (brecha >= -10 ? 'av-ojo' : 'av-mal');
@@ -1912,7 +1928,7 @@ function columnaActividades(i) {
 
   if (!lista.length) {
     return tituloSeccion('Actividades') +
-           '<p class="nota" style="margin:0">Esta iniciativa todavía no tiene solicitudes.</p>';
+           '<p class="nota" style="margin:0">Esta iniciativa todavía no tiene actividades.</p>';
   }
 
   return tituloSeccion('Actividades · ' + i.solicitudes) +

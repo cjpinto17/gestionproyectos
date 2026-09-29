@@ -1619,6 +1619,51 @@ código, el nombre, el solicitante, el BO, el PO y la plataforma. Con seis filtr
 libre sirve para lo que ninguno de ellos cubre —escribir un apellido y ver qué aparece—, y buscar
 únicamente por nombre lo dejaba redundante con el filtro de iniciativa que acababa de entrar.
 
+### D-86 · Desde la iniciativa se llaman actividades
+
+Lo que en Gestión es una *solicitud* —algo que alguien pide y la fábrica atiende— desde la
+iniciativa es otra cosa: un renglón de su plan, lo que hay que hacer para sacarla adelante. Y desde
+que las tareas no recorren el embudo (D-79), dentro caben dos gobiernos distintos, así que llamarlas
+a todas "solicitudes" confundía justo donde hay que entenderlas juntas.
+
+El desplegable pasa a hablar de **actividades**: el resumen, el mensaje de cuando no hay ninguna, la
+celda de *% real* y la nota de la vista. La palabra *solicitud* se queda donde sí describe lo que
+pasa: en Gestión, en el formulario de registro y en los correos.
+
+**Las iniciales del BO y del PO se revierten.** D-84 las había puesto para ahorrar ancho; el negocio
+prefiere el nombre completo, y con LEN y Vertical ya fuera de la tabla el ancho alcanza.
+
+### D-87 · La fila de la iniciativa se ve, y la de sus actividades también
+
+Todo el listado era blanco: la fila de una iniciativa, la de sus actividades desplegadas y la
+siguiente iniciativa se leían igual, y con dos o tres desplegadas había que ir contando filas para
+saber dónde terminaba una y empezaba otra.
+
+Ahora la fila de la iniciativa va en **azul claro** (`#E4EDFA`) y la de sus actividades en blanco.
+El azul es más saturado que el fondo de la página (`#F3F6FB`) a propósito: si fuera parecido,
+distinguirlos dependería de la pantalla de cada uno. Los dos niveles necesitaron clases separadas
+—`ini-fila` e `ini-detalle`—, porque antes compartían `ini-abierta` y cualquier color habría teñido
+también las actividades.
+
+### D-88 · Lo que hacía falta saber de cada actividad
+
+Cuatro datos que estaban en el sistema y no se veían en la lista:
+
+- **El tipo**, debajo del código: nuevo, mejora, ajuste o tarea. Sin él, una tarea y un requerimiento
+  se veían igual salvo por el número de casillas, que es un detalle que hay que saber interpretar.
+- **La plataforma, al lado de la versión.** Una misma `v2.4.0` la tienen varias plataformas: el
+  número solo no dice de cuál se habla. Aparece también cuando no hay versión, porque la actividad
+  sí tiene plataforma aunque no tenga versión comprometida.
+- **El rótulo "Responsable"** encima del nombre. Un nombre suelto en una columna no dice si es quien
+  lo pidió, quien lo hace o quien lo aprueba.
+- **Una tarea ya no antepone su fase al estado.** No tiene fase, así que quedaba un `·` suelto
+  delante, como si faltara un dato.
+
+**Y las tareas llevan tres casillas, no ocho** —por iniciar, en progreso, terminada—, que son los
+tres momentos que de verdad tienen. Con ocho, seis no se llenarían nunca y toda tarea parecería
+atrasada. Una tarea **bloqueada cuenta como en progreso** y se pinta en rojo: empezó y está trabada,
+que es distinto de no haber empezado. Una cancelada no llena ninguna.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
