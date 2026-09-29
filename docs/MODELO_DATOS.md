@@ -29,17 +29,21 @@ Ocho roles: `RO-01` Solicitante, `RO-02` Product Owner, `RO-03` Analista Fábric
 | `Descripcion` | longtext | |
 | `Prioridad` | enum → `Prioridad` | Crítica / Alta / Media / Baja |
 | `Tipo_Iniciativa` | enum → `Tipos_Iniciativa` | |
-| `BO_Correo` | email → `Usuarios` | Business Owner |
-| `PO_Correo` | email → `Usuarios` | Product Owner |
-| `LEN_ID` | enum → `Lineas_Estrategicas` | Columna de la matriz |
-| `Vertical_ID` | enum → `Verticales` | Fila de la matriz |
-| `Fecha_Estimada` | date | |
+| `Solicitante_Usuario` | enum → `Usuarios` | Quién la pide. Puede no ser el BO ni el PO |
+| `BO_Usuario` | enum → `Usuarios` | Business Owner |
+| `PO_Usuario` | enum → `Usuarios` | Product Owner |
+| `LEN_ID` | enum → `Lineas_Estrategicas` | Fila de la matriz |
+| `Vertical_ID` | enum → `Verticales` | Columna de la matriz |
+| `Plataforma_ID` | enum → `Plataforma_Digital` | |
 | `Fecha_Inicio` | date | |
 | `Fecha_Fin_Estimada` | date | |
-| `Estado_Proyecto` | enum → `Estados` | Mismo catálogo de 6 estados |
-| `ID_Aplicacion` | enum → `Aplicaciones` | Aplicación principal |
+| `Fecha_Fin_Real` | date | Se registra al finalizar |
+| `Estado_Iniciativa` | enum → `Estados_Iniciativa` | Catálogo propio, distinto del de las solicitudes |
+| `Drive_URL` | url | Carpeta con la documentación. Se pega a mano (D-78) |
 
-Cargada con las 39 iniciativas reales del portafolio.
+Cargada con las 39 iniciativas reales del portafolio. Se edita desde la propia página de
+Iniciativas (el lápiz de cada fila) y desde Administración: los dos formularios se arman con
+estas mismas columnas, así que un campo nuevo aparece en ambos sin tocar ninguna pantalla.
 
 ### `Lineas_Estrategicas`
 `ID_LEN` (PK), `Nombre_LEN`, `Orden_LEN`.

@@ -245,6 +245,11 @@
   .ini .fechas{display:flex;gap:8px;font-size:10.5px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
   .ini .act{display:inline-flex;align-items:center;gap:4px;background:#EDF1F8;border-radius:5px;padding:1px 6px;font-size:10.5px;font-weight:600;font-family:var(--display);color:var(--navy)}
   .ini .app{font-size:10.5px;color:var(--ink-muted)}
+  /* Iniciales del BO y del PO en el seguimiento. El nombre completo va en el
+     titulo emergente, asi que se marca como abreviatura y se le quita el
+     subrayado punteado que el navegador les pone por su cuenta. */
+  .iniciales{font-family:var(--display);font-weight:700;font-size:11.5px;letter-spacing:.04em;
+             text-decoration:none;border-bottom:1px dotted var(--line);cursor:help}
   .chip{font-family:var(--display);font-weight:600;font-size:10px;padding:1px 6px;border-radius:5px;white-space:nowrap}
   .p-critica{background:#FEE2E2;color:#B91C1C}
   .p-alta{background:var(--alerta-bg);color:var(--alerta)}

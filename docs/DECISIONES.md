@@ -1564,6 +1564,61 @@ del archivo real. Probaba una hoja de estilos que no existe. Los ocho armadores 
 concatenan todos los bloques, y la prueba comprueba que quitar la regla vuelve a mostrar los campos:
 sin eso, verificaría que el atributo está puesto, no que sirve de algo.
 
+### D-83 · La iniciativa también tiene solicitante
+
+La solicitud sabía quién la pedía desde el principio (D-80 lo hizo elegible); la iniciativa no.
+Quedaban el Business Owner y el Product Owner, que son quienes la **llevan**, y no había dónde
+anotar quién la **pidió** —un área que encarga el trabajo a la gerencia que lo ejecuta—. Se agrega
+`Solicitante_Usuario` a la tabla de iniciativas.
+
+**No hizo falta tocar ninguna de las dos pantallas de edición.** El formulario del lápiz de cada
+fila y el de Administración se arman los dos recorriendo las columnas del esquema, así que el campo
+aparece en ambos por existir, con su texto de ayuda incluido. Es el mismo pago que viene dando el
+esquema declarativo desde el principio, y la razón por la que agregar un dato al modelo sigue
+costando una línea.
+
+### D-84 · El seguimiento muestra lo que se mira, no todo lo que se sabe
+
+El listado traía LEN y Vertical, que son los dos ejes de la otra vista del portafolio: quien abre
+la matriz los lee en la posición de cada tarjeta, y quien abre el seguimiento no los estaba
+preguntando. Ocupaban dos columnas para repetir una clasificación que no cambia casi nunca.
+
+Quedan doce, en este orden: **Iniciativa · Estado · Solicitante · BO · PO · Inicio · Fin planeado ·
+% real · % esperado · Prioridad · Tipo · Plataforma.**
+
+**BO y PO van en iniciales.** Son unas pocas personas repartidas entre treinta y nueve iniciativas:
+escritos completos gastaban dos columnas anchas para repetir los mismos nombres fila tras fila. En
+iniciales se reconocen igual de rápido —quien trabaja ahí sabe quién es *CP*— y el nombre completo
+sigue disponible en el título emergente, así que no se pierde nada. Se toman la primera y la última
+palabra y no las dos primeras: *Sandra Milena Orejarena* da **SO**, que es lo que uno esperaría, y
+no **SM**.
+
+**El solicitante sí va con nombre completo**, porque es el dato nuevo y todavía no está en la
+cabeza de nadie.
+
+### D-85 · Los filtros del portafolio: los que preguntan algo
+
+Quedan seis: **Iniciativa · Solicitante · Plataforma · Tipo de iniciativa · Estado · Buscar.**
+
+**Sale el de prioridad**, que tenía vista propia: la pestaña *Por prioridad* ya agrupa por ese
+criterio, y un filtro que reproduce una vista completa es una forma más lenta de llegar al mismo
+sitio.
+
+**Entra el de iniciativa**, con búsqueda predictiva sobre las treinta y nueve, y **el de
+solicitante**, que es el filtro que el campo nuevo hace posible.
+
+**Las dos listas largas se arman con lo que de verdad hay en el portafolio** y no con el catálogo
+completo de usuarios: ofrecer como filtro a alguien que no es solicitante de ninguna iniciativa es
+ofrecer un filtro que siempre devuelve vacío. Y se rehacen en cada carga, no una sola vez: si
+alguien acaba de asignarse como solicitante tiene que aparecer sin recargar la página. Los tres
+combos que salen de catálogos fijos sí se arman una vez, porque rehacerlos borraría la opción
+elegida; rehacer una lista predictiva no toca lo que la persona haya escrito.
+
+**El campo abierto pasó de buscar solo el nombre a buscar por todo lo que se ve en la fila**: el
+código, el nombre, el solicitante, el BO, el PO y la plataforma. Con seis filtros al lado, el campo
+libre sirve para lo que ninguno de ellos cubre —escribir un apellido y ver qué aparece—, y buscar
+únicamente por nombre lo dejaba redundante con el filtro de iniciativa que acababa de entrar.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

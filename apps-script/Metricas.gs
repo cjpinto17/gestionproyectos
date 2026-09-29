@@ -979,6 +979,10 @@ function calcularMatrizIniciativas_() {
       prioridadNombre: mapaCatalogo_(PRIORIDADES)[normalizarPrioridad_(p.Prioridad)] ||
                        (p.Prioridad || ''),
       tipo: p.Tipo_Iniciativa || null,
+      // Se envian los nombres completos y el identificador: la pantalla muestra
+      // las iniciales, pero el filtro y el titulo emergente necesitan el resto.
+      solicitanteId: p.Solicitante_Usuario || '',
+      solicitante: nombreUsuario[p.Solicitante_Usuario] || null,
       bo: nombreUsuario[p.BO_Usuario] || null,
       po: nombreUsuario[p.PO_Usuario] || null,
       estado: p.Estado_Iniciativa || null,

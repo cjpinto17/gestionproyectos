@@ -525,6 +525,28 @@ function cargarIniciativas() {
  * pueden llegar por la precarga en segundo plano y no solo por abrir la pagina.
  */
 function prepararFiltrosIniciativas(r) {
+  // Las dos listas largas se arman con lo que de verdad hay en el portafolio,
+  // no con el catalogo completo: ofrecer a alguien que no es solicitante de
+  // ninguna iniciativa es ofrecer un filtro que siempre devuelve vacio.
+  //
+  // Se rehacen en cada carga y no una sola vez, porque su contenido depende de
+  // los datos: si alguien acaba de asignarse como solicitante, tiene que
+  // aparecer sin recargar la pagina. Rehacer un <datalist> no toca lo que haya
+  // escrito la persona, asi que no se pierde el filtro puesto.
+  var todas = todasLasIniciativas();
+  llenarCombo('dlIniIni', todas.map(function (i) {
+    return { id: i.idProyecto, texto: i.nombre };
+  }));
+  var solicitantes = {};
+  todas.forEach(function (i) {
+    if (i.solicitanteId && i.solicitante) solicitantes[i.solicitanteId] = i.solicitante;
+  });
+  llenarCombo('dlSolicitanteIni', Object.keys(solicitantes).map(function (id) {
+    return { id: id, texto: solicitantes[id] };
+  }));
+
+  // Los tres combos fijos salen de catalogos y no cambian con los datos, asi
+  // que se arman una vez: rehacerlos borraria la opcion elegida.
   if (DATOS.filtrosIniListos) return;
   $('filtroEstadoIni').innerHTML = '<option value="">Todos los estados</option>' +
       r.estados.map(function (e) {
@@ -534,20 +556,26 @@ function prepararFiltrosIniciativas(r) {
       r.tipos.map(function (t) {
         return '<option value="' + t.id + '">' + esc(t.nombre) + '</option>';
       }).join('');
-  $('filtroPrioridadIni').innerHTML = '<option value="">Todas las prioridades</option>' +
-      r.prioridades.map(function (pr) {
-        return '<option value="' + pr.id + '">' + esc(pr.nombre) + '</option>';
-      }).join('');
   $('filtroPlataformaIni').innerHTML = '<option value="">Todas las plataformas</option>' +
       r.plataformas.map(function (pl) {
         return '<option value="' + pl.id + '">' + esc(pl.nombre) + '</option>';
       }).join('') + '<option value="__SIN__">Sin plataforma asignada</option>';
   DATOS.filtrosIniListos = true;
 }
-$('buscIni').addEventListener('input', pintarIniciativas);
+
+/** Todas las iniciativas del portafolio, sacadas de las celdas de la matriz. */
+function todasLasIniciativas() {
+  var r = DATOS.matriz;
+  if (!r) return [];
+  var todas = [];
+  Object.keys(r.celdas).forEach(function (k) { todas = todas.concat(r.celdas[k]); });
+  return todas;
+}
+['buscIni', 'filtroIniIni', 'filtroSolicitanteIni'].forEach(function (id) {
+  $(id).addEventListener('input', pintarIniciativas);
+});
 $('filtroEstadoIni').addEventListener('change', pintarIniciativas);
 $('filtroTipoIni').addEventListener('change', pintarIniciativas);
-$('filtroPrioridadIni').addEventListener('change', pintarIniciativas);
 $('filtroPlataformaIni').addEventListener('change', pintarIniciativas);
 
 /**
@@ -605,9 +633,7 @@ function pintarListadoIniciativas() {
   if (!r) return;
   var pasa = filtroIniciativas();
 
-  var todas = [];
-  Object.keys(r.celdas).forEach(function (k) { todas = todas.concat(r.celdas[k]); });
-  var visibles = todas.filter(pasa).sort(ordenPorFecha);
+  var visibles = todasLasIniciativas().filter(pasa).sort(ordenPorFecha);
 
   $('tituloListado').textContent = visibles.length === 1
       ? '1 iniciativa'
@@ -617,8 +643,8 @@ function pintarListadoIniciativas() {
     return '<span style="color:var(--ink-faint)">' + texto + '</span>';
   };
 
-  var columnas = ['Iniciativa', 'LEN', 'Vertical', 'Estado', 'Plataforma', 'Business Owner',
-                  'Inicio', 'Fin planeado', '% real', '% esperado'];
+  var columnas = ['Iniciativa', 'Estado', 'Solicitante', 'BO', 'PO', 'Inicio', 'Fin planeado',
+                  '% real', '% esperado', 'Prioridad', 'Tipo', 'Plataforma'];
 
   $('listadoIni').innerHTML =
     '<thead><tr><th style="width:26px"></th>' + columnas.map(function (c) {
@@ -638,21 +664,26 @@ function pintarListadoIniciativas() {
                 ? '<button class="lapiz" title="Editar iniciativa" data-editar-ini="' +
                   esc(i.idProyecto) + '">&#9998;</button>'
                 : '') + '</td>' +
-            '<td>' + (i.lenId ? esc(nombreDeCatalogo(r.lineas, i.lenId)) : sinDato('sin LEN')) + '</td>' +
-            '<td>' + (i.verticalId ? esc(nombreDeCatalogo(r.verticales, i.verticalId))
-                                   : sinDato('sin vertical')) + '</td>' +
             '<td>' + (i.estado
                        ? '<span class="badge ' + (CLASE_ESTADO_INI[i.estado] || 'e-cancelada') +
                          '">' + esc(estado) + '</span>'
                        : sinDato('sin estado')) + '</td>' +
-            '<td>' + (i.plataforma ? esc(i.plataforma) : sinDato('sin plataforma')) + '</td>' +
-            '<td>' + (i.bo ? esc(i.bo) : sinDato('sin asignar')) + '</td>' +
+            '<td>' + (i.solicitante ? esc(i.solicitante) : sinDato('sin asignar')) + '</td>' +
+            '<td>' + iniciales(i.bo) + '</td>' +
+            '<td>' + iniciales(i.po) + '</td>' +
             '<td class="num">' + (i.fechaInicio ? esc(fecha(i.fechaInicio))
                                                 : sinDato('sin fecha')) + '</td>' +
             '<td class="num">' + (i.fechaFinPlaneada ? esc(fecha(i.fechaFinPlaneada))
                                                      : sinDato('sin fecha')) + '</td>' +
             '<td class="num">' + celdaAvanceReal(i) + '</td>' +
             '<td class="num">' + celdaAvanceEsperado(i) + '</td>' +
+            '<td>' + (i.prioridad
+                       ? '<span class="badge ' + (PRIORIDAD_CLASE[i.prioridad] || 'p-baja') +
+                         '">' + esc(i.prioridadNombre) + '</span>'
+                       : sinDato('sin prioridad')) + '</td>' +
+            '<td>' + (i.tipo ? esc(nombreDeCatalogo(r.tipos, i.tipo))
+                             : sinDato('sin tipo')) + '</td>' +
+            '<td>' + (i.plataforma ? esc(i.plataforma) : sinDato('sin plataforma')) + '</td>' +
           '</tr>' +
           (abierta
             ? '<tr class="ini-abierta"><td></td><td colspan="' + columnas.length +
@@ -662,6 +693,25 @@ function pintarListadoIniciativas() {
       : '<tr><td colspan="' + (columnas.length + 1) + '" style="color:var(--ink-faint);' +
         'text-align:center">Ninguna iniciativa coincide con los filtros.</td></tr>') +
     '</tbody>';
+}
+
+/**
+ * Las iniciales de una persona, con su nombre completo en el titulo emergente.
+ *
+ * El BO y el PO ocupaban una columna entera cada uno para repetir los mismos
+ * cuatro o cinco nombres fila tras fila. En iniciales se leen igual de rapido y
+ * dejan sitio a lo que cambia de una iniciativa a otra. Se toman la primera y
+ * la ultima palabra —el nombre de pila y el primer apellido que quede al
+ * final—, no las dos primeras: "Sandra Milena Orejarena" da SO y no SM.
+ */
+function iniciales(nombre) {
+  var partes = String(nombre || '').trim().split(/\s+/).filter(Boolean);
+  if (!partes.length) return '<span style="color:var(--ink-faint)">—</span>';
+  var letras = partes.length === 1
+      ? partes[0].charAt(0)
+      : partes[0].charAt(0) + partes[partes.length - 1].charAt(0);
+  return '<abbr class="iniciales" title="' + esc(nombre) + '">' +
+         esc(letras.toUpperCase()) + '</abbr>';
 }
 
 /** Iniciativas desplegadas en el listado, por ID. */
@@ -854,22 +904,30 @@ function versionDeSolicitud(s) {
  * lo que se ve en una es exactamente lo que se ve en la otra, reagrupado.
  */
 function filtroIniciativas() {
-  var q = $('buscIni').value.toLowerCase();
+  var q = $('buscIni').value.trim().toLowerCase();
+  var iniciativa = valorCombo('filtroIniIni', 'dlIniIni');
+  var solicitante = valorCombo('filtroSolicitanteIni', 'dlSolicitanteIni');
   var estado = $('filtroEstadoIni').value;
   var tipo = $('filtroTipoIni').value;
-  var prioridad = $('filtroPrioridadIni').value;
   var plataforma = $('filtroPlataformaIni').value;
 
   return function (i) {
+    if (iniciativa && i.idProyecto !== iniciativa) return false;
+    if (solicitante && i.solicitanteId !== solicitante) return false;
     if (estado && i.estado !== estado) return false;
     if (tipo && i.tipo !== tipo) return false;
-    if (prioridad && i.prioridad !== prioridad) return false;
     if (plataforma === '__SIN__') {
       if (i.plataformaId) return false;
     } else if (plataforma && i.plataformaId !== plataforma) {
       return false;
     }
-    if (q && String(i.nombre).toLowerCase().indexOf(q) === -1) return false;
+    // El campo abierto busca por todo lo que se ve en la fila, no solo por el
+    // nombre: quien escribe un apellido o una plataforma espera encontrarla.
+    if (q) {
+      var pajar = [i.idProyecto, i.nombre, i.solicitante, i.bo, i.po, i.plataforma]
+          .join(' ').toLowerCase();
+      if (pajar.indexOf(q) === -1) return false;
+    }
     return true;
   };
 }
@@ -1802,6 +1860,7 @@ function columnaDatosIniciativa(i) {
     ['Línea estratégica', i.len],
     ['Vertical', i.vertical],
     ['Plataforma digital', i.plataforma],
+    ['Solicitante', i.solicitante],
     ['Business Owner', i.bo],
     ['Product Owner', i.po],
     ['Inicio', fecha(i.fechaInicio)],

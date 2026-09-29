@@ -996,6 +996,7 @@ function getDetalleIniciativa(idProyecto) {
     len: mapaLineasEstrategicas()[p.LEN_ID] || '',
     vertical: mapaVerticales()[p.Vertical_ID] || '',
     plataforma: mapaPlataformas()[p.Plataforma_ID] || '',
+    solicitante: nombreUsuario[p.Solicitante_Usuario] || '',
     bo: nombreUsuario[p.BO_Usuario] || '',
     po: nombreUsuario[p.PO_Usuario] || '',
     fechaInicio: p.Fecha_Inicio || null,

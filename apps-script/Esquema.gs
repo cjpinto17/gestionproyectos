@@ -267,6 +267,10 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'Descripcion', etiqueta: 'Descripcion', tipo: 'longtext' },
       { campo: 'Prioridad', etiqueta: 'Prioridad', tipo: 'enum', fk: 'Prioridad' },
       { campo: 'Tipo_Iniciativa', etiqueta: 'Tipo de iniciativa', tipo: 'enum', fk: 'Tipos_Iniciativa' },
+      // Quien pide la iniciativa. No es el BO ni el PO: puede ser un area que
+      // encarga el trabajo a la gerencia que lo lleva.
+      { campo: 'Solicitante_Usuario', etiqueta: 'Solicitante', tipo: 'enum', fk: 'Usuarios',
+        ayuda: 'Quién pide la iniciativa. Puede ser distinto del Business Owner y del Product Owner.' },
       { campo: 'BO_Usuario', etiqueta: 'Business Owner', tipo: 'enum', fk: 'Usuarios' },
       { campo: 'PO_Usuario', etiqueta: 'Product Owner', tipo: 'enum', fk: 'Usuarios' },
       { campo: 'LEN_ID', etiqueta: 'Linea estrategica de negocio', tipo: 'enum', fk: 'Lineas_Estrategicas' },
