@@ -548,10 +548,6 @@ function prepararFiltrosIniciativas(r) {
   // Los tres combos fijos salen de catalogos y no cambian con los datos, asi
   // que se arman una vez: rehacerlos borraria la opcion elegida.
   if (DATOS.filtrosIniListos) return;
-  $('filtroEstadoIni').innerHTML = '<option value="">Todos los estados</option>' +
-      r.estados.map(function (e) {
-        return '<option value="' + e.id + '">' + esc(e.nombre) + '</option>';
-      }).join('');
   $('filtroTipoIni').innerHTML = '<option value="">Todos los tipos</option>' +
       r.tipos.map(function (t) {
         return '<option value="' + t.id + '">' + esc(t.nombre) + '</option>';
@@ -574,7 +570,6 @@ function todasLasIniciativas() {
 ['buscIni', 'filtroIniIni', 'filtroSolicitanteIni'].forEach(function (id) {
   $(id).addEventListener('input', pintarIniciativas);
 });
-$('filtroEstadoIni').addEventListener('change', pintarIniciativas);
 $('filtroTipoIni').addEventListener('change', pintarIniciativas);
 $('filtroPlataformaIni').addEventListener('change', pintarIniciativas);
 
@@ -770,8 +765,22 @@ function detalleIniciativa(idProyecto) {
       (bloqueadas ? ' · ' + bloqueadas + (bloqueadas === 1 ? ' bloqueada' : ' bloqueadas') : '') +
       (vencidas ? ' · ' + vencidas + (vencidas === 1 ? ' vencida' : ' vencidas') + ' en su fase' : '');
 
+  // Las dos clases van separadas porque se leen distinto: una de fabrica se
+  // mira contra el embudo y una tarea contra su estado. Mezcladas, las barras
+  // de tres y de ocho casillas se alternaban fila a fila y costaba ver de que
+  // se estaba hablando. El grupo se rotula aunque sea el unico: la diferencia
+  // entre tres y ocho casillas es sutil y no tiene por que adivinarse.
+  var grupos = [
+    { titulo: 'Gestión de fábrica', lista: actividades.filter(function (s) { return !esTarea(s); }) },
+    { titulo: 'Tareas', lista: actividades.filter(esTarea) }
+  ];
+
   return '<div class="sol-cab">' + esc(resumen) + '</div>' +
-         actividades.map(filaSolicitud).join('');
+    grupos.filter(function (g) { return g.lista.length; }).map(function (g) {
+      return '<div class="sol-grupo">' + esc(g.titulo) +
+        '<span class="sol-grupo-n">' + g.lista.length + '</span></div>' +
+        g.lista.map(filaSolicitud).join('');
+    }).join('');
 }
 
 function estaBloqueada(s) {
@@ -923,14 +932,12 @@ function filtroIniciativas() {
   var q = $('buscIni').value.trim().toLowerCase();
   var iniciativa = valorCombo('filtroIniIni', 'dlIniIni');
   var solicitante = valorCombo('filtroSolicitanteIni', 'dlSolicitanteIni');
-  var estado = $('filtroEstadoIni').value;
   var tipo = $('filtroTipoIni').value;
   var plataforma = $('filtroPlataformaIni').value;
 
   return function (i) {
     if (iniciativa && i.idProyecto !== iniciativa) return false;
     if (solicitante && i.solicitanteId !== solicitante) return false;
-    if (estado && i.estado !== estado) return false;
     if (tipo && i.tipo !== tipo) return false;
     if (plataforma === '__SIN__') {
       if (i.plataformaId) return false;
@@ -939,8 +946,12 @@ function filtroIniciativas() {
     }
     // El campo abierto busca por todo lo que se ve en la fila, no solo por el
     // nombre: quien escribe un apellido o una plataforma espera encontrarla.
+    // El estado entra aqui desde que dejo de tener combo propio: se sigue
+    // viendo en la tabla, y sin esto seria el unico dato a la vista por el que
+    // no se pudiera buscar.
     if (q) {
-      var pajar = [i.idProyecto, i.nombre, i.solicitante, i.bo, i.po, i.plataforma]
+      var pajar = [i.idProyecto, i.nombre, i.solicitante, i.bo, i.po, i.plataforma,
+                   nombreDeCatalogo((DATOS.matriz || {}).estados, i.estado)]
           .join(' ').toLowerCase();
       if (pajar.indexOf(q) === -1) return false;
     }

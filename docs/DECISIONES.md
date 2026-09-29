@@ -1664,6 +1664,33 @@ tres momentos que de verdad tienen. Con ocho, seis no se llenarían nunca y toda
 atrasada. Una tarea **bloqueada cuenta como en progreso** y se pinta en rojo: empezó y está trabada,
 que es distinto de no haber empezado. Una cancelada no llena ninguna.
 
+### D-89 · Un filtro menos, y la barra en una sola línea
+
+Con seis filtros más el selector de vista, el campo de búsqueda se bajaba a una segunda línea y la
+barra ocupaba el doble de alto que la tabla que encabeza.
+
+**Sale el filtro de estado.** Quedan cinco —Iniciativa, Solicitante, Plataforma, Tipo de iniciativa
+y Buscar— y todo cabe en un renglón.
+
+**El estado entra al campo abierto.** Sigue siendo una columna de la tabla, y el campo libre ya
+prometía buscar "por todo lo que se ve en la fila": dejarlo fuera lo habría convertido en el único
+dato a la vista por el que no se puede buscar. Quien filtraba por *En riesgo* ahora lo escribe y
+obtiene lo mismo, sin gastar un combo permanente para algo que se consulta de vez en cuando.
+
+### D-90 · Las actividades, agrupadas por gobierno
+
+El desplegable listaba las actividades seguidas, ordenadas por prioridad y fecha. Con los dos
+gobiernos conviviendo (D-79) eso alternaba barras de ocho y de tres casillas fila tras fila, y
+costaba ver de qué se estaba hablando en cada renglón.
+
+Ahora van en dos grupos rotulados —**Gestión de fábrica** y **Tareas**—, cada uno con su conteo, y
+dentro de cada grupo se conserva el mismo orden de atención de antes. Fábrica va primero porque es
+donde está el trabajo que recorre el embudo; las tareas son el día a día que lo acompaña.
+
+**El grupo se rotula aunque sea el único.** Una iniciativa que solo tiene tareas igual dice
+"Tareas": la diferencia entre tres y ocho casillas es sutil y no tiene por qué adivinarse a partir
+de la barra.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

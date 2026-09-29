@@ -282,6 +282,15 @@
   .ini-detalle td{background:var(--surface)}
   .sol-cab{font-family:var(--display);font-weight:700;font-size:10.5px;text-transform:uppercase;
            letter-spacing:.06em;color:var(--ink-faint);padding:10px 0 8px}
+  /* Rotulo de cada grupo de actividades: fabrica y tareas */
+  .sol-grupo{display:flex;align-items:center;gap:8px;font-family:var(--display);font-weight:700;
+             font-size:11px;color:var(--navy);padding:12px 0 2px;border-top:2px solid var(--navy);
+             margin-top:6px}
+  .sol-grupo:first-of-type{margin-top:0}
+  .sol-grupo-n{background:var(--line-soft);color:var(--ink-muted);border-radius:999px;
+               padding:0 7px;font-size:10.5px}
+  /* La primera actividad de cada grupo no repite la linea del rotulo */
+  .sol-grupo + .sol{border-top:0}
   .sol{display:grid;grid-template-columns:106px 1fr 132px 158px 132px 148px;gap:12px;
        align-items:center;padding:8px 0;border-top:1px solid var(--line-soft);font-size:12.5px}
   .sol-id{font-family:var(--display);font-weight:700;color:var(--navy);font-size:11.5px}
