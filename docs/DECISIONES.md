@@ -1773,6 +1773,28 @@ fechas de inicio que la regla vieja había reescrito.
 
 Es **idempotente** —correrla dos veces no cambia nada la segunda— y por omisión **solo simula**.
 
+### D-95 · Una instrucción que no se podía seguir, otra vez
+
+«Ejecútela sin nada entre paréntesis y luego con `true`» describe bien lo que hace la función, pero
+**no se puede hacer desde el editor de Apps Script**: uno elige la función en una lista y oprime
+Ejecutar, y no hay dónde escribir un argumento. Las cuatro funciones de mantenimiento se explicaban
+así, y quien las siguiera al pie de la letra solo podía simular; aplicar exigía escribir código.
+
+Ya había pasado exactamente lo mismo en D-73, con `configurarUrlAplicacion`. Entonces se arregló
+ese caso; el patrón se quedó.
+
+Ahora cada función viene **de a dos**: la corta simula, y una gemela que termina en `Aplicar`
+escribe. Las dos salen juntas en la lista del editor y no piden escribir nada. Es más código
+—cuatro funciones de una línea— a cambio de que la instrucción se pueda seguir.
+
+**Y `reconstruirEstampas` no imprimía su informe.** El editor no muestra lo que una función
+devuelve, solo lo que se escribe en el registro; las otras tres ya lo hacían y a la nueva se me
+olvidó. Quien la ejecutara habría visto «Ejecución completada» y nada más. La prueba ahora recoge
+lo que va al registro, no solo lo que la función devuelve.
+
+**La lección, por segunda vez:** una instrucción operativa hay que comprobarla contra la pantalla
+donde se va a seguir, no contra la firma de la función.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

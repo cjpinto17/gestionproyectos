@@ -212,8 +212,18 @@ función aparte para eso y se dice al publicar. Hoy hay dos, ambas en **`Manteni
   Solo llena lo vacío: donde ya hay una fecha no la toca, y si no coincide con la bitácora lo
   reporta en la lista `difieren` para que usted decida.
 
-Las dos se ejecutan primero sin nada entre paréntesis para ver qué harían, y luego con `true`
-entre paréntesis para aplicarlo.
+Cada una viene **de a dos**, y esa es toda la diferencia:
+
+| Elija esta | Qué hace |
+| --- | --- |
+| `normalizarTareas` | **Solo simula.** No cambia nada; informa qué haría |
+| `normalizarTareasAplicar` | **Escribe de verdad** |
+| `reconstruirEstampas` | **Solo simula** |
+| `reconstruirEstampasAplicar` | **Escribe de verdad** |
+
+Primero ejecute la corta, lea el informe que aparece abajo en **Registro de ejecución**, y solo si
+está de acuerdo ejecute la que termina en `Aplicar`. Las dos aparecen juntas en la lista de
+funciones del editor, así que no hay que escribir nada: se elige y se oprime **Ejecutar**.
 
 ---
 
@@ -571,19 +581,28 @@ lista las del archivo abierto.
 | `actualizarEstructura` | `Setup.gs` | **La más frecuente.** Poner las hojas al día cuando una versión agrega una tabla o una columna |
 | `configurarUrlAplicacion` | `Config.gs` | Guardar la dirección de la aplicación. Normalmente no hace falta: se configura desde **Administración** |
 | `verUrlAplicacion` | `Config.gs` | Decir qué dirección usan hoy los correos, sin cambiar nada. También se ve en **Administración** |
-| `unificarAlcanceSolicitudes` | `Mantenimiento.gs` | Pasar a `Alcance` lo que estaba en `Objetivo` y `Entregable` |
-| `normalizarTareas` | `Mantenimiento.gs` | Sacar del embudo las solicitudes de tipo *Tarea* y traducir su fase a estado |
-| `reconstruirEstampas` | `Mantenimiento.gs` | Llenar desde la bitácora las fechas de fase que quedaron vacías |
-| `renumerarSolicitudes` | `Mantenimiento.gs` | Llevar los ID viejos al formato `SOL-0015` |
+| `unificarAlcanceSolicitudes` | `Mantenimiento.gs` | Pasar a `Alcance` lo que estaba en `Objetivo` y `Entregable` — **solo simula** |
+| `unificarAlcanceSolicitudesAplicar` | `Mantenimiento.gs` | Lo mismo, pero **escribiendo de verdad** |
+| `normalizarTareas` | `Mantenimiento.gs` | Sacar del embudo las solicitudes de tipo *Tarea* y traducir su fase a estado — **solo simula** |
+| `normalizarTareasAplicar` | `Mantenimiento.gs` | Lo mismo, pero **escribiendo de verdad** |
+| `reconstruirEstampas` | `Mantenimiento.gs` | Llenar desde la bitácora las fechas de fase que quedaron vacías — **solo simula** |
+| `reconstruirEstampasAplicar` | `Mantenimiento.gs` | Lo mismo, pero **escribiendo de verdad** |
+| `renumerarSolicitudes` | `Mantenimiento.gs` | Llevar los ID viejos al formato `SOL-0015` — **solo simula** |
+| `renumerarSolicitudesAplicar` | `Mantenimiento.gs` | Lo mismo, pero **escribiendo de verdad** |
 | `verificarEstructura` | `Mantenimiento.gs` | Revisar que las hojas coincidan con el esquema |
 | `diagnosticarSolicitudes` | `Mantenimiento.gs` | Buscar filas con datos inconsistentes |
 | `repararSolicitudesDesalineadas` | `Mantenimiento.gs` | Corregir filas que quedaron corridas una columna |
 | `sincronizarCatalogos` | `Setup.gs` | Reponer catálogos maestros que falten |
 | `medirRendimiento` | `Cache.gs` | Medir cuánto tarda cada consulta |
 
-Las que aceptan `true` entre paréntesis (`unificarAlcanceSolicitudes`, `normalizarTareas`,
-`reconstruirEstampas`, `renumerarSolicitudes`)
-**primero se ejecutan sin nada** para ver qué harían, y solo después con `true` para aplicarlo.
+Cuatro de ellas —`unificarAlcanceSolicitudes`, `normalizarTareas`, `reconstruirEstampas` y
+`renumerarSolicitudes`— **solo simulan**: informan qué harían sin cambiar nada. Para que escriban
+hay que elegir su gemela, la que lleva **`Aplicar`** al final del nombre
+(`reconstruirEstampasAplicar`, y así con las demás).
+
+Siempre en ese orden: primero la que simula, se lee el informe en **Registro de ejecución**, y solo
+entonces la que aplica. Ninguna de las dos pide que se escriba nada: se eligen de la lista y se
+oprime **Ejecutar**.
 
 ## Si algo sale mal
 

@@ -613,7 +613,7 @@ function reconstruirEstampas(aplicar) {
       invalidarTabla_('Solicitudes');
     }
 
-    return {
+    var reporte = {
       total: valores.length,
       sinBitacora: sinBitacora,
       solicitudes: solicitudesTocadas,
@@ -630,7 +630,46 @@ function reconstruirEstampas(aplicar) {
                            'coinciden con la bitacora: no se tocaron, revise la lista "difieren".'
                          : '')
     };
+    // Sin esto el editor de Apps Script no muestra nada: no imprime lo que una
+    // funcion devuelve, solo lo que se escribe en el registro.
+    Logger.log(JSON.stringify(reporte, null, 2));
+    return reporte;
   });
+}
+
+/* ================================================================== */
+/* Gemelas que aplican, para poder usarlas desde el editor             */
+/* ================================================================== */
+
+/**
+ * Las funciones de mantenimiento reciben `aplicar` y por omision solo simulan.
+ * Pero el editor de Apps Script ejecuta la funcion que uno elige en la lista
+ * SIN argumentos: no hay donde escribir `true`. Asi que pedir "ejecutela con
+ * true entre parentesis" era pedir algo que no se puede hacer desde ahi.
+ *
+ * Por eso cada una tiene una gemela que aplica. Quedan juntas en la lista del
+ * editor y el nombre dice cual es cual: la corta simula, la que termina en
+ * "Aplicar" escribe. Nadie tiene que escribir codigo para usarlas.
+ */
+
+/** Aplica de verdad lo que simula reconstruirEstampas. */
+function reconstruirEstampasAplicar() {
+  return reconstruirEstampas(true);
+}
+
+/** Aplica de verdad lo que simula normalizarTareas. */
+function normalizarTareasAplicar() {
+  return normalizarTareas(true);
+}
+
+/** Aplica de verdad lo que simula unificarAlcanceSolicitudes. */
+function unificarAlcanceSolicitudesAplicar() {
+  return unificarAlcanceSolicitudes(true);
+}
+
+/** Aplica de verdad lo que simula renumerarSolicitudes. */
+function renumerarSolicitudesAplicar() {
+  return renumerarSolicitudes(true);
 }
 
 /** Una fecha legible para los reportes de mantenimiento. @private */
