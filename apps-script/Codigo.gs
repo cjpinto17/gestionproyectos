@@ -617,6 +617,8 @@ function getCatalogos() {
     // y los dos tableros lo necesitan para repartir (D-79).
     tiposTarea: TIPOS_SIN_EMBUDO,
     estadosTarea: ESTADOS_TABLERO_TAREA,
+    // Cuales columnas del tablero se ordenan a mano (D-96).
+    fasesOrdenables: FASES_ORDENABLES,
     lineasEstrategicas: getLineasEstrategicas_(),
     verticales: getVerticales_()
   };
@@ -1259,6 +1261,8 @@ function crearSolicitud(datos) {
       // Una tarea nace sin fase: no recorre el embudo (D-79).
       Fase_Actual: fase,
       Estado_Actual: estadoInicial_(fase),
+      // Una solicitud nueva entra al final de la fila de su columna (D-96).
+      Orden_Columna: ordenAlFinalDe_(fase),
       Tiene_Bloqueo: 'NO',
       Causal_Bloqueo: '',
       Observacion_Bloqueo: '',
@@ -1478,6 +1482,8 @@ function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino) {
     nuevo.Fase_Actual = faseDestino;
     nuevo.Estado_Actual = nuevoEstado;
     nuevo.Fecha_Ultimo_Cambio = ahora;
+    // Entra al final de su nueva columna, no donde la dejo la anterior (D-96).
+    nuevo.Orden_Columna = ordenAlFinalDe_(faseDestino, idSolicitud);
     sellarEstampas_(nuevo, faseOrigen, faseDestino, ahora);
 
     escribirFila_('Solicitudes', s._fila, nuevo);
@@ -1498,6 +1504,122 @@ function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino) {
     return { ok: true, idSolicitud: idSolicitud, faseActual: faseDestino,
              estadoActual: nuevoEstado, avisos: avisos };
   });
+}
+
+/**
+ * Cambia el orden de atencion de una solicitud dentro de su columna.
+ *
+ * Recibe DONDE va, no que numero le toca: "ponga esta justo debajo de aquella".
+ * El servidor lee la columna completa, saca la solicitud de donde estaba, la
+ * mete en su sitio y renumera de 1 en adelante. Asi el resultado es correcto
+ * aunque quien arrastro estuviera viendo la columna filtrada —vera solo unas
+ * cuantas tarjetas, pero la que queda encima es la que manda— y aunque otra
+ * persona haya reordenado la misma columna un segundo antes: se recalcula
+ * sobre lo que hay, no sobre lo que el navegador creia que habia.
+ *
+ * @param {string} idSolicitud La que se movio.
+ * @param {string} idDespuesDe La tarjeta que queda justo encima. Vacio = arriba del todo.
+ * @return {!Object}
+ */
+function reordenarSolicitud(idSolicitud, idDespuesDe) {
+  // Quien puede mover una tarjeta de fase puede ordenarlas dentro de la fase:
+  // es la misma decision, a menor escala, y no merece un permiso aparte.
+  exigirPermiso_('Mover_Fase', 'Su rol no puede reordenar el tablero: es de consulta.');
+
+  return conBloqueo_(function () {
+    var s = buscarPorPk_('Solicitudes', idSolicitud);
+    if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+
+    if (esTipoTarea(s.Tipo_Solicitud)) {
+      throw new Error('Una tarea no se ordena por columna: se gobierna por estado.');
+    }
+    if (!faseSeOrdena(s.Fase_Actual)) {
+      throw new Error('La columna "' + nombreDeFase_(s.Fase_Actual) + '" no se ordena a mano: ' +
+                      'sus tarjetas van por prioridad y antigüedad.');
+    }
+
+    // La columna completa, en el orden que tiene hoy.
+    var enLaColumna = leerTabla_('Solicitudes').filter(function (x) {
+      return x.Fase_Actual === s.Fase_Actual && !esTipoTarea(x.Tipo_Solicitud);
+    }).sort(compararOrdenColumna_);
+
+    if (idDespuesDe && idDespuesDe !== idSolicitud) {
+      var ancla = enLaColumna.filter(function (x) { return x.ID_Solicitud === idDespuesDe; })[0];
+      if (!ancla) {
+        throw new Error('La solicitud ' + idDespuesDe + ' ya no está en esa columna. ' +
+                        'Actualice el tablero y vuelva a intentarlo.');
+      }
+    }
+
+    var sin = enLaColumna.filter(function (x) { return x.ID_Solicitud !== idSolicitud; });
+    var posicion = 0;                       // sin ancla, va arriba del todo
+    if (idDespuesDe && idDespuesDe !== idSolicitud) {
+      sin.forEach(function (x, i) { if (x.ID_Solicitud === idDespuesDe) posicion = i + 1; });
+    }
+    var ordenada = sin.slice(0, posicion).concat([s], sin.slice(posicion));
+
+    var escritas = escribirOrdenColumna_(ordenada);
+
+    return { ok: true, idSolicitud: idSolicitud, fase: s.Fase_Actual,
+             posicion: posicion + 1, total: ordenada.length, escritas: escritas };
+  });
+}
+
+/**
+ * Orden actual de una columna: por su numero, y lo que no tiene numero al final.
+ *
+ * Una solicitud sin numero es anterior a esta funcionalidad o entro por una via
+ * que no lo asigna. Va al final y no al principio: no se ha ordenado, y colarla
+ * arriba seria darle una prioridad que nadie decidio.
+ * @private
+ */
+function compararOrdenColumna_(a, b) {
+  var na = Number(a.Orden_Columna), nb = Number(b.Orden_Columna);
+  var va = !isNaN(na) && na > 0, vb = !isNaN(nb) && nb > 0;
+  if (va && vb && na !== nb) return na - nb;
+  if (va !== vb) return va ? -1 : 1;
+  return String(a.ID_Solicitud).localeCompare(String(b.ID_Solicitud), 'es');
+}
+
+/**
+ * Escribe 1..N en la columna de orden, tocando solo las filas que cambian.
+ *
+ * Se lee y se escribe la columna entera de una vez. Fila por fila serian tantas
+ * idas y vueltas a la hoja como tarjetas tenga la columna, y arrastrar una
+ * tarjeta se sentiria lento justo en la pantalla que se usa todos los dias.
+ * @param {!Array<!Object>} ordenada Las solicitudes en su nuevo orden.
+ * @return {number} Cuantas filas cambiaron de verdad.
+ * @private
+ */
+function escribirOrdenColumna_(ordenada) {
+  var columnas = asegurarColumnas_('Solicitudes');
+  var iOrden = columnas.indexOf('Orden_Columna');
+  if (iOrden === -1) {
+    throw new Error('La hoja Solicitudes no tiene la columna Orden_Columna. ' +
+                    'Ejecute actualizarEstructura.');
+  }
+
+  var hoja = getHoja_('Solicitudes');
+  var ultimaFila = hoja.getLastRow();
+  if (ultimaFila < 2) return 0;
+
+  var rango = hoja.getRange(2, iOrden + 1, ultimaFila - 1, 1);
+  var valores = rango.getValues();
+  var cambios = 0;
+
+  ordenada.forEach(function (s, i) {
+    var fila = s._fila - 2;                      // _fila es 1-based e incluye el encabezado
+    if (fila < 0 || fila >= valores.length) return;
+    if (Number(valores[fila][0]) === i + 1) return;
+    valores[fila][0] = i + 1;
+    cambios++;
+  });
+
+  if (cambios) {
+    rango.setValues(valores);
+    invalidarTabla_('Solicitudes');
+  }
+  return cambios;
 }
 
 /**
@@ -1581,6 +1703,30 @@ function sellarEstampas_(registro, faseOrigen, faseDestino, ahora) {
 
   var inicio = ESTAMPA_INICIO[faseDestino];
   if (inicio && !registro[inicio]) registro[inicio] = ahora;
+}
+
+/**
+ * El numero de orden con que una solicitud entra a una columna: el ultimo.
+ *
+ * Llegar a una columna no es lo mismo que ser prioritaria. Si entrara arriba,
+ * cada movimiento desordenaria lo que alguien ya habia acomodado, y el orden
+ * dejaria de ser una decision para volverse un efecto secundario. Entra al
+ * final y quien maneja esa columna la sube cuando corresponda (D-96).
+ *
+ * @param {string} fase
+ * @param {string=} excluir Solicitud que no debe contarse (la que se esta moviendo).
+ * @return {number}
+ * @private
+ */
+function ordenAlFinalDe_(fase, excluir) {
+  if (!faseSeOrdena(fase)) return '';
+  var mayor = 0;
+  leerTabla_('Solicitudes').forEach(function (s) {
+    if (s.Fase_Actual !== fase || s.ID_Solicitud === excluir) return;
+    var n = Number(s.Orden_Columna);
+    if (!isNaN(n) && n > mayor) mayor = n;
+  });
+  return mayor + 1;
 }
 
 /**
@@ -2537,6 +2683,7 @@ var METODOS_PUBLICOS = {
   crearSolicitud: true,
   actualizarSolicitudCompleta: true,
   cambiarFaseSolicitud: true,
+  reordenarSolicitud: true,
   cambiarEstadoTarea: true,
   marcarBloqueo: true,
   refrescarDatos: true,

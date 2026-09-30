@@ -1795,6 +1795,53 @@ lo que va al registro, no solo lo que la función devuelve.
 **La lección, por segunda vez:** una instrucción operativa hay que comprobarla contra la pantalla
 donde se va a seguir, no contra la firma de la función.
 
+### D-96 · El orden de atención se pone a mano, arrastrando
+
+Las columnas del tablero se ordenaban solas: primero lo más prioritario, y a igual prioridad lo más
+antiguo. Eso describe bien **qué es urgente**, pero no **en qué orden se va a atender**, que es una
+decisión de quien maneja la columna y no una fórmula.
+
+En **Gestión de la demanda**, **Backlog** y **Análisis y diseño** las tarjetas ahora se arrastran
+arriba y abajo dentro de su propia columna, y ese orden queda guardado. Cada tarjeta muestra su
+puesto, y una raya verde marca dónde va a caer antes de soltarla: sin ella, arrastrar para ordenar
+es soltar y ver qué pasó.
+
+**Solo esas tres.** De Desarrollo en adelante el trabajo ya está comprometido y repartido; un orden
+ahí no significaría nada. Esas columnas siguen ordenándose solas.
+
+**El orden manual manda sobre la prioridad.** La columna queda exactamente como la dejaron. Si la
+prioridad reordenara por encima, arrastrar una tarjeta sobre una Crítica la devolvería a su sitio y
+la aplicación parecería no obedecer. La prioridad sigue en la tarjeta para tenerla en cuenta al
+ordenar.
+
+**Lo que llega entra de último.** Llegar a una columna no es lo mismo que ser prioritaria. Si
+entrara arriba, cada movimiento desordenaría lo que alguien ya acomodó y el orden dejaría de ser una
+decisión para volverse un efecto secundario.
+
+**Al servidor se le manda un vecino, no un número:** «ponga esta debajo de aquella». El servidor lee
+la columna completa, inserta y renumera. Así el resultado es correcto aunque quien arrastró
+estuviera viendo la columna **filtrada** —ve unas pocas tarjetas, pero la que le queda encima es la
+que manda— y aunque otra persona haya reordenado la misma columna un segundo antes: se recalcula
+sobre lo que hay, no sobre lo que el navegador creía que había. Si el vecino ya no está en esa
+columna, se rechaza pidiendo actualizar en vez de adivinar.
+
+**Lo que no tiene número cae al final**, no al principio: no se ha ordenado, y colarlo arriba sería
+darle una prioridad que nadie decidió. Por eso no hizo falta migrar nada.
+
+**Una tarjeta bloqueada sí se puede reordenar.** Cambiar de fase con un bloqueo encima está
+prohibido —no se puede avanzar lo que está trabado—, pero reordenar no es avanzar: una solicitud
+trabada sigue teniendo un lugar en la fila, y a veces justamente hay que moverla.
+
+**Y una advertencia que ya nos pasó:** en D-66 retiramos `Orden_Iniciativa` porque era un número de
+orden que el sistema asignaba solo y nadie mantenía — «ordenaba por antigüedad disfrazada de
+decisión». Este campo es distinto **solo mientras alguien arrastre de verdad**. Un orden que nadie
+toca vuelve a ser ruido con apariencia de criterio, y entonces conviene quitarlo, no dejarlo.
+
+**Un detalle que apareció al probarlo en el navegador:** mientras se arrastraba una tarjeta dentro
+de su propia columna, la columna se pintaba de rojo —«ya está en esa fase»— y no salía la raya. La
+validación del arrastre solo contemplaba cambios de fase, así que decía que no se podía algo que sí
+se puede. Se corrigió donde estaba el error, en la validación, y no tapándolo en el manejador.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

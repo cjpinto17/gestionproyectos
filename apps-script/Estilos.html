@@ -476,6 +476,15 @@
   .t-plat{background:#EDF1F8;color:#42557A;border-radius:4px;padding:1px 6px;font-size:10.5px;
           font-family:var(--display);font-weight:600}
 
+  /* Orden de atencion, en las columnas que se acomodan a mano */
+  .t-pos{background:var(--navy);color:#fff;border-radius:5px;min-width:18px;text-align:center;
+         padding:1px 5px;font-size:10.5px;font-family:var(--display);font-weight:700;flex:none}
+  /* La raya que muestra donde va a caer la tarjeta al soltarla */
+  .tarjeta.sitio-antes{box-shadow:0 -3px 0 -1px var(--esmeralda)}
+  .col.sitio-final .tarjeta:last-of-type{box-shadow:0 3px 0 -1px var(--esmeralda)}
+  .col[data-ordenable] .tarjeta{cursor:grab}
+  .col[data-ordenable] .tarjeta.arrastrando{cursor:grabbing}
+
   .nota{font-size:12px;color:var(--ink-muted);margin-top:12px}
   .nota code{background:var(--line-soft);padding:1px 5px;border-radius:4px}
   .lista-simple{display:flex;flex-direction:column;gap:7px;max-height:220px;overflow-y:auto}

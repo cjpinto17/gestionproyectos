@@ -113,6 +113,11 @@ hoja, con cuatro dígitos (ver D-43).
 
 **Documentación:** `Doc_Requerimiento_URL` (se pega a mano), `Link_Taiga`. La carpeta de Drive es de la **iniciativa** (`Proyectos.Drive_URL`), no de cada solicitud.
 
+**Orden de atención:** `Orden_Columna` — el puesto de la solicitud dentro de su columna del
+tablero, puesto a mano arrastrando. Solo lo usan *Gestión de la demanda*, *Backlog* y
+*Análisis y diseño* (D-96); en las demás columnas el orden lo dan la prioridad y la antigüedad.
+Lo que no tiene número va al final.
+
 **Control de flujo:** `Fase_Actual` —solo las de fábrica: una *Tarea* la lleva vacía y se
 gobierna por estado (D-79). Se elige al registrar, con la primera fase por omisión, y entrar
 en una fase posterior exige el mismo permiso que llegar a ella arrastrando (D-80)—, `Estado_Actual`, `Fecha_Compromiso` (la fecha comprometida de

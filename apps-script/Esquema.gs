@@ -102,6 +102,21 @@ function esTipoTarea(tipoSolicitud) {
  */
 var ESTADOS_TABLERO_TAREA = ['EST-01', 'EST-02', 'EST-04', 'EST-06'];
 
+/**
+ * Las columnas del tablero de fabrica cuyo orden se pone a mano, arrastrando.
+ *
+ * Son las tres donde todavia se decide QUE se atiende primero. De Desarrollo en
+ * adelante el trabajo ya esta comprometido y repartido, y un orden ahi no
+ * significaria nada: esas columnas siguen ordenandose solas por prioridad y
+ * antiguedad (D-96).
+ */
+var FASES_ORDENABLES = ['FAS-01', 'FAS-02', 'FAS-03'];
+
+/** @return {boolean} Si esa columna del tablero se ordena a mano. */
+function faseSeOrdena(faseId) {
+  return FASES_ORDENABLES.indexOf(String(faseId || '')) !== -1;
+}
+
 /** Tipo de iniciativa: naturaleza de la inversion. */
 var TIPOS_INICIATIVA = [
   { id: 'TIN-01', nombre: 'Negocio' },
@@ -438,6 +453,10 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Observacion_Bloqueo', etiqueta: 'Observacion del bloqueo', tipo: 'longtext' },
       { campo: 'Link_Taiga', etiqueta: 'Issue en Taiga', tipo: 'url',
         ayuda: 'Enlace al issue donde la fábrica construye esta solicitud. Al guardarlo aparece el ícono 🎫 en su tarjeta del tablero.' },
+      // Orden de atencion dentro de su columna del tablero, puesto a mano
+      // arrastrando (D-96). Solo lo usan las tres primeras fases.
+      { campo: 'Orden_Columna', etiqueta: 'Orden en la columna', tipo: 'number',
+        ayuda: 'Orden de atención dentro de su columna del tablero. Se acomoda arrastrando las tarjetas en Gestión de fábrica; no hace falta escribirlo aquí.' },
       { campo: 'Version_Semantica', etiqueta: 'Version estimada', tipo: 'text' },
       { campo: 'Responsable_ID', etiqueta: 'Responsable actual', tipo: 'enum', fk: 'Usuarios' },
       // Las ocho fases dejan su estampa. Gestion de la demanda y Backlog no la

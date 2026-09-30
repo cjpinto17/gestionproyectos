@@ -1421,9 +1421,10 @@ function pintarTableroFabrica() {
   var r = DATOS.kanban;
   var visibles = solicitudesFiltradas().filter(function (s) { return !esTarea(s); });
   $('kanban').innerHTML = r.fases.map(function (f) {
+    var aMano = faseSeOrdenaCliente(f.id);
     var enFase = visibles.filter(function (s) { return s.Fase_Actual === f.id; })
-        .sort(ordenDeAtencion);
-    return columnaTablero('data-fase="' + esc(f.id) + '"',
+        .sort(aMano ? ordenPuestoAMano : ordenDeAtencion);
+    return columnaTablero('data-fase="' + esc(f.id) + '"' + (aMano ? ' data-ordenable' : ''),
       '<span class="orden num">' + f.orden + '</span><h3>' + esc(f.nombre) + '</h3>', enFase);
   }).join('');
 
@@ -1460,13 +1461,41 @@ function pintarTableroTareas() {
 
 /** El armazon de una columna, igual para los dos tableros. */
 function columnaTablero(atributo, cabecera, lista) {
+  var aMano = atributo.indexOf('data-ordenable') !== -1;
   return '<div class="col" ' + atributo + '>' +
     '<div class="col-cab">' + cabecera +
     '<span class="cuenta">' + lista.length + '</span></div>' +
     (lista.length
-      ? lista.slice(0, 40).map(tarjetaActividad).join('') +
+      ? lista.slice(0, 40).map(function (s, i) {
+          return tarjetaActividad(s, aMano ? i + 1 : 0);
+        }).join('') +
         (lista.length > 40 ? '<div class="vacia">y ' + (lista.length - 40) + ' más</div>' : '')
       : '<div class="vacia">Sin actividades</div>') + '</div>';
+}
+
+/** Gemelo de faseSeOrdena() del servidor: las columnas que se ordenan a mano. */
+function faseSeOrdenaCliente(faseId) {
+  return (CAT.fasesOrdenables || []).indexOf(faseId) !== -1;
+}
+
+/**
+ * Orden de una columna que se acomoda a mano.
+ *
+ * Manda el numero que puso la persona arrastrando, y nada mas: la columna se ve
+ * exactamente como la dejo. La prioridad sigue en la tarjeta para tenerla en
+ * cuenta al ordenar, pero no reordena sola; si lo hiciera, arrastrar una
+ * tarjeta por encima de una Critica la devolveria a su sitio y la aplicacion
+ * pareceria no obedecer (D-96).
+ *
+ * Lo que todavia no tiene numero cae al final, en el orden de siempre: no se ha
+ * ordenado, y colarlo arriba seria darle una prioridad que nadie decidio.
+ */
+function ordenPuestoAMano(a, b) {
+  var na = Number(a.Orden_Columna), nb = Number(b.Orden_Columna);
+  var va = !isNaN(na) && na > 0, vb = !isNaN(nb) && nb > 0;
+  if (va && vb && na !== nb) return na - nb;
+  if (va !== vb) return va ? -1 : 1;
+  return ordenDeAtencion(a, b);
 }
 
 /**
@@ -1488,13 +1517,16 @@ function ordenDeAtencion(a, b) {
   return String(a.ID_Solicitud).localeCompare(String(b.ID_Solicitud), 'es');
 }
 
-function tarjetaActividad(s) {
+function tarjetaActividad(s, posicion) {
   var bloq = String(s.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0;
   // Sin permiso para operar el tablero, la tarjeta se abre pero no se arrastra.
   return '<article class="tarjeta' + (bloq ? ' bloqueada' : '') + (CTX.puedeOperarTablero ? '' : ' fija') +
       '"' + (CTX.puedeOperarTablero ? ' draggable="true"' : '') +
       ' data-id="' + esc(s.ID_Solicitud) + '">' +
     '<div class="t-top">' +
+      // El numero se muestra solo donde el orden lo decide una persona: en las
+      // demas columnas seria un dato que cambia solo y no significa nada.
+      (posicion ? '<span class="t-pos num" title="Orden de atención">' + posicion + '</span>' : '') +
       '<span class="t-id">' + esc(s.ID_Solicitud) + '</span>' +
       '<span class="badge ' + (CLASE_ESTADO[s.Estado_Actual] || 'b-iniciar') + '">' +
         esc(nombreEstado(s.Estado_Actual)) + '</span>' +
@@ -1541,7 +1573,45 @@ document.addEventListener('dragover', function (e) {
     c.classList.remove('destino', 'vetada');
   });
   col.classList.add(v.permitido ? 'destino' : 'vetada');
+  marcarSitio_(v.permitido ? col : null, e.clientY);
 });
+
+/**
+ * La raya que muestra donde va a caer la tarjeta dentro de la columna.
+ *
+ * Sin ella, arrastrar para ordenar es adivinar: se suelta y se ve el resultado.
+ * La raya convierte el arrastre en algo que se puede apuntar.
+ */
+function marcarSitio_(col, y) {
+  document.querySelectorAll('.tarjeta.sitio-antes').forEach(function (t) {
+    t.classList.remove('sitio-antes');
+  });
+  document.querySelectorAll('.col.sitio-final').forEach(function (c) {
+    c.classList.remove('sitio-final');
+  });
+  if (!col || !col.hasAttribute('data-ordenable')) return;
+
+  var vecina = tarjetaBajoElCursor_(col, y);
+  if (vecina) vecina.classList.add('sitio-antes');
+  else col.classList.add('sitio-final');
+}
+
+/**
+ * La tarjeta ante la cual caeria el cursor, o null si cae al final.
+ *
+ * Se compara contra el centro de cada tarjeta: por encima del centro cae antes,
+ * por debajo cae despues. Con el borde en vez del centro, la mitad de los
+ * arrastres darian el vecino equivocado.
+ */
+function tarjetaBajoElCursor_(col, y) {
+  var tarjetas = Array.prototype.slice.call(col.querySelectorAll('.tarjeta'))
+      .filter(function (t) { return t.dataset.id !== arrastrada; });
+  for (var i = 0; i < tarjetas.length; i++) {
+    var caja = tarjetas[i].getBoundingClientRect();
+    if (y < caja.top + caja.height / 2) return tarjetas[i];
+  }
+  return null;
+}
 
 /**
  * Si esta tarjeta puede caer en esta columna. Reparte segun el gobierno del
@@ -1564,6 +1634,18 @@ function validarSoltar_(s, col) {
   if (!col.dataset.fase) {
     return { permitido: false, motivo: 'Esta solicitud se mueve por fase, no por estado.' };
   }
+  // Soltarla en su misma columna no es un cambio de fase fallido: es cambiarle
+  // el orden de atencion, y en las tres columnas que se ordenan a mano se
+  // permite. Sin esto la columna se pintaba de rojo mientras uno la arrastraba
+  // dentro de ella misma, diciendo que no se puede algo que si se puede (D-96).
+  if (col.dataset.fase === s.Fase_Actual) {
+    if (!col.hasAttribute('data-ordenable')) {
+      return { permitido: false, motivo: 'La actividad ya está en esa fase.' };
+    }
+    return permiso('Mover_Fase')
+        ? { permitido: true, motivo: '' }
+        : { permitido: false, motivo: 'Su rol no puede reordenar el tablero: es de consulta.' };
+  }
   return validarTransicionCliente(s.Fase_Actual, col.dataset.fase);
 }
 document.addEventListener('drop', function (e) {
@@ -1572,6 +1654,14 @@ document.addEventListener('drop', function (e) {
   e.preventDefault();
   var id = arrastrada;
   var s = solicitudPorId(id);
+  var vecina = tarjetaBajoElCursor_(col, e.clientY);
+  marcarSitio_(null);
+
+  // Soltarla en su misma columna ordenable no la mueve de fase: la reordena.
+  if (col.dataset.fase === s.Fase_Actual && col.hasAttribute('data-ordenable')) {
+    reordenarEnColumna_(s, col, vecina);
+    return;
+  }
 
   // Validacion optimista en el navegador; el backend vuelve a validarla.
   var v = validarSoltar_(s, col);
@@ -1599,6 +1689,55 @@ document.addEventListener('drop', function (e) {
 
 function solicitudPorId(id) {
   return DATOS.kanban.solicitudes.filter(function (s) { return s.ID_Solicitud === id; })[0];
+}
+
+/**
+ * Cambia el orden de atencion de una tarjeta dentro de su columna.
+ *
+ * Al servidor no se le manda un numero sino un vecino: "va justo debajo de
+ * aquella". Asi el resultado es correcto aunque la columna este filtrada y se
+ * esten viendo solo unas cuantas tarjetas, y aunque otra persona la haya
+ * reordenado hace un segundo; el servidor recalcula sobre lo que hay.
+ *
+ * En pantalla se reordena de una vez, sin esperar respuesta: arrastrar tiene
+ * que sentirse inmediato. Si el servidor dice que no, se vuelve a pedir el
+ * tablero y la tarjeta regresa sola a su sitio.
+ */
+function reordenarEnColumna_(s, col, vecina) {
+  if (!permiso('Mover_Fase')) {
+    toast('Su rol no puede reordenar el tablero: es de consulta.', true);
+    return;
+  }
+
+  var enColumna = DATOS.kanban.solicitudes
+      .filter(function (x) { return x.Fase_Actual === s.Fase_Actual && !esTarea(x); })
+      .sort(ordenPuestoAMano);
+
+  var sinEsta = enColumna.filter(function (x) { return x.ID_Solicitud !== s.ID_Solicitud; });
+
+  // "vecina" es la tarjeta ante la cual cae, o nada si cae al final. De ahi
+  // salen las dos cosas que hacen falta: en que puesto queda en pantalla, y
+  // cual es la que le va a quedar ENCIMA, que es lo que el servidor entiende.
+  var destino = sinEsta.length;
+  if (vecina) {
+    var i = sinEsta.map(function (x) { return x.ID_Solicitud; }).indexOf(vecina.dataset.id);
+    if (i !== -1) destino = i;
+  }
+  var idEncima = destino ? sinEsta[destino - 1].ID_Solicitud : '';
+
+  var antes = enColumna.map(function (x) { return x.Orden_Columna; });
+  var nueva = sinEsta.slice(0, destino).concat([s], sinEsta.slice(destino));
+  nueva.forEach(function (x, i) { x.Orden_Columna = i + 1; });
+  pintarKanban();
+
+  api('reordenarSolicitud', s.ID_Solicitud, idEncima).then(function () {
+    invalidarCacheCliente();
+    cargarGestion(true);
+  }).catch(function (err) {
+    enColumna.forEach(function (x, i) { x.Orden_Columna = antes[i]; });
+    pintarKanban();
+    fallo(err);
+  });
 }
 
 /**
