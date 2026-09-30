@@ -1688,7 +1688,10 @@ document.addEventListener('drop', function (e) {
 });
 
 function solicitudPorId(id) {
-  return DATOS.kanban.solicitudes.filter(function (s) { return s.ID_Solicitud === id; })[0];
+  // Puede llamarse antes de que el tablero haya cargado: devolver nada es mejor
+  // que reventar en quien solo queria el nombre para un titulo.
+  if (!DATOS.kanban) return null;
+  return DATOS.kanban.solicitudes.filter(function (s) { return s.ID_Solicitud === id; })[0] || null;
 }
 
 /**
@@ -2117,7 +2120,10 @@ function formularioBloqueo(id) {
   var opciones = CAT.causales.map(function (c) {
     return '<option value="' + c.id + '">' + esc(c.nombre) + '</option>';
   }).join('');
-  abrirModal('Marcar bloqueo', id,
+  // Con el codigo solo, quien llega aqui desde el tablero tiene que acordarse de
+  // cual solicitud estaba bloqueando. El nombre lo dice.
+  var s = solicitudPorId(id);
+  abrirModal('Marcar bloqueo', id + (s && s.Nombre_Solicitud ? ' · ' + s.Nombre_Solicitud : ''),
     '<div class="formulario">' +
     '<label class="campo"><span>Causal del bloqueo</span>' +
     '<select id="causalBloqueo">' + opciones + '</select></label>' +
