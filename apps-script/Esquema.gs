@@ -436,7 +436,8 @@ var ESQUEMA_TRANSACCIONAL = {
       // exactamente y que se esta esperando. Sin ella el tablero muestra la
       // etiqueta pero no el contexto que necesita quien tiene que destrabarlo.
       { campo: 'Observacion_Bloqueo', etiqueta: 'Observacion del bloqueo', tipo: 'longtext' },
-      { campo: 'Link_Taiga', etiqueta: 'Issue en Taiga', tipo: 'url' },
+      { campo: 'Link_Taiga', etiqueta: 'Issue en Taiga', tipo: 'url',
+        ayuda: 'Enlace al issue donde la fábrica construye esta solicitud. Al guardarlo aparece el ícono 🎫 en su tarjeta del tablero.' },
       { campo: 'Version_Semantica', etiqueta: 'Version estimada', tipo: 'text' },
       { campo: 'Responsable_ID', etiqueta: 'Responsable actual', tipo: 'enum', fk: 'Usuarios' },
       { campo: 'Fecha_Inicio_Analisis', etiqueta: 'Inicio analisis', tipo: 'datetime' },

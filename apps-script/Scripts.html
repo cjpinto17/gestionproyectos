@@ -858,22 +858,35 @@ function filaSolicitud(s) {
 }
 
 /**
- * El enlace del requerimiento, en la propia tarjeta de la solicitud.
+ * Los enlaces de una solicitud, en su propia tarjeta del tablero.
  *
- * Antes iba en el correo de creacion. Alli envejecia: el correo se recibe una
- * vez y despues hay que buscarlo, mientras que la tarjeta se tiene delante cada
- * vez que se mira el tablero. Se marca con data-enlace para que el manejador
- * del tablero lo deje pasar en vez de abrir el detalle.
+ * Son dos, y cada uno lleva a un sitio distinto: 📄 al documento donde esta
+ * escrito el requerimiento, y 🎫 al issue de Taiga, que es donde la fabrica lo
+ * esta construyendo. Antes iban en el correo de creacion; alli envejecian,
+ * porque el correo se recibe una vez y despues hay que buscarlo, mientras que
+ * la tarjeta se tiene delante cada vez que se mira el tablero.
  *
- * Es el UNICO enlace de una solicitud: la carpeta de Drive es de la iniciativa
- * (D-78), no de cada una de sus solicitudes.
+ * Cada uno aparece solo si esa solicitud lo tiene: una tarjeta sin enlaces no
+ * deja huecos, y con los dos se ven los dos.
+ *
+ * Se marcan con data-enlace para que el manejador del tablero los deje pasar al
+ * navegador en vez de abrir el detalle de la solicitud por detras.
+ *
+ * La carpeta de Drive no esta aqui: es de la iniciativa (D-78), no de cada una
+ * de sus solicitudes.
  */
 function enlacesDeSolicitud(s) {
-  if (!s.Doc_Requerimiento_URL) return '';
-  return '<span class="t-links">' +
-    '<a class="t-link" data-enlace href="' + esc(s.Doc_Requerimiento_URL) + '" ' +
-    'target="_blank" rel="noopener" title="Documento de requerimiento" ' +
-    'aria-label="Documento de requerimiento">&#128196;</a></span>';
+  var enlaces = [
+    { url: s.Doc_Requerimiento_URL, icono: '&#128196;', titulo: 'Documento de requerimiento' },
+    { url: s.Link_Taiga, icono: '&#127915;', titulo: 'Issue en Taiga' }
+  ].filter(function (e) { return e.url; });
+
+  if (!enlaces.length) return '';
+  return '<span class="t-links">' + enlaces.map(function (e) {
+    return '<a class="t-link" data-enlace href="' + esc(e.url) + '" ' +
+      'target="_blank" rel="noopener" title="' + esc(e.titulo) + '" ' +
+      'aria-label="' + esc(e.titulo) + '">' + e.icono + '</a>';
+  }).join('') + '</span>';
 }
 
 /**
@@ -1709,11 +1722,15 @@ function verDetalle(id) {
           '</div>'
         : '';
 
-    var enlaces = '';
-    if (s.Doc_Requerimiento_URL) {
-      enlaces += '<a class="btn-sec" style="text-decoration:none;display:inline-block" href="' +
-                 esc(s.Doc_Requerimiento_URL) + '" target="_blank" rel="noopener">Requerimiento</a>';
-    }
+    // Los mismos dos enlaces de la tarjeta, aqui con su nombre escrito: en el
+    // detalle hay sitio y no hay que adivinar a donde lleva cada icono.
+    var enlaces = [
+      { url: s.Doc_Requerimiento_URL, texto: 'Requerimiento' },
+      { url: s.Link_Taiga, texto: 'Issue en Taiga' }
+    ].filter(function (e) { return e.url; }).map(function (e) {
+      return '<a class="btn-sec" style="text-decoration:none;display:inline-block" href="' +
+             esc(e.url) + '" target="_blank" rel="noopener">' + esc(e.texto) + '</a>';
+    }).join(' ');
 
     var acciones = CTX.puedeOperarTablero
         ? '<div class="fila" style="margin-top:14px">' +

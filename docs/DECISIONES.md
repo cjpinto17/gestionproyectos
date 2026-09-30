@@ -1691,6 +1691,30 @@ donde está el trabajo que recorre el embudo; las tareas son el día a día que 
 "Tareas": la diferencia entre tres y ocho casillas es sutil y no tiene por qué adivinarse a partir
 de la barra.
 
+### D-91 · El issue de Taiga, a un clic desde la tarjeta
+
+`Link_Taiga` existía en el modelo desde el principio y se guardaba desde la carga masiva, la
+migración y el formulario de edición, pero no se veía en ninguna parte: para abrir el issue donde la
+fábrica está construyendo una solicitud había que entrar a editarla y copiar la URL a mano.
+
+Ahora la tarjeta del tablero lleva **🎫** junto al **📄** del requerimiento. Son dos sitios
+distintos y conviene que se distingan: el documento dice *qué* se pidió, el issue dice *cómo va la
+construcción*. El mismo par aparece en el detalle de la solicitud, allí con su nombre escrito,
+porque hay sitio y no hay que adivinar a dónde lleva cada ícono.
+
+**Cada ícono sale solo si esa solicitud tiene ese enlace**, la misma regla que ya tenía el
+requerimiento: una tarjeta sin ninguno no deja huecos. La función pasó de devolver un enlace fijo a
+recorrer una lista, así que sumar un tercero mañana es una línea.
+
+**El ícono no abre el detalle.** El tablero abre la solicitud al hacer clic en cualquier parte de la
+tarjeta, así que los enlaces siguen marcados con `data-enlace` y el manejador los deja pasar al
+navegador; sin eso, abrir el issue abriría además el detalle por detrás.
+
+**No se agrega al formulario de registro** a propósito: cuando alguien registra una solicitud el
+issue todavía no existe —lo crea la fábrica después—, así que pedirlo ahí sería pedir un dato que
+nadie puede tener. Se llena editando la solicitud, y el campo trae ahora un texto de ayuda que dice
+que al guardarlo aparece el ícono.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
