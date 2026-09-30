@@ -856,9 +856,83 @@ function calcularReportes_(n) {
     meses: ventana,
     iniciativasPorMes: iniciativasPorMes,
     fasesPorMes: fasesPorMes,
+    tiemposPorFase: tiemposPorFase_(datos, ventana),
     auditoria: ordenada.slice(0, 200),
     totalAuditoria: ordenada.length
   };
+}
+
+/**
+ * Cuanto dura cada fase, leido de la bitacora y no de las estampas.
+ *
+ * Las estampas de la solicitud guardan una fecha por fase, asi que de una
+ * solicitud que paso dos veces por Desarrollo solo cuentan la primera entrada y
+ * la ultima salida. La bitacora registra cada movimiento por separado y no
+ * sobrescribe nada, asi que es la unica fuente que ve los reprocesos y los
+ * saltos. Cada fila trae ya calculados los dias habiles que la solicitud estuvo
+ * en la fase que abandona, contados cuando el movimiento ocurrio.
+ *
+ * Se informa la mediana ademas del promedio: basta una solicitud olvidada seis
+ * meses en una fase para que el promedio deje de describir a las demas.
+ *
+ * @param {!Object} datos
+ * @param {!Array<string>} ventana Meses a considerar.
+ * @return {!Array<!Object>}
+ * @private
+ */
+function tiemposPorFase_(datos, ventana) {
+  var porFase = {};
+  FASES.forEach(function (f) {
+    porFase[f.id] = { dias: [], solicitudes: {}, devoluciones: 0 };
+  });
+
+  datos.auditoria.forEach(function (a) {
+    var fecha = aFecha_(a.Fecha_Hora_Cambio);
+    if (!fecha || ventana.indexOf(claveMes_(fecha)) === -1) return;
+
+    // Una devolucion se anota en la fase que recibe el trabajo de vuelta: es
+    // la que lo va a rehacer, y la que conviene mirar cuando se repiten.
+    if (a.Fase_Origen && a.Fase_Destino &&
+        ordenDeFase(a.Fase_Destino) < ordenDeFase(a.Fase_Origen) &&
+        porFase[a.Fase_Destino]) {
+      porFase[a.Fase_Destino].devoluciones++;
+    }
+
+    // El tiempo que trae la fila es el de la fase que se abandona. La de
+    // creacion no tiene origen, y las tareas no recorren el embudo (D-79).
+    var origen = a.Fase_Origen;
+    if (!origen || !porFase[origen]) return;
+    var dias = Number(a.Dias_Habiles_En_Fase);
+    if (isNaN(dias)) return;
+    porFase[origen].dias.push(dias);
+    porFase[origen].solicitudes[a.ID_Solicitud] = true;
+  });
+
+  // Cuantas solicitudes de fabrica estan hoy en cada fase, que es tiempo que
+  // todavia corre y que la bitacora no puede haber contado.
+  var enCurso = {};
+  datos.solicitudesFabrica.forEach(function (s) {
+    if (s.Estado_Actual === ESTADO_TERMINADA || s.Estado_Actual === ESTADO_CANCELADA) return;
+    if (s.Fase_Actual) enCurso[s.Fase_Actual] = (enCurso[s.Fase_Actual] || 0) + 1;
+  });
+
+  var redondear = function (v) { return v === null ? null : Math.round(v * 10) / 10; };
+
+  return FASES.map(function (f) {
+    var d = porFase[f.id];
+    return {
+      fase: f.id,
+      nombre: f.nombre,
+      orden: f.orden,
+      pasos: d.dias.length,
+      solicitudes: Object.keys(d.solicitudes).length,
+      promedio: redondear(promedio_(d.dias)),
+      mediana: redondear(mediana_(d.dias)),
+      maximo: d.dias.length ? Math.max.apply(null, d.dias) : null,
+      devoluciones: d.devoluciones,
+      enCurso: enCurso[f.id] || 0
+    };
+  });
 }
 
 /**

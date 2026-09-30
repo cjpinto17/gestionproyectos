@@ -1715,6 +1715,64 @@ issue todavía no existe —lo crea la fábrica después—, así que pedirlo ah
 nadie puede tener. Se llena editando la solicitud, y el campo trae ahora un texto de ayuda que dice
 que al guardarlo aparece el ícono.
 
+### D-92 · Las fechas de fase: lo que faltaba, y lo que contaba mal
+
+Al revisar si arrastrar una tarjeta registraba las fechas de cada etapa aparecieron tres cosas. La
+primera era una falta; las otras dos eran datos que se veían bien y no lo estaban.
+
+**Faltaban las dos primeras fases.** *Gestión de la demanda* y *Backlog* no tenían columna de inicio
+ni de fin, así que el tiempo que una solicitud espera **antes** de que la fábrica la toque —que suele
+ser el más largo— no se podía medir sin reconstruirlo a mano. Ahora las ocho fases anotan su inicio;
+seis anotan su fin. *Aceptación TI* no lo necesita porque de ahí se sale a *Producción*, cuya fecha
+de despliegue es su cierre, y *Producción* es el final del embudo.
+
+**La fecha de inicio se reescribía en cada entrada.** Una solicitud devuelta a *Desarrollo* perdía el
+día en que empezó a desarrollarse, y el indicador de tiempo neto de construcción la medía desde el
+reproceso: mostraba un número menor que el real y nadie tenía cómo notarlo. **Ahora el inicio se
+guarda una sola vez**, la primera que entra, que es lo que la palabra significa.
+
+**Una fase se cerraba al abandonarla, aunque fuera hacia atrás.** Devolver de *Pruebas QA* a
+*Desarrollo* escribía la fecha de fin de QA como si QA hubiera terminado; no terminó, se interrumpió.
+**Ahora solo se cierra una fase cuando se sale de ella hacia adelante.** Al volver a salir de QA, esta
+vez superándola, se escribe esa fecha: una fase termina cuando se supera, no cuando se abandona.
+
+**Los saltos siguen dejando vacío lo que no ocurrió**, y así debe ser: una solicitud registrada
+directamente en *Desarrollo* nunca estuvo en análisis, y rellenar esas fechas sería inventar historia.
+
+### D-93 · Tiempos por fase, leídos de la bitácora y no de las fechas
+
+Las estampas guardan **una** fecha por fase, así que de una solicitud que pasó dos veces por
+*Desarrollo* solo describen la primera entrada y la última salida. Eso basta para la ficha de una
+solicitud, pero no para medir el proceso: los reprocesos —justo lo que conviene mirar— quedan
+invisibles.
+
+`Auditoria_Transiciones` sí los ve: registra cada movimiento por separado, no sobrescribe nunca, y
+cada fila trae ya calculados los días hábiles que la solicitud estuvo en la fase que abandona,
+contados en el momento en que ocurrió. El reporte nuevo de la página de Reportes se lee de ahí.
+
+Por fase informa: **pasos** (cuántas veces se salió de ella), **actividades** (cuántas distintas la
+recorrieron), **mediana**, **promedio**, **máximo**, **devoluciones** y **en curso**.
+
+**Se muestra la mediana además del promedio, y resaltada.** Basta una solicitud olvidada seis meses
+en el backlog para que el promedio deje de describir a las demás; la mediana aguanta. **Más pasos que
+actividades significa que hubo reprocesos**, que es la lectura que las fechas de la solicitud no
+podían dar. **Las devoluciones se anotan en la fase que recibe el trabajo de vuelta**, que es la que
+lo va a rehacer. **"En curso" no entra en los promedios**: ese tiempo todavía corre.
+
+### D-94 · Reconstruir la historia en lugar de empezar de cero
+
+Las dos fases nuevas y las fechas corregidas solo aplicarían de aquí en adelante, y el portafolio ya
+tiene historia. Pero esa historia está completa en la bitácora, así que se puede recorrer otra vez
+aplicando las reglas nuevas: `reconstruirEstampas` (`Mantenimiento.gs`) hace exactamente eso.
+
+**Solo llena lo que está vacío.** Donde ya hay una fecha no la toca, aunque la reconstrucción diga
+otra cosa: pudo haberla corregido una persona a mano, y una función de mantenimiento no es quién
+para decidir entre las dos. Esas diferencias se reportan aparte, en la lista `difieren`, con lo que
+dice la hoja y lo que dice la bitácora, para que alguien las mire. Ahí es donde aparecerán las
+fechas de inicio que la regla vieja había reescrito.
+
+Es **idempotente** —correrla dos veces no cambia nada la segunda— y por omisión **solo simula**.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

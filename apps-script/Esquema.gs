@@ -440,6 +440,13 @@ var ESQUEMA_TRANSACCIONAL = {
         ayuda: 'Enlace al issue donde la fábrica construye esta solicitud. Al guardarlo aparece el ícono 🎫 en su tarjeta del tablero.' },
       { campo: 'Version_Semantica', etiqueta: 'Version estimada', tipo: 'text' },
       { campo: 'Responsable_ID', etiqueta: 'Responsable actual', tipo: 'enum', fk: 'Usuarios' },
+      // Las ocho fases dejan su estampa. Gestion de la demanda y Backlog no la
+      // tenian, asi que el tiempo que una solicitud esperaba antes de arrancar
+      // no se podia medir sin reconstruirlo desde la bitacora (D-92).
+      { campo: 'Fecha_Inicio_Demanda', etiqueta: 'Inicio gestion de la demanda', tipo: 'datetime' },
+      { campo: 'Fecha_Fin_Demanda', etiqueta: 'Fin gestion de la demanda', tipo: 'datetime' },
+      { campo: 'Fecha_Inicio_Backlog', etiqueta: 'Inicio backlog', tipo: 'datetime' },
+      { campo: 'Fecha_Fin_Backlog', etiqueta: 'Fin backlog', tipo: 'datetime' },
       { campo: 'Fecha_Inicio_Analisis', etiqueta: 'Inicio analisis', tipo: 'datetime' },
       { campo: 'Fecha_Fin_Analisis', etiqueta: 'Fin analisis', tipo: 'datetime' },
       { campo: 'Fecha_Inicio_Dev', etiqueta: 'Inicio desarrollo', tipo: 'datetime' },

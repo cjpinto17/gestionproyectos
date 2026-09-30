@@ -501,3 +501,142 @@ function actualizarReferenciasId_(tabla, campo, mapa) {
   }
   return tocadas;
 }
+
+/**
+ * Reconstruye desde la bitacora las fechas de fase que quedaron vacias.
+ *
+ * Las solicitudes que ya existian no tienen las fechas de Gestion de la demanda
+ * ni de Backlog, porque esas dos fases no las llevaban (D-92). Y a las que
+ * fueron devueltas alguna vez, la regla vieja les reescribio la fecha de inicio
+ * de la fase a la que volvieron. Las dos cosas se pueden reconstruir: cada
+ * movimiento esta en Auditoria_Transiciones, que nunca se sobrescribe, asi que
+ * basta con volver a recorrer la historia de cada solicitud aplicando la regla
+ * nueva.
+ *
+ * SOLO LLENA LO QUE ESTA VACIO. Donde ya hay una fecha no la toca, aunque la
+ * reconstruccion diga otra cosa: puede haberla corregido una persona a mano, y
+ * este no es el lugar para decidir quien tiene razon. Esas diferencias se
+ * reportan aparte, en "difieren", para que usted las revise y decida.
+ *
+ * Se ejecuta primero sin nada entre parentesis para ver que haria, y luego con
+ * true entre parentesis para escribir.
+ *
+ * @param {boolean=} aplicar true para escribir; por omision solo simula.
+ * @return {!Object}
+ */
+function reconstruirEstampas(aplicar) {
+  exigirOperador_();
+
+  return conBloqueo_(function () {
+    var columnas = asegurarColumnas_('Solicitudes');
+    var iId = columnas.indexOf('ID_Solicitud');
+    if (iId === -1) throw new Error('La hoja Solicitudes no tiene la columna ID_Solicitud.');
+
+    // Las columnas de fecha que administra el embudo, en el orden de las fases.
+    var campos = [];
+    FASES.forEach(function (f) {
+      [ESTAMPA_INICIO[f.id], ESTAMPA_FIN[f.id]].forEach(function (c) {
+        if (c && campos.indexOf(c) === -1) campos.push(c);
+      });
+    });
+    var indice = {};
+    campos.forEach(function (c) { indice[c] = columnas.indexOf(c); });
+
+    var faltantes = campos.filter(function (c) { return indice[c] === -1; });
+    if (faltantes.length) {
+      throw new Error('Faltan columnas en la hoja Solicitudes: ' + faltantes.join(', ') +
+                      '. Ejecute actualizarEstructura antes que esta funcion.');
+    }
+
+    // La bitacora de cada solicitud, en el orden en que ocurrio.
+    var porSolicitud = {};
+    leerTabla_('Auditoria_Transiciones').forEach(function (a) {
+      var cuando = aFecha_(a.Fecha_Hora_Cambio);
+      if (!a.ID_Solicitud || !cuando) return;
+      (porSolicitud[a.ID_Solicitud] = porSolicitud[a.ID_Solicitud] || []).push({
+        origen: a.Fase_Origen || '', destino: a.Fase_Destino || '', cuando: cuando
+      });
+    });
+    Object.keys(porSolicitud).forEach(function (id) {
+      porSolicitud[id].sort(function (a, b) { return a.cuando - b.cuando; });
+    });
+
+    var hoja = getHoja_('Solicitudes');
+    var ultimaFila = hoja.getLastRow();
+    if (ultimaFila < 2) return { total: 0, porLlenar: 0, mensaje: 'No hay solicitudes.' };
+
+    var rango = hoja.getRange(2, 1, ultimaFila - 1, columnas.length);
+    var valores = rango.getValues();
+    var porLlenar = 0, solicitudesTocadas = 0, difieren = [], muestra = [], sinBitacora = 0;
+
+    for (var i = 0; i < valores.length; i++) {
+      var fila = valores[i];
+      var id = String(fila[iId] || '').trim();
+      if (!id) continue;
+
+      var historia = porSolicitud[id];
+      if (!historia || !historia.length) { sinBitacora++; continue; }
+
+      // Se vuelve a recorrer la historia con la regla nueva.
+      var reconstruido = {};
+      historia.forEach(function (paso) {
+        sellarEstampas_(reconstruido, paso.origen, paso.destino, paso.cuando);
+      });
+
+      var tocada = false;
+      campos.forEach(function (c) {
+        var esperado = reconstruido[c];
+        if (!esperado) return;
+        var actual = fila[indice[c]];
+        if (actual === '' || actual === null || actual === undefined) {
+          if (aplicar) fila[indice[c]] = esperado;
+          porLlenar++;
+          tocada = true;
+          if (muestra.length < 10) {
+            muestra.push({ id: id, campo: c, queda: formatearFecha_(esperado) });
+          }
+          return;
+        }
+        // Ya tenia valor: no se toca, pero si no coincide se avisa.
+        var deAntes = aFecha_(actual);
+        if (deAntes && Math.abs(deAntes.getTime() - esperado.getTime()) > 86400000 &&
+            difieren.length < 20) {
+          difieren.push({ id: id, campo: c, enLaHoja: formatearFecha_(deAntes),
+                          segunLaBitacora: formatearFecha_(esperado) });
+        }
+      });
+      if (tocada) solicitudesTocadas++;
+    }
+
+    if (aplicar && porLlenar) {
+      rango.setValues(valores);
+      invalidarTabla_('Solicitudes');
+    }
+
+    return {
+      total: valores.length,
+      sinBitacora: sinBitacora,
+      solicitudes: solicitudesTocadas,
+      porLlenar: porLlenar,
+      muestra: muestra,
+      difieren: difieren,
+      mensaje: (aplicar
+          ? 'Se llenaron ' + porLlenar + ' fechas vacias en ' + solicitudesTocadas + ' solicitudes.'
+          : 'SIMULACION: se llenarian ' + porLlenar + ' fechas vacias en ' +
+            solicitudesTocadas + ' solicitudes. Vuelva a ejecutarla con true para aplicarlo.') +
+        (sinBitacora ? ' ' + sinBitacora + ' solicitudes no tienen movimientos en la bitacora ' +
+                       'y se dejaron como estaban.' : '') +
+        (difieren.length ? ' Ademas hay ' + difieren.length + ' fechas que YA TENIAN valor y no ' +
+                           'coinciden con la bitacora: no se tocaron, revise la lista "difieren".'
+                         : '')
+    };
+  });
+}
+
+/** Una fecha legible para los reportes de mantenimiento. @private */
+function formatearFecha_(f) {
+  var d = aFecha_(f);
+  if (!d) return '';
+  var dos = function (n) { return (n < 10 ? '0' : '') + n; };
+  return dos(d.getDate()) + '/' + dos(d.getMonth() + 1) + '/' + d.getFullYear();
+}

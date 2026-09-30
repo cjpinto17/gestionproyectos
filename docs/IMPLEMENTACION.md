@@ -207,6 +207,10 @@ función aparte para eso y se dice al publicar. Hoy hay dos, ambas en **`Manteni
   la traduce a estado (*Producción* pasa a *Terminada*; una bloqueada, a *Bloqueada*; las que
   estaban entre *Análisis y diseño* y *Aceptación TI*, a *En progreso*). No toca las que ya están
   *Terminada* o *Cancelada*.
+- **`reconstruirEstampas`**, que recorre la bitácora de transiciones y llena las fechas de fase
+  que quedaron vacías —entre ellas las dos nuevas, de *Gestión de la demanda* y *Backlog*—.
+  Solo llena lo vacío: donde ya hay una fecha no la toca, y si no coincide con la bitácora lo
+  reporta en la lista `difieren` para que usted decida.
 
 Las dos se ejecutan primero sin nada entre paréntesis para ver qué harían, y luego con `true`
 entre paréntesis para aplicarlo.
@@ -569,6 +573,7 @@ lista las del archivo abierto.
 | `verUrlAplicacion` | `Config.gs` | Decir qué dirección usan hoy los correos, sin cambiar nada. También se ve en **Administración** |
 | `unificarAlcanceSolicitudes` | `Mantenimiento.gs` | Pasar a `Alcance` lo que estaba en `Objetivo` y `Entregable` |
 | `normalizarTareas` | `Mantenimiento.gs` | Sacar del embudo las solicitudes de tipo *Tarea* y traducir su fase a estado |
+| `reconstruirEstampas` | `Mantenimiento.gs` | Llenar desde la bitácora las fechas de fase que quedaron vacías |
 | `renumerarSolicitudes` | `Mantenimiento.gs` | Llevar los ID viejos al formato `SOL-0015` |
 | `verificarEstructura` | `Mantenimiento.gs` | Revisar que las hojas coincidan con el esquema |
 | `diagnosticarSolicitudes` | `Mantenimiento.gs` | Buscar filas con datos inconsistentes |
@@ -577,7 +582,7 @@ lista las del archivo abierto.
 | `medirRendimiento` | `Cache.gs` | Medir cuánto tarda cada consulta |
 
 Las que aceptan `true` entre paréntesis (`unificarAlcanceSolicitudes`, `normalizarTareas`,
-`renumerarSolicitudes`)
+`reconstruirEstampas`, `renumerarSolicitudes`)
 **primero se ejecutan sin nada** para ver qué harían, y solo después con `true` para aplicarlo.
 
 ## Si algo sale mal

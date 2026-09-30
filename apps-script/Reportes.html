@@ -26,6 +26,12 @@
     </div>
 
     <div class="tabla-caja" style="margin-bottom:12px">
+      <div class="cap">Tiempos por fase <span style="font-weight:400;color:var(--ink-muted);font-family:var(--body);font-size:12.5px">&middot; en d&iacute;as h&aacute;biles, le&iacute;dos de la bit&aacute;cora</span></div>
+      <div class="tabla-scroll"><table id="tablaTiemposFase"></table></div>
+      <p class="nota" style="padding:0 14px 12px;margin:0">Sale de la bit&aacute;cora de transiciones y no de las fechas de la solicitud, as&iacute; que cuenta cada paso por separado: una actividad que volvi&oacute; dos veces a Desarrollo aparece tres veces en esa fila. <b>Pasos</b> es cu&aacute;ntas veces se sali&oacute; de la fase y <b>actividades</b> cu&aacute;ntas distintas la recorrieron; si hay m&aacute;s pasos que actividades, hubo reprocesos. Se muestra la <b>mediana</b> adem&aacute;s del promedio porque basta una actividad olvidada meses en una fase para que el promedio deje de describir a las dem&aacute;s. <b>Devoluciones</b> cuenta las veces que una actividad regres&oacute; a esa fase desde una posterior. <b>En curso</b> son las que est&aacute;n hoy ah&iacute;: su tiempo todav&iacute;a corre y no entra en los promedios.</p>
+    </div>
+
+    <div class="tabla-caja" style="margin-bottom:12px">
       <div class="cap">Detalle mensual por iniciativa</div>
       <div class="tabla-scroll"><table id="tablaMensual"></table></div>
     </div>

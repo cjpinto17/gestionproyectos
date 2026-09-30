@@ -121,9 +121,16 @@ una tarea, que reemplaza al SLA por fase), `Tiene_Bloqueo` (SÍ/NO),
 se borra al levantar el bloqueo), `Responsable_Actual`, `Version_Semantica`,
 `Fecha_Ultimo_Cambio`.
 
-**Estampas de tiempo:** `Fecha_Inicio_Analisis`, `Fecha_Fin_Analisis`, `Fecha_Inicio_Dev`,
-`Fecha_Fin_Dev`, `Fecha_Inicio_QA`, `Fecha_Fin_QA`, `Fecha_Inicio_UAT`, `Fecha_Fin_UAT`,
-`Fecha_Socializacion`, `Fecha_Despliegue`.
+**Estampas de tiempo** (una por fase, ver D-92): `Fecha_Inicio_Demanda`, `Fecha_Fin_Demanda`,
+`Fecha_Inicio_Backlog`, `Fecha_Fin_Backlog`, `Fecha_Inicio_Analisis`, `Fecha_Fin_Analisis`,
+`Fecha_Inicio_Dev`, `Fecha_Fin_Dev`, `Fecha_Inicio_QA`, `Fecha_Fin_QA`, `Fecha_Inicio_UAT`,
+`Fecha_Fin_UAT`, `Fecha_Socializacion`, `Fecha_Despliegue`.
+
+El **inicio** se escribe la primera vez que la solicitud entra a la fase y no se vuelve a tocar;
+el **fin**, cada vez que sale de ella *hacia adelante*. Devolver una solicitud no cierra la fase
+que abandona ni reescribe el inicio de la fase a la que vuelve. *Aceptación TI* y *Producción*
+no tienen fecha de fin: la primera cierra con el despliegue y la segunda es el final del embudo.
+La historia completa —cada entrada y cada salida— está en `Auditoria_Transiciones`.
 
 ### `Auditoria_Transiciones` *(inmutable — solo append)*
 `ID_Auditoria` (PK, `AUD-<timestamp>`), `ID_Solicitud`, `Fase_Origen`, `Fase_Destino`,

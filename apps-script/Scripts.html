@@ -2332,6 +2332,33 @@ function pintarReportes(r) {
              esc(f.nombre) + '</span>';
     }).join('') + '</div>';
 
+  var sinDatos = '<span style="color:var(--ink-faint)">—</span>';
+  $('tablaTiemposFase').innerHTML =
+    '<thead><tr><th>Fase</th><th style="text-align:right">Pasos</th>' +
+    '<th style="text-align:right">Actividades</th><th style="text-align:right">Mediana</th>' +
+    '<th style="text-align:right">Promedio</th><th style="text-align:right">Máximo</th>' +
+    '<th style="text-align:right">Devoluciones</th>' +
+    '<th style="text-align:right">En curso</th></tr></thead><tbody>' +
+    (r.tiemposPorFase || []).map(function (t) {
+      // Sin pasos no hay tiempos que mostrar, pero la fila se deja: que una
+      // fase no registre nada en la ventana tambien dice algo.
+      var vacia = !t.pasos;
+      var celda = function (v) {
+        return '<td class="num" style="text-align:right">' +
+               (v === null || v === undefined ? sinDatos : v) + '</td>';
+      };
+      return '<tr' + (vacia ? ' style="color:var(--ink-faint)"' : '') + '>' +
+        '<td><span class="orden num">' + t.orden + '</span> ' + esc(t.nombre) + '</td>' +
+        celda(t.pasos || sinDatos) + celda(t.solicitudes || sinDatos) +
+        '<td class="num" style="text-align:right;font-weight:700">' +
+          (t.mediana === null ? sinDatos : t.mediana) + '</td>' +
+        celda(t.promedio) + celda(t.maximo) +
+        '<td class="num" style="text-align:right">' +
+          (t.devoluciones ? '<span class="badge b-bloqueada">' + t.devoluciones + '</span>'
+                          : sinDatos) + '</td>' +
+        celda(t.enCurso || sinDatos) + '</tr>';
+    }).join('') + '</tbody>';
+
   $('tablaMensual').innerHTML =
     '<thead><tr><th>Mes</th><th style="text-align:right">Iniciativas</th>' +
     '<th style="text-align:right">Actividades</th><th>Iniciativas trabajadas</th></tr></thead><tbody>' +

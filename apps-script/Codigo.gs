@@ -1531,23 +1531,56 @@ function estadoInicial_(fase) {
   return orden > 2 ? 'EST-02' : 'EST-01';
 }
 
+/** La columna donde cada fase anota cuando empezo. */
+var ESTAMPA_INICIO = {
+  'FAS-01': 'Fecha_Inicio_Demanda', 'FAS-02': 'Fecha_Inicio_Backlog',
+  'FAS-03': 'Fecha_Inicio_Analisis', 'FAS-04': 'Fecha_Inicio_Dev',
+  'FAS-05': 'Fecha_Inicio_QA', 'FAS-06': 'Fecha_Inicio_UAT',
+  'FAS-07': 'Fecha_Socializacion', 'FAS-08': 'Fecha_Despliegue'
+};
+
 /**
- * Escribe la estampa de tiempo que corresponde a la fase que se cierra y a la
- * que se abre.
+ * La columna donde cada fase anota cuando termino.
+ *
+ * Aceptacion TI y Produccion no tienen: de la primera se sale hacia Produccion,
+ * cuya fecha de despliegue es su cierre, y la segunda es el final del embudo.
+ */
+var ESTAMPA_FIN = {
+  'FAS-01': 'Fecha_Fin_Demanda', 'FAS-02': 'Fecha_Fin_Backlog',
+  'FAS-03': 'Fecha_Fin_Analisis', 'FAS-04': 'Fecha_Fin_Dev',
+  'FAS-05': 'Fecha_Fin_QA', 'FAS-06': 'Fecha_Fin_UAT'
+};
+
+/**
+ * Escribe las estampas de tiempo al mover una solicitud de fase.
+ *
+ * Dos reglas, y las dos existen por lo que pasaba cuando una solicitud se
+ * devolvia (D-92):
+ *
+ *  - **El inicio se guarda una sola vez.** Antes se reescribia en cada entrada,
+ *    asi que devolver una solicitud a Desarrollo borraba el dia en que empezo a
+ *    desarrollarse y el tiempo de construccion se media desde el reproceso.
+ *    Ahora la fecha de inicio es la primera vez que entro, que es lo que
+ *    significa.
+ *
+ *  - **Solo se cierra una fase cuando se sale de ella hacia adelante.** Antes,
+ *    devolver de Pruebas QA a Desarrollo escribia la fecha de fin de QA como si
+ *    QA hubiera terminado; no termino, se interrumpio. Al volver a salir de QA,
+ *    esta vez hacia adelante, se escribe la fecha de esa salida: una fase
+ *    termina cuando se supera, no cuando se abandona.
+ *
+ * Lo que se pierde con esto —cuantas veces entro y salio de cada fase— esta
+ * completo en Auditoria_Transiciones, que registra cada movimiento y no
+ * sobrescribe nada.
  * @private
  */
 function sellarEstampas_(registro, faseOrigen, faseDestino, ahora) {
-  var inicio = {
-    'FAS-03': 'Fecha_Inicio_Analisis', 'FAS-04': 'Fecha_Inicio_Dev',
-    'FAS-05': 'Fecha_Inicio_QA', 'FAS-06': 'Fecha_Inicio_UAT',
-    'FAS-07': 'Fecha_Socializacion', 'FAS-08': 'Fecha_Despliegue'
-  };
-  var fin = {
-    'FAS-03': 'Fecha_Fin_Analisis', 'FAS-04': 'Fecha_Fin_Dev',
-    'FAS-05': 'Fecha_Fin_QA', 'FAS-06': 'Fecha_Fin_UAT'
-  };
-  if (fin[faseOrigen]) registro[fin[faseOrigen]] = ahora;
-  if (inicio[faseDestino]) registro[inicio[faseDestino]] = ahora;
+  var avanza = ordenDeFase(faseDestino) > ordenDeFase(faseOrigen);
+
+  if (avanza && ESTAMPA_FIN[faseOrigen]) registro[ESTAMPA_FIN[faseOrigen]] = ahora;
+
+  var inicio = ESTAMPA_INICIO[faseDestino];
+  if (inicio && !registro[inicio]) registro[inicio] = ahora;
 }
 
 /**
