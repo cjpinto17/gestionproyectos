@@ -131,6 +131,19 @@ function esTipoEstabilizacion(tipoSolicitud) {
 }
 
 /**
+ * @param {string} tipoSolicitud
+ * @return {boolean} True si ese tipo llega a produccion dentro de una version.
+ *
+ * Todo menos la tarea: una tarea se hace y se cierra, no se despliega, y por eso
+ * no ocupa lugar en el roadmap ni en la mezcla de inversion. La estabilizacion
+ * SI: no recorre el embudo, pero su arreglo sale en una version —la que dice su
+ * "Version de correccion"— y es parte de lo que la fabrica entrego (D-106).
+ */
+function saleEnVersion(tipoSolicitud) {
+  return !esTipoTarea(tipoSolicitud);
+}
+
+/**
  * Los tipos que dejan la fase vacia. Se DERIVA del mapa de gobiernos y no se
  * escribe aparte: dos listas de lo mismo se desfasan, y cuando se desfasan el
  * sistema dice una cosa en la pantalla y otra en la hoja (D-100).

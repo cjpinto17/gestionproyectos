@@ -985,6 +985,24 @@ function tiemposPorFase_(datos, ventana) {
 var FASES_COMPROMETIDAS = ['FAS-04', 'FAS-05', 'FAS-06', 'FAS-07'];
 
 /**
+ * Si una solicitud ya llego a produccion.
+ *
+ * No es la misma pregunta para los dos gobiernos que salen en una version: una
+ * de fabrica llega cuando alcanza la fase Produccion; una estabilizacion no
+ * tiene fases, y llega cuando se da por Terminada —que es justo el momento en
+ * que su arreglo quedo desplegado, y por eso ahi se le sella la fecha (D-106).
+ *
+ * @param {!Object} s
+ * @return {boolean}
+ * @private
+ */
+function llegoAProduccion_(s) {
+  return esTipoEstabilizacion(s.Tipo_Solicitud)
+      ? s.Estado_Actual === ESTADO_ESTABILIZACION_CERRADA
+      : s.Fase_Actual === 'FAS-08';
+}
+
+/**
  * Los indicadores de la pagina Roadmap.
  *
  * El roadmap medía puntualidad y volumen: si entregamos cuando dijimos y cuantas
@@ -998,14 +1016,18 @@ var FASES_COMPROMETIDAS = ['FAS-04', 'FAS-05', 'FAS-06', 'FAS-07'];
  */
 function indicadoresRoadmap_(datos, porPlataforma) {
   var nombrePlataforma = mapaPlataformas();
-  var tipos = getTiposSolicitud_();
+  // Solo los tipos que salen en una version. La tarea no: dejaba una casilla de
+  // "0 %" permanente en la mezcla, midiendo algo que por definicion nunca entra.
+  var tipos = getTiposSolicitud_().filter(function (t) { return saleEnVersion(t.id); });
 
   /* --- 1. Mezcla de inversion: en que se va la capacidad --- */
   // Se cuenta lo que YA esta en produccion, con o sin version asignada: la
-  // pregunta es que entregamos, no que planeamos entregar.
-  var entregadas = datos.solicitudesFabrica.filter(function (s) {
-    return s.Fase_Actual === 'FAS-08';
-  });
+  // pregunta es que entregamos, no que planeamos entregar. Las estabilizaciones
+  // cuentan: no recorren el embudo, pero su arreglo se despliega igual, y saber
+  // que una cuarta parte de lo entregado fue corregir incidentes es justo el
+  // tipo de cosa que esta mezcla existe para mostrar (D-106).
+  var entregadas = datos.solicitudesFabrica.concat(datos.estabilizaciones)
+      .filter(llegoAProduccion_);
   var mezcla = contarPor_(entregadas, function (s) { return s.Tipo_Solicitud; });
 
   function conPorcentaje(cuentas, total) {
@@ -1157,7 +1179,12 @@ function getRoadmapVersiones() {
     // llevan su version en otro campo (D-101, D-105).
     var suyas = datos.solicitudesFabrica.filter(function (s) {
       return s.Version_Semantica === v.Numero_Version && s.Plataforma_ID === idPlat;
-    });
+    // Y las estabilizaciones que se arreglan CON esta version. Se relacionan por
+    // el identificador de la version y no por su numero, porque es un campo que
+    // se escoge del Roadmap y no se escribe a mano (D-101).
+    }).concat(datos.estabilizaciones.filter(function (s) {
+      return String(s.Version_Correccion || '') === String(v.ID_Version);
+    }));
 
     porPlataforma[idPlat] = porPlataforma[idPlat] || [];
     porPlataforma[idPlat].push({
@@ -1179,10 +1206,9 @@ function getRoadmapVersiones() {
       porTipo: contarPor_(suyas, function (s) { return s.Tipo_Solicitud; }),
       // Cuantas de las comprometidas ya estan de verdad en produccion. En una
       // version ya desplegada son todas; en una planeada dice cuanto falta.
-      desplegadas: suyas.filter(function (s) { return s.Fase_Actual === 'FAS-08'; }).length,
-      porTipoDesplegadas: contarPor_(
-        suyas.filter(function (s) { return s.Fase_Actual === 'FAS-08'; }),
-        function (s) { return s.Tipo_Solicitud; })
+      desplegadas: suyas.filter(llegoAProduccion_).length,
+      porTipoDesplegadas: contarPor_(suyas.filter(llegoAProduccion_),
+                                     function (s) { return s.Tipo_Solicitud; })
     });
   });
 

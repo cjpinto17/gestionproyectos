@@ -2242,6 +2242,43 @@ gobierno que tampoco se ordena ni se aprueba.
 reconocer el fracaso que esperaba no distingue entre "pasó" y "ni siquiera corrió". El runner quedó en
 `correrTodo.sh`, mira el código de salida, y reporta aparte las que revientan de las que fallan.
 
+### D-106 · Qué entra en una versión, y un campo obligatorio que no dejaba trabajar
+
+Tres correcciones sobre D-101 y D-104, las tres sobre la misma pregunta: **qué cuenta como entregado
+en una versión**.
+
+**La tarea no entra, y ya no ocupa una casilla.** La mezcla de inversión recorría el catálogo entero
+de tipos, así que *Tarea* aparecía siempre con 0 %: una casilla permanente midiendo algo que por
+definición nunca entra, porque una tarea se hace y se cierra, no se despliega. La mezcla ahora recorre
+solo los tipos que salen en una versión.
+
+**La estabilización sí entra.** No recorre el embudo, pero su arreglo se despliega igual, y en una
+versión concreta: la que dice su *Versión de corrección*. Dejarla fuera contaba mal dos cosas —el
+contenido de cada versión y la mezcla de inversión— y escondía justo lo que la mezcla existe para
+mostrar: que una parte de lo entregado no fue construir sino corregir. Las estabilizaciones se
+relacionan con su versión por el **identificador** y no por el número, porque ese campo se escoge del
+Roadmap y no se escribe a mano.
+
+**"Llegó a producción" no es la misma pregunta para los dos.** Una de fábrica llega cuando alcanza la
+fase *Producción*; una estabilización no tiene fases, y llega cuando se da por *Terminada* —que es
+justo el momento en que su arreglo quedó desplegado, y por eso ahí se le sella la fecha—. Hay una sola
+función que lo responde, y las dos lecturas la usan.
+
+**Y el error que bloqueaba el registro de incidentes.** La *versión afectada* se exigía al **crear**.
+Con el Roadmap sin versiones registradas no había ninguna que escoger, así que no se podía abrir
+ninguna estabilización; y como la misma validación corre al guardar desde Administración y al editar,
+tampoco se podía corregir una existente ni cambiarle el tipo a una solicitud. La aplicación pedía un
+dato que ella misma no podía ofrecer.
+
+Ahora se exige al **cerrar**, junto con la versión de corrección, la causa raíz y lo demás. Es la
+misma regla que ya regía todo lo demás de la estabilización —*abrir pide poco, cerrar pide todo*— y la
+que faltaba aplicar aquí. El formulario sigue pidiéndola, y cuando el Roadmap está vacío lo dice en
+lugar de dejar un desplegable mudo.
+
+Es el mismo error que ya había cometido con el analista (D-102) y que ahí sí evité: **una compuerta
+que nadie puede abrir no protege un dato, detiene el trabajo**. La diferencia es que allí la lista
+vacía era previsible y aquí no la volví a pensar.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

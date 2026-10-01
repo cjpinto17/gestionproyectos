@@ -32,7 +32,8 @@ var CLASE_ESTADO = {
  * del mismo color en el roadmap era perder de un vistazo la mezcla de inversion.
  * Un tipo que alguien agregue despues sale neutro, que es mejor que no salir.
  */
-var CLASE_TIPO = { 'TIP-03': 'tipo-nuevo', 'TIP-02': 'tipo-mejora', 'TIP-01': 'tipo-ajuste' };
+var CLASE_TIPO = { 'TIP-03': 'tipo-nuevo', 'TIP-02': 'tipo-mejora', 'TIP-01': 'tipo-ajuste',
+                  'TIP-05': 'tipo-estab' };
 
 
 var CLASE_ESTADO_INI = {
@@ -2673,14 +2674,17 @@ $('btnNueva').addEventListener('click', function () {
     // actividad con su release. Esta guarda el identificador de la version del
     // roadmap, que es lo que permite contar incidentes por version sin depender
     // de como alguien escribio el numero (D-101).
-    '<label class="campo solo-estabilizacion" hidden><span>Versión afectada *</span>' +
+    '<label class="campo solo-estabilizacion" hidden><span>Versión afectada</span>' +
       '<select id="nsVersionAfectada"><option value="">(elija la versión)</option>' +
       (CAT.versiones || []).map(function (v) {
         return '<option value="' + esc(v.valor) + '">' + esc(v.texto) + '</option>';
       }).join('') + '</select>' +
-      '<small style="color:var(--ink-faint)">En qué versión ya desplegada apareció el ' +
-      'problema. Es el único dato que se pide para abrir el incidente; la causa raíz, el ' +
-      'postmortem y la indisponibilidad se registran después, y hacen falta para cerrarlo.</small>' +
+      '<small style="color:var(--ink-faint)">' +
+      ((CAT.versiones || []).length
+        ? 'En qué versión ya desplegada apareció el problema. Si todavía no se sabe, se puede ' +
+          'dejar en blanco: hace falta para <b>cerrar</b> la estabilización, no para abrirla.'
+        : '<b>No hay versiones registradas en el Roadmap todavía.</b> Puede abrir el incidente ' +
+          'sin este dato y completarlo después, cuando la versión exista.') + '</small>' +
     '</label>' +
     '<label class="campo solo-tarea" hidden><span>Fecha compromiso</span>' +
       '<input type="date" id="nsCompromiso">' +
@@ -2708,9 +2712,6 @@ $('btnNueva').addEventListener('click', function () {
       var doc = $('nsDoc').value.trim();
       if (doc && !/^https?:\/\//i.test(doc)) {
         throw new Error('El enlace del documento debe empezar por http:// o https://');
-      }
-      if (gobiernoDelFormulario() === 'estabilizacion' && !$('nsVersionAfectada').value) {
-        throw new Error('Elija la versión afectada: es en la que apareció el problema.');
       }
       return api('crearSolicitud', {
         Nombre_Solicitud: nombre,
@@ -3040,7 +3041,9 @@ function detalleVersion(v) {
         '<span class="rm-act-nombre">' + esc(a.nombre) + '</span>' +
         '<span><span class="rm-tipo ' + (CLASE_TIPO[a.tipo] || '') + '">' +
           esc(nombreDeCatalogo(CAT.tipos, a.tipo) || 'sin tipo') + '</span></span>' +
-        '<span class="rm-act-fase">' + esc(nombreFase(a.fase)) + '</span>' +
+        // Una estabilizacion no recorre fases: la columna diria vacio, que se lee
+        // como un dato que falta y no como uno que no aplica (D-106).
+        '<span class="rm-act-fase">' + (a.fase ? esc(nombreFase(a.fase)) : '—') + '</span>' +
         '<span><span class="badge ' + (CLASE_ESTADO[a.estado] || 'e-por-iniciar') + '">' +
           esc(nombreEstado(a.estado)) + '</span></span>' +
       '</div>';

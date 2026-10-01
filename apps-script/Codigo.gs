@@ -544,14 +544,12 @@ function validarSolicitud_(registro, errores) {
   if (!registro.Estado_Actual) {
     errores.push('"Estado actual" es obligatorio.');
   }
-  // La version afectada es el unico dato que una estabilizacion no puede no
-  // tener: sin ella no se sabe que fallo, y ningun indicador por version se
-  // puede armar despues (D-101). Lo demas se exige al cerrar, no al abrir:
-  // cuando alguien registra un incidente todavia no conoce la causa.
-  if (gobierno === GOBIERNO_ESTABILIZACION && !registro.Version_Afectada) {
-    errores.push('"Version afectada" es obligatorio en una estabilizacion: ' +
-                 'es la version ya desplegada en la que aparecio el problema.');
-  }
+  // La version afectada NO se exige aqui, aunque el formulario la pida (D-106).
+  // Exigirla al abrir dejaba el registro de incidentes bloqueado por completo
+  // mientras el Roadmap estuviera vacio: no habia ninguna version que escoger, y
+  // tampoco se podia editar una estabilizacion existente ni cambiarle el tipo a
+  // una solicitud. Se exige al CERRAR, con la causa raiz y las demas: abrir un
+  // incidente tiene que ser inmediato.
 }
 
 /**
@@ -1007,6 +1005,7 @@ function minutosDeIndisponibilidad_(s) {
  */
 function faltaParaCerrarEstabilizacion_(s) {
   var falta = [];
+  if (!s.Version_Afectada) falta.push('la version en la que apareció el problema');
   if (!s.Version_Correccion) falta.push('la version con la que se despliega el arreglo');
   if (!s.Causa_Raiz) falta.push('la causa raiz');
 

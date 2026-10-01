@@ -441,6 +441,7 @@
   .mez-parte.tipo-nuevo,.punto.tipo-nuevo{background:#2F8F5B}
   .mez-parte.tipo-mejora,.punto.tipo-mejora{background:#2B4D80}
   .mez-parte.tipo-ajuste,.punto.tipo-ajuste{background:#C4821A}
+  .mez-parte.tipo-estab,.punto.tipo-estab{background:#B2443F}
   /* Dos cifras enfrentadas: versiones pequenas contra versiones grandes */
   .cmp{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .cmp-lado{background:#F8FAFE;border:1px solid var(--line-soft);border-radius:var(--radio);
@@ -460,6 +461,9 @@
   .rm-tipo.tipo-nuevo{background:#E3F2E8;color:#1F6B40}
   .rm-tipo.tipo-mejora{background:#E4EDFA;color:#2B4D80}
   .rm-tipo.tipo-ajuste{background:var(--alerta-bg);color:var(--alerta)}
+  /* La estabilizacion en rojo: no es alcance planeado, es lo que hubo que
+     corregir, y en la mezcla de inversion conviene que salte a la vista. */
+  .rm-tipo.tipo-estab{background:var(--rojo-bg);color:var(--rojo)}
   .rm-flecha{font-size:10px;color:var(--ink-faint);transition:transform .15s ease}
   .rm-fila.abierta .rm-flecha{transform:rotate(90deg)}
   .rm-detalle{background:#F8FAFE;border-top:1px solid var(--line-soft);padding:4px 16px 10px}
