@@ -598,13 +598,51 @@ function conBloqueo_(operacion) {
 
 /**
  * Devuelve todos los catalogos en una sola llamada.
+ *
+ * Es la primera consulta de cada visita y bloquea la pantalla: hasta que no
+ * llega, no hay Home. Arma cada catalogo cuesta nueve lecturas de hoja, asi que
+ * el resultado se guarda ya armado bajo el sello de los catalogos (no el de los
+ * datos): asi una escritura de solicitudes —lo que el equipo hace todo el dia—
+ * no obliga a rehacerlo. Se vuelve a armar cuando de verdad cambia una de sus
+ * tablas, o cuando vence la cache.
+ *
  * @return {!Object}
  */
 function getCatalogos() {
+  return conResultadoEnCache_('catalogos', armarCatalogos_, versionCatalogos_());
+}
+
+/**
+ * De la lista de iniciativas y de la de personas la pantalla solo usa el
+ * identificador y el nombre: para resolver nombres y para llenar los dos
+ * combos. Mandar la fila completa de cada iniciativa —veinte columnas— es
+ * engordar el unico mensaje que la persona espera viendo la pantalla en blanco.
+ *
+ * @param {!Array<!Object>} filas
+ * @param {string} campoId
+ * @param {string} campoNombre
+ * @return {!Array<!Object>} Las mismas filas con dos columnas.
+ * @private
+ */
+function soloIdYNombre_(filas, campoId, campoNombre) {
+  return filas.map(function (f) {
+    var corta = {};
+    corta[campoId] = f[campoId];
+    corta[campoNombre] = f[campoNombre];
+    return corta;
+  });
+}
+
+/**
+ * El armado de verdad de los catalogos.
+ * @return {!Object}
+ * @private
+ */
+function armarCatalogos_() {
   return {
-    proyectos: leerTabla_('Proyectos'),
+    proyectos: soloIdYNombre_(leerTabla_('Proyectos'), 'ID_Proyecto', 'Nombre_Proyecto'),
     plataformas: getPlataformas_(),
-    usuarios: leerTabla_('Usuarios'),
+    usuarios: soloIdYNombre_(leerTabla_('Usuarios'), 'ID_Usuario', 'Nombre_Completo'),
     fases: FASES,
     estados: getEstadosVigentes_(),
     // El catalogo completo, solo para resolver nombres de datos viejos.

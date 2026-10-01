@@ -168,6 +168,7 @@ function invalidarTabla_(tabla) {
   // Los resultados calculados (indicadores, matriz, reportes) salen de estas
   // mismas tablas, asi que tambien quedan obsoletos.
   if (alimentaIndicadores_(tabla)) nuevaVersionDatos_();
+  if (alimentaCatalogos_(tabla)) nuevaVersionCatalogos_();
   if (!CONFIG.CACHE_SEGUNDOS) return;
   borrarBloques_(claveCache_(tabla));
 }
@@ -200,6 +201,7 @@ function invalidarTabla_(tabla) {
 function refrescarFilaEnCache_(tabla, numeroFila, columnas) {
   // Los indicadores, la matriz y los reportes salen de esta tabla: cambiaron.
   if (alimentaIndicadores_(tabla)) nuevaVersionDatos_();
+  if (alimentaCatalogos_(tabla)) nuevaVersionCatalogos_();
   delete MEMO_ENCABEZADOS[tabla];
 
   var filas = MEMO_TABLAS[tabla] || leerDeCache_(tabla);
@@ -282,6 +284,26 @@ function alimentaIndicadores_(tabla) {
 }
 
 /**
+ * Tablas de las que sale getCatalogos(), las unicas cuyo cambio obliga a
+ * armarlo de nuevo. Si se agrega un catalogo a getCatalogos hay que agregar su
+ * tabla aqui, o la aplicacion seguiria mostrando la lista vieja hasta que
+ * venza la cache.
+ */
+var TABLAS_DE_CATALOGO = [
+  'Proyectos', 'Usuarios', 'Roles', 'Plataforma_Digital', 'Lineas_Estrategicas',
+  'Verticales', 'Causales_Bloqueo', 'Tipos_Solicitud', 'Tipos_Iniciativa'
+];
+
+/**
+ * @param {string} tabla
+ * @return {boolean} true si lo que se escribio cambia los catalogos.
+ * @private
+ */
+function alimentaCatalogos_(tabla) {
+  return TABLAS_DE_CATALOGO.indexOf(tabla) !== -1;
+}
+
+/**
  * Lee una sola fila de la hoja y la arma igual que lo haria leerTabla_().
  * @return {?Object} null si la fila quedo vacia.
  * @private
@@ -316,8 +338,24 @@ function leerFilaDeHoja_(tabla, numeroFila, columnas) {
  * existe el riesgo de olvidar alguna y servir un dato viejo.
  */
 
-/** Sello de version memorizado en esta ejecucion. */
-var MEMO_VERSION = null;
+/** Sellos de version memorizados en esta ejecucion, por clave. */
+var MEMO_SELLOS = {};
+
+/** Sello de todo lo que se calcula a partir de las hojas. */
+var SELLO_DATOS = 'version_datos';
+
+/**
+ * Sello aparte, solo para los catalogos.
+ *
+ * Los catalogos (iniciativas, usuarios, plataformas, roles, tipos...) no
+ * dependen de las solicitudes, y las solicitudes son lo que el equipo escribe
+ * todo el dia. Con un solo sello, mover una tarjeta botaba tambien los
+ * catalogos, y entonces la siguiente persona que abriera la aplicacion pagaba
+ * de nuevo las nueve lecturas de hoja que arman los catalogos —justo la espera
+ * que se siente antes de que aparezca el Home—. Con dos sellos, una escritura
+ * de solicitudes bota lo que de verdad cambio y deja los catalogos en pie.
+ */
+var SELLO_CATALOGOS = 'version_catalogos';
 
 /**
  * Arma un sello nuevo, garantizadamente distinto del que se le pase.
@@ -338,37 +376,55 @@ function selloNuevo_(anterior) {
   return sello;
 }
 
-/** @return {string} Sello de version vigente. @private */
-function versionDatos_() {
-  if (MEMO_VERSION) return MEMO_VERSION;
+/**
+ * Sello vigente de una clave.
+ * @param {string} clave
+ * @return {string}
+ * @private
+ */
+function sello_(clave) {
+  if (MEMO_SELLOS[clave]) return MEMO_SELLOS[clave];
   try {
     var cache = CacheService.getScriptCache();
-    var v = cache.get('version_datos');
+    var v = cache.get(clave);
     if (!v) {
       v = selloNuevo_(null);
-      cache.put('version_datos', v, CONFIG.CACHE_PARAMETRIZACION_SEGUNDOS);
+      cache.put(clave, v, CONFIG.CACHE_PARAMETRIZACION_SEGUNDOS);
     }
-    MEMO_VERSION = v;
+    MEMO_SELLOS[clave] = v;
   } catch (e) {
-    MEMO_VERSION = '0';
+    MEMO_SELLOS[clave] = '0';
   }
-  return MEMO_VERSION;
+  return MEMO_SELLOS[clave];
 }
 
 /**
- * Cambia el sello. Todo lo calculado con el anterior deja de usarse.
+ * Cambia un sello. Todo lo calculado con el anterior deja de usarse.
+ * @param {string} clave
  * @private
  */
-function nuevaVersionDatos_() {
-  MEMO_VERSION = null;
+function nuevoSello_(clave) {
+  delete MEMO_SELLOS[clave];
   try {
     var cache = CacheService.getScriptCache();
-    cache.put('version_datos', selloNuevo_(cache.get('version_datos')),
+    cache.put(clave, selloNuevo_(cache.get(clave)),
               CONFIG.CACHE_PARAMETRIZACION_SEGUNDOS);
   } catch (e) {
     // Sin cache no hay nada que invalidar.
   }
 }
+
+/** @return {string} Sello de version vigente. @private */
+function versionDatos_() { return sello_(SELLO_DATOS); }
+
+/** Invalida todo lo calculado a partir de las hojas. @private */
+function nuevaVersionDatos_() { nuevoSello_(SELLO_DATOS); }
+
+/** @return {string} Sello vigente de los catalogos. @private */
+function versionCatalogos_() { return sello_(SELLO_CATALOGOS); }
+
+/** Invalida los catalogos ya armados. @private */
+function nuevaVersionCatalogos_() { nuevoSello_(SELLO_CATALOGOS); }
 
 /**
  * Devuelve el resultado ya calculado si esta en cache; si no, lo calcula, lo
@@ -379,13 +435,17 @@ function nuevaVersionDatos_() {
  *
  * @param {string} nombre Identifica el resultado, parametros incluidos.
  * @param {function(): *} calcular
+ * @param {string=} sello Sello bajo el cual guardarlo. Por omision el de los
+ *     datos, que cambia con cualquier escritura. Un resultado que solo depende
+ *     de unas tablas puede pasar un sello mas estrecho y sobrevivir a las
+ *     escrituras que no lo afectan.
  * @return {*}
  * @private
  */
-function conResultadoEnCache_(nombre, calcular) {
+function conResultadoEnCache_(nombre, calcular, sello) {
   if (!CONFIG.CACHE_RESULTADOS_SEGUNDOS) return calcular();
 
-  var prefijo = 'res_' + versionDatos_() + '_' + nombre;
+  var prefijo = 'res_' + (sello || versionDatos_()) + '_' + nombre;
   var texto = leerBloques_(prefijo);
   if (texto !== null) {
     try { return JSON.parse(texto); } catch (e) { /* cache corrupta: se recalcula */ }
@@ -415,6 +475,7 @@ function limpiarCache_() {
   var tablas = Object.keys(ESQUEMA_PARAMETRIZACION).concat(Object.keys(ESQUEMA_TRANSACCIONAL));
   tablas.forEach(invalidarTabla_);
   nuevaVersionDatos_();
+  nuevaVersionCatalogos_();
   MEMO_LIBROS = {};
   MEMO_TABLAS = {};
   MEMO_ENCABEZADOS = {};
@@ -462,6 +523,9 @@ function medirRendimiento() {
   // en que queda una escritura. Desde que la fila se parcha en vez de botar la
   // tabla, una escritura deja intactas las tablas en cache y solo invalida lo
   // calculado, que es precisamente lo que se hace aqui.
+  // Se cambia solo el sello de los datos, no el de los catalogos: eso es
+  // exactamente lo que hace una escritura de solicitudes (D-99). Por eso
+  // getCatalogos debe salir aqui casi en cero.
   MEMO_TABLAS = {};
   nuevaVersionDatos_();
   var trasEscritura = [

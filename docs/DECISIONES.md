@@ -1925,6 +1925,62 @@ auditar las aprobaciones una por una, es una tabla aparte y no un cambio a esto.
 solicitudes que estén en *Aprobada* y las marca aprobadas, conservando las dos cosas que ese estado
 significaba. No inventa quién aprobó ni cuándo —esos datos no existían—, así que quedan vacíos.
 
+### D-99 · La espera de cada visita: medirla primero, y repartir la cache en dos
+
+Se reportaron dos esperas: los indicadores del Home tardaban **cada vez** que se abría la página, y
+Seguimiento tardaba **la primera vez** que se consultaba. Antes de tocar nada se midió con
+`medirRendimiento`, y la medición desmintió la explicación que yo había dado de entrada —que cada
+escritura botaba lo calculado y la siguiente persona pagaba el recálculo completo—. En frío las
+cuatro consultas sumaban 8.682 ms; en caliente 1.210 ms; **después de una escritura 1.614 ms**. Esos
+400 ms de diferencia no son la espera que se siente: la causa estaba en otra parte.
+
+Lo que la medición sí mostró:
+
+| Consulta | En frío | En caliente | Tras escribir |
+| --- | --- | --- | --- |
+| `getCatalogos` | 4.490 ms | **703 ms** | 580 ms |
+| `getMatrizIniciativas` | 3.346 ms | 262 ms | 655 ms |
+| `getDatosKanban` | 390 ms | 152 ms | 172 ms |
+| `getMetricasHome` | 456 ms | 93 ms | 207 ms |
+
+**`getCatalogos` era el problema del Home, no los indicadores.** Calcular los indicadores costaba
+93 ms; los catálogos costaban 703 ms *en el mejor caso*, y son la primera consulta de cada visita:
+hasta que no llegan no hay pantalla. Era la única de las cuatro consultas sin cache de resultado —se
+rearmaba de nueve lecturas de hoja en cada visita de cada persona—. Ahora se guarda ya armada.
+
+**Dos sellos de versión en lugar de uno.** La cache de resultados se invalida cambiando un sello, y
+había un solo sello para todo: mover una tarjeta botaba también los catálogos, que no tienen nada que
+ver con las solicitudes. Los catálogos pasan a tener su propio sello, que solo cambia cuando cambia
+una de las nueve tablas de las que salen (`TABLAS_DE_CATALOGO` en `Cache.gs`). El trabajo del día a
+día —crear solicitudes, moverlas, comentarlas— ya no los bota.
+
+**El mensaje de arranque dejó de llevar columnas que nadie usa.** De las 39 iniciativas y de las
+personas se enviaba la fila completa; la pantalla solo usa el identificador y el nombre, para
+resolver nombres y llenar dos listas. Van dos columnas. Una prueba verifica que la pantalla no
+empiece a usar una tercera sin que nos enteremos.
+
+**Seguimiento pagaba la bitácora sin necesitarla.** `cargarDatos_` leía de golpe seis tablas, entre
+ellas `Auditoria_Transiciones` —la más grande y la única que crece sin techo—, el roadmap y los SLA.
+La matriz de iniciativas no usa ninguna de las tres: solo solicitudes, iniciativas y personas. Ahora
+cada tabla se lee la primera vez que alguien la pide, y quien la pide la paga una sola vez. Quien
+necesita la bitácora (los indicadores del embudo, los reportes) la sigue leyendo igual.
+
+**Dos pestañas no piden dos veces lo mismo.** Mientras la persona mira el Home, la precarga va
+trayendo el tablero y la matriz. Si hacía clic en Seguimiento con la matriz en camino, se disparaba
+una segunda consulta idéntica: dos viajes al servidor y el doble de espera. Ahora el clic se engancha
+a la consulta que ya iba (`unaSolaConsulta`). Y para que eso no sirva datos viejos, una escritura da
+por vieja la generación: lo que venía en camino de antes del cambio se descarta en lugar de
+instalarse.
+
+**Lo que no se cambió y conviene saber:** el calentamiento programado cada diez minutos sigue siendo
+lo que evita el caso en frío, y sigue cubriendo las cuatro consultas. Sin él, la primera persona de
+la mañana pagaría los 8,7 segundos completos.
+
+**Una prueba que se estaba probando a sí misma.** `pruebaCache.js` corría sobre una copia a mano de
+`Cache.gs` guardada en el banco de pruebas. Esa copia ya no tenía el código desplegado, así que la
+prueba pasaba sobre algo que no existe —el mismo error que dejó pasar el defecto de D-79—. La copia
+se borró y la prueba ahora lee el archivo de verdad.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

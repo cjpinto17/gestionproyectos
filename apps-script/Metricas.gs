@@ -240,29 +240,57 @@ function contarPor_(lista, fn) {
 /* ================================================================== */
 
 /**
- * Lee de Sheets todo lo que necesitan los indicadores, una sola vez por
- * peticion. Evita que cada metrica vuelva a abrir el libro.
+ * Lee de Sheets lo que necesitan los indicadores, una sola vez por peticion.
+ * Evita que cada metrica vuelva a abrir el libro.
+ *
+ * Cada propiedad se lee la primera vez que alguien la pide, no al llamar esta
+ * funcion. La razon es la matriz de iniciativas: solo necesita solicitudes,
+ * iniciativas y personas, y estaba pagando ademas la lectura completa de la
+ * bitacora de transiciones —la tabla mas grande, y la unica que crece sin
+ * techo—, del roadmap y de los SLA. Eso era casi todo el costo de abrir
+ * Seguimiento por primera vez. Quien si necesite la bitacora la pide y la paga;
+ * quien no, ya no.
+ *
+ * Una vez leida, la propiedad se reemplaza por su valor, de modo que leerla
+ * diez veces en el mismo calculo sigue costando una.
+ *
  * @return {!Object}
  * @private
  */
 function cargarDatos_() {
-  var solicitudes = leerTabla_('Solicitudes');
-  return {
-    solicitudes: solicitudes,
-    // Los indicadores del embudo —lead time, SLA, throughput, WIP, first pass
-    // yield— cuentan la fase de cada registro. Una tarea no tiene fase, asi que
-    // o inflaria la demanda quedandose en la primera o inflaria el throughput
-    // si alguien la empujara a la ultima. Se separan en el origen (D-79).
-    solicitudesFabrica: solicitudes.filter(function (s) {
-      return !esTipoTarea(s.Tipo_Solicitud);
-    }),
-    tareas: solicitudes.filter(function (s) { return esTipoTarea(s.Tipo_Solicitud); }),
-    auditoria: leerTabla_('Auditoria_Transiciones'),
-    proyectos: leerTabla_('Proyectos'),
-    usuarios: leerTabla_('Usuarios'),
-    roadmap: leerTabla_('Roadmap_Versiones'),
-    sla: leerTabla_('SLA_Fases')
-  };
+  var datos = {};
+
+  function perezoso(propiedad, leer) {
+    Object.defineProperty(datos, propiedad, {
+      enumerable: true,
+      configurable: true,
+      get: function () {
+        var valor = leer();
+        Object.defineProperty(datos, propiedad,
+                              { enumerable: true, configurable: true, value: valor });
+        return valor;
+      }
+    });
+  }
+
+  perezoso('solicitudes', function () { return leerTabla_('Solicitudes'); });
+  // Los indicadores del embudo —lead time, SLA, throughput, WIP, first pass
+  // yield— cuentan la fase de cada registro. Una tarea no tiene fase, asi que
+  // o inflaria la demanda quedandose en la primera o inflaria el throughput
+  // si alguien la empujara a la ultima. Se separan en el origen (D-79).
+  perezoso('solicitudesFabrica', function () {
+    return datos.solicitudes.filter(function (s) { return !esTipoTarea(s.Tipo_Solicitud); });
+  });
+  perezoso('tareas', function () {
+    return datos.solicitudes.filter(function (s) { return esTipoTarea(s.Tipo_Solicitud); });
+  });
+  perezoso('auditoria', function () { return leerTabla_('Auditoria_Transiciones'); });
+  perezoso('proyectos', function () { return leerTabla_('Proyectos'); });
+  perezoso('usuarios', function () { return leerTabla_('Usuarios'); });
+  perezoso('roadmap', function () { return leerTabla_('Roadmap_Versiones'); });
+  perezoso('sla', function () { return leerTabla_('SLA_Fases'); });
+
+  return datos;
 }
 
 /** @return {!Object<string,number>} Mapa ID_Fase -> SLA en dias. */

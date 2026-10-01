@@ -122,6 +122,46 @@ function api(metodo) {
   });
 }
 
+/**
+ * Consultas que ya salieron y todavia no han vuelto, por nombre.
+ *
+ * Mientras la persona mira el Home, la precarga va trayendo el tablero y la
+ * matriz. Si hace clic en Seguimiento mientras la matriz viene en camino, sin
+ * esto se disparaba una segunda consulta identica: dos viajes al servidor, el
+ * doble de espera y ninguna ganancia. Con esto el clic se engancha a la
+ * consulta que ya iba.
+ */
+var EN_VUELO = {};
+
+/**
+ * Cuenta las veces que los datos del navegador se han dado por viejos.
+ *
+ * Sirve para no instalar una respuesta que salio antes de una escritura: la
+ * consulta ya iba en camino y vuelve con los datos de antes del cambio.
+ */
+var GENERACION_DATOS = 0;
+
+/** Da por viejo lo que venga en camino. */
+function olvidarConsultas() {
+  EN_VUELO = {};
+  GENERACION_DATOS++;
+}
+
+/**
+ * Hace la consulta una sola vez aunque se pida varias en paralelo.
+ * @param {string} clave Identifica la consulta.
+ * @param {function(): !Promise} pedir
+ * @return {!Promise}
+ */
+function unaSolaConsulta(clave, pedir) {
+  if (EN_VUELO[clave]) return EN_VUELO[clave];
+  var olvidar = function () { delete EN_VUELO[clave]; };
+  EN_VUELO[clave] = pedir().then(
+      function (r) { olvidar(); return r; },
+      function (e) { olvidar(); throw e; });
+  return EN_VUELO[clave];
+}
+
 /** Llamadas que ocurren ANTES de tener identidad, sin pasar por el despachador. */
 function apiPublica(metodo) {
   var args = Array.prototype.slice.call(arguments, 1);
@@ -513,7 +553,7 @@ function cargarIniciativas() {
   // fuera siempre el de la matriz, la vista que abre por defecto arrancaria
   // en blanco mientras llegan los datos.
   cargando(CAJA_ESQUELETO_INI[VISTA_INI] || 'matriz', 'matriz');
-  api('getMatrizIniciativas').then(function (r) {
+  unaSolaConsulta('matriz', function () { return api('getMatrizIniciativas'); }).then(function (r) {
     DATOS.matriz = r;
     prepararFiltrosIniciativas(r);
     pintarIniciativas();
@@ -1278,7 +1318,11 @@ function cargarGestion(forzar) {
   // varios segundos justo despues de que alguien movio una tarjeta, que es
   // cuando mas se nota.
   if (!$('kanban').children.length) cargando('kanban', 'tablero');
-  api('getDatosKanban', {}).then(function (r) {
+  // Sin forzar se engancha a la consulta que la precarga pudo haber lanzado ya.
+  // Forzando no: despues de una escritura hay que traer los datos nuevos, y una
+  // consulta que salio antes del cambio traeria los viejos.
+  var pedir = function () { return api('getDatosKanban', {}); };
+  (forzar ? pedir() : unaSolaConsulta('kanban', pedir)).then(function (r) {
     DATOS.kanban = r;
     prepararFiltrosKanban(r);
     pintarKanban();
@@ -2477,6 +2521,7 @@ function formularioIniciativa(idProyecto) {
         return api('guardarIniciativa', idProyecto, leerCampos(f.columnas)).then(function () {
           toast('Iniciativa actualizada.');
           DATOS.matriz = null;
+          olvidarConsultas();
           INI_ABIERTAS = {};
           cargarIniciativas();
         });
@@ -3132,16 +3177,22 @@ function precargarEnSegundoPlano() {
     var pasos = [
       function () {
         if (DATOS.matriz) return Promise.resolve();
-        return api('getMatrizIniciativas').then(function (r) {
-          if (DATOS.matriz) return;
+        var gen = GENERACION_DATOS;
+        return unaSolaConsulta('matriz', function () {
+          return api('getMatrizIniciativas');
+        }).then(function (r) {
+          if (DATOS.matriz || gen !== GENERACION_DATOS) return;
           DATOS.matriz = r;
           prepararFiltrosIniciativas(r);
         });
       },
       function () {
         if (DATOS.kanban) return Promise.resolve();
-        return api('getDatosKanban', {}).then(function (r) {
-          if (DATOS.kanban) return;
+        var gen = GENERACION_DATOS;
+        return unaSolaConsulta('kanban', function () {
+          return api('getDatosKanban', {});
+        }).then(function (r) {
+          if (DATOS.kanban || gen !== GENERACION_DATOS) return;
           DATOS.kanban = r;
           prepararFiltrosKanban(r);
         });
@@ -3150,11 +3201,15 @@ function precargarEnSegundoPlano() {
     pasos.reduce(function (cadena, paso) {
       return cadena.then(paso).catch(function () {});
     }, Promise.resolve());
-  }, 900);
+    // 400 ms, no 900: desde que los catalogos salen de la cache el arranque ya
+    // termino de pintar el Home mucho antes, y cada decima que la precarga
+    // espera es una decima que espera despues quien abre Seguimiento.
+  }, 400);
 }
 
 /** Descarta lo que el navegador tiene guardado de las consultas anteriores. */
 function invalidarCacheCliente() {
+  olvidarConsultas();
   DATOS.home = null;
   DATOS.reportes = null;
   DATOS.matriz = null;
