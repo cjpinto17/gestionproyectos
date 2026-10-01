@@ -2096,6 +2096,50 @@ se mide el tiempo, pero no hay objetivo contra el cual compararlo) ni el porcent
 por plataforma, que exige acordar antes la ventana de servicio: 24×7 o jornada hábil. Ninguna de las
 dos se inventó sin esa definición.
 
+### D-102 · El analista de Análisis y diseño, con lista propia
+
+Cada solicitud que entra a *Análisis y diseño* queda con un analista asignado. Se pidió además que la
+lista de analistas fuera configurable, y se escogió que fuera **una lista propia**, independiente de
+Usuarios: así puede incluir a quien analiza aunque no sea usuario de la aplicación. Se administra en
+**Administración → Analistas**.
+
+**La lista nace vacía.** Inventar nombres en el código habría puesto en la hoja gente que no existe.
+Las diez causas raíz de D-101 sí se pudieron proponer porque son conceptos; un analista es una
+persona concreta, y esa lista solo la puede escribir quien conoce al equipo.
+
+**Se exige al entrar a la fase, no al salir.** El analista es quien hace el trabajo de la fase, así
+que preguntarlo al final sería preguntar quién hizo algo que ya está hecho. Al entrar, en cambio, es
+la decisión que hay que tomar: a quién se le asigna.
+
+**Pero no se rechaza el movimiento: se pregunta.** Frenar la tarjeta para que la persona abra la
+solicitud, busque el campo, lo llene y vuelva a arrastrarla serían tres pasos para un dato que cabe en
+una pregunta. Al soltar la tarjeta en *Análisis y diseño* sin analista, se abre una ventana con la
+lista; al elegir, el analista **viaja en la misma llamada que el movimiento**. Asignarlo en una
+llamada aparte y fallar al mover dejaría la solicitud con analista en una fase que todavía no es la
+suya.
+
+**Si no hay analistas registrados, no frena.** Sería una compuerta que nadie puede abrir: el embudo
+entero quedaría detenido hasta que un administrador llenara una lista que quizá ni sabe que existe, y
+quien mueve la tarjeta no suele ser quien administra. La regla aparece en los dos lados —servidor y
+pantalla— porque las dos tienen que coincidir.
+
+**El analista no se borra al cambiar de fase**, al revés que la aprobación. La aprobación vale para
+una fase y por eso vuelve a cero (D-98); el analista es un hecho de la historia de la solicitud y
+sigue sirviendo después. Lo que sí hace la tarjeta es **mostrarlo solo en la fase que lo pide**:
+sacarlo en las ocho columnas sería repetir en siete tarjetas un dato que ya no decide nada. Quien
+puede editar la solicitud lo cambia con un clic en la propia tarjeta, porque a quién se le asigna un
+análisis cambia, y obligar a abrir la solicitud para corregirlo es el mismo trámite que la pregunta
+al mover vino a evitar.
+
+**Un defecto viejo que apareció al probar esto.** La ventana modal llamaba a su acción de guardado
+*antes* de armar la cadena de promesas (`Promise.resolve(accionModal())`). Cuando la acción validaba
+lanzando de una vez —*"Escriba el nombre de la solicitud"*, *"Elija la iniciativa"*— la excepción se
+escapaba del manejador, la cadena nunca se armaba, y el botón se quedaba bloqueado en *"Guardando…"*
+sin mostrar el motivo: había que cerrar la ventana y volver a empezar. Afectaba a **todos** los
+formularios con validación propia, no solo al nuevo. Ahora la acción se llama dentro de la cadena, de
+modo que lo que lance se convierte en un rechazo y se muestra como error. Hay prueba, comprobada
+contra el código anterior.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
@@ -2116,6 +2160,7 @@ dos se inventó sin esa definición.
 | S-08 | Versionamiento | ¿`Roadmap_Versiones` se alimenta automáticamente al asignar `Version_Semantica`, o se administra aparte? |
 | S-09 | SLA | ¿Días calendario o días hábiles? (ver D-10) |
 | S-10 | Aplicación de la iniciativa | ¿Una aplicación principal por iniciativa, o varias? (ver D-08) |
+| S-20 | Lista de analistas | La hoja `Analistas` se crea vacía: hay que registrar quiénes analizan desde Administración → Analistas (ver D-102) |
 | S-18 | Ventana de servicio | Para el % de disponibilidad por plataforma: ¿24×7 o jornada hábil? Sin eso el indicador no se puede calcular (ver D-101) |
 | S-19 | SLA de estabilización | ¿Cuántas horas objetivo para atender una crítica y una alta? Hoy se mide el tiempo, sin meta contra la cual compararlo |
 | S-11 | Metas | ¿Hay metas objetivo para Lead Time, throughput y First Pass Yield? Sin meta, el indicador informa pero no semaforiza |

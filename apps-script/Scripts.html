@@ -314,7 +314,13 @@ $('btnGuardarModal').addEventListener('click', function () {
   var boton = this;
   boton.disabled = true;
   boton.textContent = 'Guardando…';
-  Promise.resolve(accionModal())
+  // La accion se llama DENTRO de la cadena de promesas, no antes de armarla.
+  // Llamarla antes dejaba escapar las validaciones que lanzan de una vez
+  // —"Escriba el nombre de la solicitud", "Elija la iniciativa"—: la excepcion
+  // salia del manejador, la cadena nunca se armaba, y el boton se quedaba
+  // bloqueado en "Guardando…" sin mostrar el motivo. Habia que cerrar la ventana
+  // y volver a empezar.
+  Promise.resolve().then(accionModal)
       .then(function () { cerrarModal(); })
       .catch(function (err) { $('modalError').textContent = err.message || String(err); })
       .then(function () { boton.disabled = false; boton.textContent = 'Guardar'; });
@@ -1736,6 +1742,7 @@ function tarjetaActividad(s, posicion) {
         : (s.Version_Semantica ? '<span class="t-ver num">' + esc(s.Version_Semantica) + '</span>' : '')) +
       (s.Nombre_Plataforma ? '<span class="t-plat">' + esc(s.Nombre_Plataforma) + '</span>' : '') +
       '<span>' + esc(s.Nombre_Responsable || '—') + '</span>' +
+      selloAnalista(s) +
       enlacesDeSolicitud(s) + '</div>' +
   '</article>';
 }
@@ -1788,6 +1795,54 @@ function selloCierre(s) {
   }
   return '<span class="t-cierre" title="' + esc(s.Falta_Para_Cerrar) +
     '" aria-label="' + esc(s.Falta_Para_Cerrar) + '">&#128274;</span>';
+}
+
+/**
+ * El analista asignado, en la tarjeta de su fase.
+ *
+ * Solo se muestra donde significa algo: en Analisis y diseno, que es la fase que
+ * lo pide. Despues la solicitud lo conserva —queda en la ficha y en el reporte—
+ * pero sacarlo en todas las columnas seria repetir en siete tarjetas un dato que
+ * ya no decide nada (D-102).
+ *
+ * Quien puede editar la solicitud lo cambia desde aqui: a quien se le asigna un
+ * analisis cambia, y obligar a abrir la solicitud para corregirlo es el mismo
+ * tramite que la pregunta al mover vino a evitar.
+ */
+function selloAnalista(s) {
+  if (!esDeFabrica(s) || (CAT.fasesConAnalista || []).indexOf(s.Fase_Actual) === -1) return '';
+
+  var puede = CTX.puedeEditarSolicitud && (CAT.analistas || []).length;
+  var nombre = s.Nombre_Analista || 'sin analista';
+  var titulo = s.Nombre_Analista
+      ? ('Analista: ' + s.Nombre_Analista + (puede ? ' · clic para cambiarlo' : ''))
+      : (puede ? 'Sin analista · clic para asignarlo' : 'Sin analista asignado');
+
+  return '<' + (puede ? 'button' : 'span') + ' class="t-analista' +
+    (s.Nombre_Analista ? '' : ' vacio') + '"' +
+    (puede ? ' data-analista="' + esc(s.ID_Solicitud) + '"' : '') +
+    ' title="' + esc(titulo) + '" aria-label="' + esc(titulo) + '">&#128100; ' +
+    esc(nombre) + '</' + (puede ? 'button' : 'span') + '>';
+}
+
+/** Cambia el analista desde la tarjeta, sin abrir la solicitud. */
+function cambiarAnalista(id) {
+  var s = solicitudPorId(id);
+  if (!s) return;
+  preguntarAnalista(s, function (idAnalista) {
+    var antes = { id: s.Analista_ID, nombre: s.Nombre_Analista };
+    s.Analista_ID = idAnalista;
+    s.Nombre_Analista = nombreDeCatalogo(CAT.analistas, idAnalista);
+    pintarKanban();
+    api('asignarAnalista', id, idAnalista).then(function () {
+      toast(id + ': analiza ' + s.Nombre_Analista + '.');
+    }).catch(function (err) {
+      s.Analista_ID = antes.id;
+      s.Nombre_Analista = antes.nombre;
+      pintarKanban();
+      fallo(err);
+    });
+  });
 }
 
 /** Gemelo de faseExigeAprobacion() del servidor. */
@@ -2003,6 +2058,57 @@ document.addEventListener('drop', function (e) {
   var v = validarSoltar_(s, col);
   if (!v.permitido) { toast(v.motivo, true); return; }
 
+  // Entrar a Analisis y diseno sin analista no se rechaza: se pregunta. Frenar
+  // la tarjeta para que la persona abra la solicitud, busque el campo y vuelva a
+  // arrastrarla seria tres pasos para un dato que cabe en una pregunta (D-102).
+  if (faltaPreguntarAnalista(s, col.dataset.fase)) {
+    preguntarAnalista(s, function (idAnalista) { moverTarjeta_(s, col, idAnalista); });
+    return;
+  }
+  moverTarjeta_(s, col);
+});
+
+/**
+ * @return {boolean} True si hay que preguntar quien analiza antes de mover.
+ *
+ * Si no hay analistas registrados no se pregunta y no se frena: seria una
+ * ventana con un desplegable vacio. Gemelo de faltaAnalista_() del servidor.
+ */
+function faltaPreguntarAnalista(s, faseDestino) {
+  return esDeFabrica(s) &&
+         (CAT.fasesConAnalista || []).indexOf(faseDestino) !== -1 &&
+         !String(s.Analista_ID || '').trim() &&
+         (CAT.analistas || []).length > 0;
+}
+
+/** Pregunta quien analiza y sigue con lo que se estaba haciendo. */
+function preguntarAnalista(s, seguir) {
+  abrirModal('¿Quién analiza ' + s.ID_Solicitud + '?',
+    s.Nombre_Solicitud,
+    '<div class="formulario">' +
+      '<label class="campo"><span>Analista asignado *</span>' +
+        '<select id="movAnalista"><option value="">(elija el analista)</option>' +
+        (CAT.analistas || []).map(function (a) {
+          return '<option value="' + esc(a.id) + '">' + esc(a.nombre) + '</option>';
+        }).join('') + '</select>' +
+        '<small style="color:var(--ink-faint)">No se empieza un análisis sin saber quién lo ' +
+        'hace. La lista se administra en Administración → Analistas.</small></label>' +
+    '</div>',
+    function () {
+      var id = $('movAnalista').value;
+      if (!id) throw new Error('Elija el analista.');
+      seguir(id);
+    });
+}
+
+/**
+ * Mueve la tarjeta de verdad: se pinta de una vez y se revierte si el servidor
+ * dice que no. Vive aparte del manejador de soltar porque tambien se llama
+ * despues de preguntar quien analiza.
+ */
+function moverTarjeta_(s, col, idAnalista) {
+  var id = s.ID_Solicitud;
+
   // Cada gobierno mueve su propio campo con su propio metodo (D-79, D-101).
   var gobierno = gobiernoDe(s);
   var porEstado = gobierno !== 'fabrica';
@@ -2013,20 +2119,32 @@ document.addEventListener('drop', function (e) {
       : gobierno === 'tarea' ? 'cambiarEstadoTarea' : 'cambiarFaseSolicitud';
   var original = s[campo];
 
+  var analistaAntes = s.Analista_ID;
   s[campo] = destino;               // se mueve ya, y se revierte si el servidor dice que no
+  if (idAnalista) {
+    s.Analista_ID = idAnalista;
+    s.Nombre_Analista = nombreDeCatalogo(CAT.analistas, idAnalista);
+  }
   pintarKanban();
 
-  api(metodo, id, destino).then(function (r) {
+  // Solo el embudo recibe el analista, y en la MISMA llamada que el movimiento:
+  // asignarlo aparte y fallar al mover dejaria la solicitud con analista en una
+  // fase que todavia no es la suya. El estado destino va vacio: lo decide el
+  // servidor.
+  var argumentos = porEstado ? [metodo, id, destino]
+                             : [metodo, id, destino, '', idAnalista || ''];
+  api.apply(null, argumentos).then(function (r) {
     toast(id + ' pasó a ' + (porEstado ? nombreEstado(destino) : nombreFase(destino)) + '.');
     (r.avisos || []).forEach(function (a) { toast(a, true); });
     invalidarCacheCliente();
     cargarGestion(true);
   }).catch(function (err) {
     s[campo] = original;
+    s.Analista_ID = analistaAntes;
     pintarKanban();
     fallo(err);
   });
-});
+}
 
 function solicitudPorId(id) {
   // Puede llamarse antes de que el tablero haya cargado: devolver nada es mejor
@@ -2142,6 +2260,8 @@ document.addEventListener('click', function (e) {
   }
   var sello = e.target.closest('[data-aprobar]');
   if (sello) { alternarAprobacion(sello.dataset.aprobar); return; }
+  var quienAnaliza = e.target.closest('[data-analista]');
+  if (quienAnaliza) { cambiarAnalista(quienAnaliza.dataset.analista); return; }
   var lapiz = e.target.closest('[data-editar-sol]');
   if (lapiz) { editarSolicitud(lapiz.dataset.editarSol); return; }
   var alerta = e.target.closest('[data-alerta]');
@@ -2918,7 +3038,7 @@ function pintarReportes(r) {
 var TABLAS_ADMIN = [
   'Usuarios', 'Proyectos', 'Plataforma_Digital', 'Roles', 'Lineas_Estrategicas',
   'Verticales', 'Tipos_Iniciativa', 'Tipos_Solicitud', 'Estados_Iniciativa',
-  'Estados', 'Fases', 'SLA_Fases', 'Causales_Bloqueo', 'Causas_Raiz', 'Festivos',
+  'Estados', 'Fases', 'SLA_Fases', 'Causales_Bloqueo', 'Causas_Raiz', 'Analistas', 'Festivos',
   'Roadmap_Versiones'
 ];
 

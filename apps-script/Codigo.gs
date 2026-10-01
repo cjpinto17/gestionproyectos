@@ -671,6 +671,8 @@ function armarCatalogos_() {
     estadosTarea: ESTADOS_TABLERO_TAREA,
     estadosEstabilizacion: ESTADOS_TABLERO_ESTABILIZACION,
     causasRaiz: getCausasRaiz_(),
+    analistas: getAnalistas_(),
+    fasesConAnalista: FASES_CON_ANALISTA,
     tiposIndisponibilidad: TIPOS_INDISPONIBILIDAD,
     prioridadesConPostmortem: PRIORIDADES_CON_POSTMORTEM,
     versiones: opcionesDeVersiones_(),
@@ -758,6 +760,7 @@ function armarDatosKanban_(filtros) {
   // aqui evita que cada tarjeta vaya a buscarlo.
   var nombreVersion = mapaVersiones_();
   var nombreCausaRaiz = mapaCatalogo_(getCausasRaiz_());
+  var nombreAnalista = mapaCatalogo_(getAnalistas_());
 
   // Los dias habiles no se pueden calcular en el navegador: dependen de los
   // festivos, que viven en el servidor. Se envian resueltos, junto al SLA de la
@@ -774,6 +777,7 @@ function armarDatosKanban_(filtros) {
     s.Dias_En_Fase = desde ? diasHabilesEntre(desde, ahora) : null;
     // Una tarea no tiene SLA de fase: su compromiso es una fecha (D-79). Una
     // estabilizacion tampoco: se mide en horas de reloj, no en dias habiles.
+    s.Nombre_Analista = nombreAnalista[s.Analista_ID] || '';
     s.gobierno = gobiernoDeTipo(s.Tipo_Solicitud);
     s.esTarea = s.gobierno === GOBIERNO_TAREA;
     s.esEstabilizacion = s.gobierno === GOBIERNO_ESTABILIZACION;
@@ -1687,7 +1691,7 @@ function actualizarSolicitudCompleta(idSolicitud, datos) {
  * @param {string=} estadoDestino
  * @return {!Object}
  */
-function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino) {
+function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino, idAnalista) {
   var ctx = exigirSesion_();
 
   return conBloqueo_(function () {
@@ -1698,6 +1702,17 @@ function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino) {
     if (!validacion.permitido) throw new Error(validacion.motivo);
 
     var falta = faltaAprobacion_(s, faseDestino);
+    if (falta) throw new Error(falta);
+
+    // El analista llega en la misma operacion que el movimiento, no en una
+    // llamada aparte: asignarlo y despues fallar al mover dejaria la solicitud
+    // con analista en una fase que todavia no es la suya.
+    var analista = String(idAnalista || '').trim();
+    if (analista && !analistaExiste_(analista)) {
+      throw new Error('El analista ' + analista + ' no esta en la lista. ' +
+                      'Se administra en Administracion → Analistas.');
+    }
+    falta = faltaAnalista_(s, faseDestino, analista);
     if (falta) throw new Error(falta);
 
     if (String(s.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0) {
@@ -1722,6 +1737,10 @@ function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino) {
     nuevo.Aprobada = 'NO';
     nuevo.Aprobada_Por = '';
     nuevo.Fecha_Aprobacion = '';
+    // El analista NO se borra al cambiar de fase, al reves que la aprobacion:
+    // la aprobacion vale para una fase, el analista es un hecho de la historia
+    // de la solicitud y sigue sirviendo despues (D-102).
+    if (analista) nuevo.Analista_ID = analista;
     sellarEstampas_(nuevo, faseOrigen, faseDestino, ahora);
 
     escribirFila_('Solicitudes', s._fila, nuevo);
@@ -1742,6 +1761,76 @@ function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino) {
     return { ok: true, idSolicitud: idSolicitud, faseActual: faseDestino,
              estadoActual: nuevoEstado, avisos: avisos };
   });
+}
+
+/**
+ * El motivo por el que una solicitud todavia no puede ENTRAR a una fase, o ''.
+ *
+ * Hoy solo Analisis y diseno lo usa: no se empieza un analisis sin saber quien
+ * lo hace. Se pregunta al entrar y no al salir, porque al salir seria preguntar
+ * quien hizo algo que ya esta hecho (D-102).
+ *
+ * Si todavia no hay ningun analista registrado, NO frena. Seria una compuerta
+ * que nadie puede abrir: el embudo entero quedaria detenido hasta que un
+ * administrador llenara una lista que quiza ni sabe que existe, y quien mueve la
+ * tarjeta no suele ser quien administra.
+ *
+ * @param {!Object} solicitud
+ * @param {string} faseDestino
+ * @param {string=} idAnalista El que viene en la misma operacion, si viene.
+ * @return {string}
+ * @private
+ */
+function faltaAnalista_(solicitud, faseDestino, idAnalista) {
+  if (!recorreEmbudo(solicitud.Tipo_Solicitud)) return '';
+  if (!faseExigeAnalista(faseDestino)) return '';
+  if (String(idAnalista || solicitud.Analista_ID || '').trim()) return '';
+  if (!getAnalistas_().length) return '';
+
+  return 'Antes de pasar ' + solicitud.ID_Solicitud + ' a "' + nombreDeFase_(faseDestino) +
+         '" hay que decir quien la analiza.';
+}
+
+/**
+ * Deja asignado el analista de una solicitud.
+ *
+ * Vive aparte del cambio de fase porque tambien se corrige: alguien se va, se
+ * reparte distinto, y entonces hay que poder cambiarlo sin mover la tarjeta.
+ *
+ * @param {string} idSolicitud
+ * @param {string} idAnalista Vacio lo quita.
+ * @return {!Object}
+ */
+function asignarAnalista(idSolicitud, idAnalista) {
+  exigirPermiso_('Editar_Solicitud', 'Su rol no puede asignar el analista.');
+
+  return conBloqueo_(function () {
+    var s = buscarPorPk_('Solicitudes', idSolicitud);
+    if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+
+    var id = String(idAnalista || '').trim();
+    if (id && !analistaExiste_(id)) {
+      throw new Error('El analista ' + id + ' no esta en la lista. ' +
+                      'Se administra en Administracion → Analistas.');
+    }
+
+    var nuevo = {};
+    Object.keys(s).forEach(function (k) { if (k !== '_fila') nuevo[k] = s[k]; });
+    nuevo.Analista_ID = id;
+    escribirFila_('Solicitudes', s._fila, nuevo);
+
+    return { ok: true, idSolicitud: idSolicitud, analista: id,
+             nombreAnalista: mapaCatalogo_(getAnalistas_())[id] || '' };
+  });
+}
+
+/**
+ * @param {string} idAnalista
+ * @return {boolean} True si ese analista esta en la lista.
+ * @private
+ */
+function analistaExiste_(idAnalista) {
+  return getAnalistas_().some(function (a) { return String(a.id) === String(idAnalista); });
 }
 
 /** @return {boolean} Si la solicitud tiene hoy el visto bueno de su fase. */
@@ -2564,7 +2653,7 @@ function opcionesDeReferencia_(columnas) {
     Tipos_Solicitud: getTiposSolicitud_(), Tipos_Iniciativa: getTiposIniciativa_(),
     Causales_Bloqueo: getCausalesBloqueo_(), Plataforma_Digital: getPlataformas_(),
     Lineas_Estrategicas: getLineasEstrategicas_(), Verticales: getVerticales_(),
-    Causas_Raiz: getCausasRaiz_()
+    Causas_Raiz: getCausasRaiz_(), Analistas: getAnalistas_()
   };
   var opciones = {};
   columnas.forEach(function (col) {
@@ -3030,6 +3119,7 @@ var METODOS_PUBLICOS = {
   reordenarSolicitud: true,
   aprobarSolicitud: true,
   cambiarEstadoEstabilizacion: true,
+  asignarAnalista: true,
   cambiarEstadoTarea: true,
   marcarBloqueo: true,
   refrescarDatos: true,

@@ -316,6 +316,10 @@ function sembrarCatalogos_(libro) {
     return [p.id, p.nombre];
   }));
 
+  sembrarSiVacio_(libro, 'Analistas', ANALISTAS.map(function (a) {
+    return [a.id, a.nombre];
+  }));
+
   sembrarSiVacio_(libro, 'Causas_Raiz', CAUSAS_RAIZ.map(function (c) {
     return [c.id, c.nombre];
   }));

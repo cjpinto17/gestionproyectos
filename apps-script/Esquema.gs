@@ -170,6 +170,23 @@ function exigePostmortem(prioridadId) {
 var TIPOS_INDISPONIBILIDAD = ['Total', 'Parcial'];
 
 /**
+ * La fase que no se puede empezar sin saber quien la analiza (D-102).
+ *
+ * Se exige al ENTRAR y no al salir: el analista es quien hace el trabajo de la
+ * fase, asi que preguntarlo al final seria preguntar quien hizo algo que ya
+ * esta hecho. Al entrar, es la decision de a quien se le asigna.
+ */
+var FASES_CON_ANALISTA = ['FAS-03'];
+
+/**
+ * @param {string} faseId
+ * @return {boolean} True si entrar a esa fase exige analista asignado.
+ */
+function faseExigeAnalista(faseId) {
+  return FASES_CON_ANALISTA.indexOf(String(faseId || '')) !== -1;
+}
+
+/**
  * Las columnas del tablero de fabrica cuyo orden se pone a mano, arrastrando.
  *
  * Son las tres donde todavia se decide QUE se atiende primero. De Desarrollo en
@@ -257,6 +274,16 @@ var CAUSAS_RAIZ = [
   { id: 'CR-09', nombre: 'Cambio no controlado' },
   { id: 'CR-10', nombre: 'Proveedor externo' }
 ];
+
+/**
+ * Analistas que pueden quedar asignados a una solicitud en Analisis y diseno.
+ *
+ * Es una lista propia y no la de Usuarios: se pidio asi para poder incluir a
+ * quien analiza sin que tenga que ser usuario de la aplicacion. Nace VACIA a
+ * proposito —inventar nombres aqui seria poner en la hoja gente que no existe—
+ * y se llena desde Administracion → Analistas (D-102).
+ */
+var ANALISTAS = [];
 
 var CAUSALES_BLOQUEO = [
   { id: 'CAU-01', nombre: 'Falta de capacidad' },
@@ -487,6 +514,14 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'Nombre_Causal', etiqueta: 'Nombre de la causal', tipo: 'text', requerido: true }
     ]
   },
+  Analistas: {
+    etiqueta: 'Analistas',
+    pk: 'ID_Analista',
+    columnas: [
+      { campo: 'ID_Analista', etiqueta: 'ID Analista', tipo: 'text', requerido: true },
+      { campo: 'Nombre_Analista', etiqueta: 'Nombre del analista', tipo: 'text', requerido: true }
+    ]
+  },
   Causas_Raiz: {
     etiqueta: 'Causas raiz de estabilizacion',
     pk: 'ID_Causa',
@@ -618,6 +653,10 @@ var ESQUEMA_TRANSACCIONAL = {
         opciones: TIPOS_INDISPONIBILIDAD },
 
       { campo: 'Responsable_ID', etiqueta: 'Responsable actual', tipo: 'enum', fk: 'Usuarios' },
+      // Quien analiza. Se pide al entrar a Analisis y diseno y no se borra
+      // despues: queda como registro de quien hizo el analisis (D-102).
+      { campo: 'Analista_ID', etiqueta: 'Analista asignado', tipo: 'enum', fk: 'Analistas',
+        ayuda: 'Quién hace el análisis y diseño. Se pide al mover la tarjeta a esa fase, y la lista se administra en Administración → Analistas.' },
       // Las ocho fases dejan su estampa. Gestion de la demanda y Backlog no la
       // tenian, asi que el tiempo que una solicitud esperaba antes de arrancar
       // no se podia medir sin reconstruirlo desde la bitacora (D-92).
@@ -842,6 +881,7 @@ var CATALOGOS_AMPLIABLES = {
   Verticales: function () { return VERTICALES; },
   Causales_Bloqueo: function () { return CAUSALES_BLOQUEO; },
   Causas_Raiz: function () { return CAUSAS_RAIZ; },
+  Analistas: function () { return ANALISTAS; },
   Tipos_Solicitud: function () { return TIPOS_SOLICITUD; },
   Tipos_Iniciativa: function () { return TIPOS_INICIATIVA; }
 };
@@ -892,6 +932,8 @@ function getPlataformas_() { return catalogoVigente('Plataforma_Digital'); }
 function getLineasEstrategicas_() { return catalogoVigente('Lineas_Estrategicas'); }
 /** @return {!Array} Verticales vigentes. */
 function getVerticales_() { return catalogoVigente('Verticales'); }
+/** @return {!Array} Analistas registrados. */
+function getAnalistas_() { return catalogoVigente('Analistas'); }
 /** @return {!Array} Causas raiz vigentes. */
 function getCausasRaiz_() { return catalogoVigente('Causas_Raiz'); }
 /** @return {!Array} Causales de bloqueo vigentes. */

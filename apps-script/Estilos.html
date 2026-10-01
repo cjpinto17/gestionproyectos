@@ -511,6 +511,14 @@
   .t-caida{font-family:var(--display);font-weight:600;color:#8A4B10;background:#FDF0E2;
            border-radius:4px;padding:1px 5px;font-size:10.5px}
   .t-causa{background:#F2EDF8;color:#5B4A77;border-radius:4px;padding:1px 6px;font-size:10.5px}
+  /* Analista asignado: se ve en la fase que lo pide y se cambia desde ahi */
+  .t-analista{background:#EAF4EC;color:#2F6B45;border:0;border-radius:4px;padding:1px 6px;
+              font-size:10.5px;font-family:inherit;cursor:pointer;max-width:100%;
+              overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .t-analista:hover{background:#D8EBDE}
+  .t-analista.vacio{background:var(--alerta-bg);color:var(--alerta)}
+  span.t-analista{cursor:default}
+  span.t-analista:hover{background:#EAF4EC}
   /* Tabla pequena dentro de un panel: la general pide 620px de ancho minimo */
   .tabla-compacta{min-width:0;font-size:12.5px}
   .tabla-compacta thead th{padding:6px 8px}
