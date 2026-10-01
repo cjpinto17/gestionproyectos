@@ -987,6 +987,12 @@ function getRoadmapVersiones() {
     var idPlat = v.Plataforma_ID || 'SIN_PLATAFORMA';
     var plan = aFecha_(v.Fecha_Planeada), real = aFecha_(v.Fecha_Despliegue_Real);
 
+    // Las actividades de esta version: se relacionan por numero de version y
+    // plataforma, que es como la fabrica las asigna.
+    var suyas = datos.solicitudes.filter(function (s) {
+      return s.Version_Semantica === v.Numero_Version && s.Plataforma_ID === idPlat;
+    });
+
     porPlataforma[idPlat] = porPlataforma[idPlat] || [];
     porPlataforma[idPlat].push({
       idVersion: v.ID_Version,
@@ -996,12 +1002,21 @@ function getRoadmapVersiones() {
       fechaPlaneada: v.Fecha_Planeada || null,
       fechaReal: v.Fecha_Despliegue_Real || null,
       desvioDias: (plan && real) ? red_((real.getTime() - plan.getTime()) / MS_DIA) : null,
-      actividades: datos.solicitudes.filter(function (s) {
-        return s.Version_Semantica === v.Numero_Version && s.Plataforma_ID === idPlat;
-      }).map(function (s) {
+      actividades: suyas.map(function (s) {
         return { id: s.ID_Solicitud, nombre: s.Nombre_Solicitud, fase: s.Fase_Actual,
-                 estado: s.Estado_Actual, responsable: s.Responsable_ID };
-      })
+                 estado: s.Estado_Actual, responsable: s.Responsable_ID,
+                 // El tipo viaja con cada actividad: una version de siete
+                 // ajustes y una de siete cosas nuevas valen lo mismo en el
+                 // contador y no significan lo mismo (D-103).
+                 tipo: s.Tipo_Solicitud || '' };
+      }),
+      porTipo: contarPor_(suyas, function (s) { return s.Tipo_Solicitud; }),
+      // Cuantas de las comprometidas ya estan de verdad en produccion. En una
+      // version ya desplegada son todas; en una planeada dice cuanto falta.
+      desplegadas: suyas.filter(function (s) { return s.Fase_Actual === 'FAS-08'; }).length,
+      porTipoDesplegadas: contarPor_(
+        suyas.filter(function (s) { return s.Fase_Actual === 'FAS-08'; }),
+        function (s) { return s.Tipo_Solicitud; })
     });
   });
 
@@ -1013,6 +1028,9 @@ function getRoadmapVersiones() {
 
   return {
     plataformas: getPlataformas_(),
+    // Los tipos viajan con su orden del catalogo: el contador agrupa por ellos y
+    // tiene que decir "Nuevo" y no "TIP-03" aunque alguien los renombre.
+    tipos: getTiposSolicitud_(),
     porPlataforma: porPlataforma,
     cumplimiento: calcularCumplimientoFecha_(datos.roadmap)
   };

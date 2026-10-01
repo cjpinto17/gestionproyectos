@@ -27,6 +27,13 @@ var CLASE_ESTADO = {
   'EST-06': 'e-finalizada'     // Terminada    · verde
 };
 // Codigo de color de los estados de iniciativa, definido por el negocio.
+/**
+ * Color de cada tipo de solicitud. Lo nuevo construye, el ajuste corrige: verlos
+ * del mismo color en el roadmap era perder de un vistazo la mezcla de inversion.
+ * Un tipo que alguien agregue despues sale neutro, que es mejor que no salir.
+ */
+var CLASE_TIPO = { 'TIP-03': 'tipo-nuevo', 'TIP-02': 'tipo-mejora', 'TIP-01': 'tipo-ajuste' };
+
 var CLASE_ESTADO_INI = {
   'EIN-01': 'e-por-iniciar',   // gris
   'EIN-02': 'e-en-progreso',   // amarillo
@@ -2806,8 +2813,10 @@ function pintarRoadmap() {
                  ' aria-expanded="false"' : '') + '>' +
           '<span class="rm-ver num">' + esc(v.numeroVersion) + '</span>' +
           '<span>' + esc(v.plataforma) + '</span>' +
-          '<span class="num rm-cuenta' + (n ? '' : ' vacia') + '">' + n +
+          '<span class="rm-cuenta' + (n ? '' : ' vacia') + '">' +
+            '<span class="rm-total num">' + n +
             (n ? '<span class="rm-flecha">&#9656;</span>' : '') + '</span>' +
+            chipsDeTipo(v.porTipo) + '</span>' +
           '<span class="num">' + (v.fechaPlaneada ? esc(fecha(v.fechaPlaneada)) : '<span style="color:var(--ink-faint)">sin fecha</span>') + '</span>' +
           '<span class="num">' + (v.fechaReal ? esc(fecha(v.fechaReal)) : '<span style="color:var(--ink-faint)">pendiente</span>') + '</span>' +
           '<span class="rm-desvio ' + (d === null ? '' : (d <= 0 ? 'ok' : 'tarde')) + '">' +
@@ -2831,6 +2840,41 @@ function pintarRoadmap() {
 }
 
 /**
+ * El contador de una version, abierto por tipo de solicitud (D-103).
+ *
+ * Una version de siete ajustes y una de siete cosas nuevas cuentan igual y no
+ * significan lo mismo: una es mantenimiento y la otra es producto. El numero
+ * solo no permitia distinguirlas.
+ *
+ * Se escribe el nombre completo del tipo y no su inicial: "3 N" obliga a
+ * recordar que es N, y el ancho que ahorra no vale eso.
+ *
+ * @param {!Object<string,number>} porTipo Cuentas por ID de tipo.
+ * @return {string}
+ */
+function chipsDeTipo(porTipo) {
+  if (!porTipo) return '';
+  // En el orden del catalogo, no en el que vengan las cuentas: asi la lectura
+  // es la misma en todas las filas.
+  var chips = (CAT.tipos || []).filter(function (t) { return porTipo[t.id]; })
+      .map(function (t) {
+        return '<span class="rm-tipo ' + (CLASE_TIPO[t.id] || '') + '" title="' +
+          esc(porTipo[t.id] + ' de tipo ' + t.nombre) + '">' +
+          porTipo[t.id] + ' ' + esc(t.nombre) + '</span>';
+      });
+
+  // Un tipo que el catalogo ya no tiene igual se muestra: la version vieja que
+  // lo usaba existe, y callarlo haria que las chips no sumaran el total.
+  var conocidos = {};
+  (CAT.tipos || []).forEach(function (t) { conocidos[t.id] = true; });
+  Object.keys(porTipo).forEach(function (id) {
+    if (!conocidos[id]) chips.push('<span class="rm-tipo">' + porTipo[id] + ' ' + esc(id) + '</span>');
+  });
+
+  return chips.length ? '<span class="rm-tipos">' + chips.join('') + '</span>' : '';
+}
+
+/**
  * Lo que salio en una version: cada actividad con su codigo, su nombre y en
  * que fase quedo.
  *
@@ -2839,13 +2883,22 @@ function pintarRoadmap() {
  * cuales.
  */
 function detalleVersion(v) {
-  return '<div class="rm-detalle-cab">Actividades de la versión ' + esc(v.numeroVersion) + '</div>' +
+  var n = v.actividades.length;
+  var enProduccion = v.desplegadas === undefined ? null : v.desplegadas;
+  var resumen = 'Actividades de la versión ' + v.numeroVersion +
+      (enProduccion === null ? ''
+        : ' · ' + enProduccion + ' de ' + n +
+          (enProduccion === n ? ' ya en producción' : ' en producción'));
+
+  return '<div class="rm-detalle-cab">' + esc(resumen) + '</div>' +
     v.actividades.slice().sort(function (a, b) {
       return String(a.id).localeCompare(String(b.id), 'es');
     }).map(function (a) {
       return '<div class="rm-act">' +
         '<span class="rm-act-id">' + esc(a.id) + '</span>' +
         '<span class="rm-act-nombre">' + esc(a.nombre) + '</span>' +
+        '<span><span class="rm-tipo ' + (CLASE_TIPO[a.tipo] || '') + '">' +
+          esc(nombreDeCatalogo(CAT.tipos, a.tipo) || 'sin tipo') + '</span></span>' +
         '<span class="rm-act-fase">' + esc(nombreFase(a.fase)) + '</span>' +
         '<span><span class="badge ' + (CLASE_ESTADO[a.estado] || 'e-por-iniciar') + '">' +
           esc(nombreEstado(a.estado)) + '</span></span>' +

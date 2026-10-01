@@ -2140,6 +2140,37 @@ formularios con validación propia, no solo al nuevo. Ahora la acción se llama 
 modo que lo que lance se convierte en un rechazo y se muestra como error. Hay prueba, comprobada
 contra el código anterior.
 
+### D-103 · El contador de cada versión, abierto por tipo
+
+En el roadmap, cada versión mostraba cuántas actividades llevaba: un número. Una versión de siete
+ajustes y una de siete cosas nuevas contaban igual y no significan lo mismo —una es mantenimiento y
+la otra es producto—, y el número solo no permitía distinguirlas.
+
+Ahora el contador se abre por tipo: *2 Ajuste · 1 Mejora · 2 Nuevo*. Y en el detalle, cada actividad
+dice de qué tipo es.
+
+**Con el nombre completo, no con la inicial.** "3 N" obliga a recordar qué es N, y el ancho que ahorra
+no vale eso. Es el mismo criterio que se aplicó al Business Owner y al Product Owner en el listado de
+iniciativas.
+
+**En el orden del catálogo, no en el que vengan las cuentas.** Si cada fila ordenara sus pastillas
+según cuál tiene más, la vista cambiaría de orden fila a fila y comparar dos versiones exigiría leer
+cada etiqueta. Y si alguien renombra un tipo desde Administración, el contador lo dice con el nombre
+nuevo: las cuentas salen del identificador, los rótulos del catálogo.
+
+**Un tipo retirado del catálogo igual se muestra**, con su identificador crudo. Callarlo haría que las
+pastillas no sumaran el total, y un contador que no cuadra con su propio desglose es peor que uno sin
+desglose.
+
+**"Asignadas" y "en producción" no son lo mismo.** La versión agrupa lo que tiene comprometido; lo que
+de verdad salió es lo que llegó a la fase Producción. En una versión ya desplegada coinciden, pero en
+una planeada no, y confundirlas haría leer como entregado algo que todavía se está construyendo. El
+detalle lo dice en su cabecera: *"1 de 3 en producción"*.
+
+**El ensayo del roadmap no tenía constructor.** `ensayoRoadmap.html` era una copia escrita a mano, de
+las que envejecen y hacen que la prueba pase sobre un código que no está desplegado —el error de
+D-79—. Ahora lo arma `armarRoadmap.py` desde los archivos reales, como los demás.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
