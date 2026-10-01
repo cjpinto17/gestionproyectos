@@ -117,6 +117,40 @@ function faseSeOrdena(faseId) {
   return FASES_ORDENABLES.indexOf(String(faseId || '')) !== -1;
 }
 
+/**
+ * Las fases que exigen aprobacion antes de dejar salir una solicitud.
+ *
+ * Son las tres donde todavia se decide SI se hace y COMO: la demanda que entra,
+ * lo que se prioriza y lo que se diseña. De Desarrollo en adelante lo que hay es
+ * ejecucion de algo ya aprobado, y poner otra compuerta ahi solo frenaria al
+ * equipo sin agregar criterio (D-98).
+ */
+var FASES_CON_APROBACION = ['FAS-01', 'FAS-02', 'FAS-03'];
+
+/** @return {boolean} Si para salir de esa fase hace falta una aprobacion. */
+function faseExigeAprobacion(faseId) {
+  return FASES_CON_APROBACION.indexOf(String(faseId || '')) !== -1;
+}
+
+/**
+ * Estados que ya no se ofrecen, pero que siguen existiendo.
+ *
+ * "Aprobada" dejo de ser un estado: la aprobacion es ahora un dato aparte, con
+ * su propio responsable y su propia fecha, porque una solicitud puede estar en
+ * progreso Y aprobada a la vez —son dos cosas distintas y el estado solo podia
+ * decir una—. Se retira de las listas donde alguien escoge, pero NO del
+ * catalogo: la bitacora guarda movimientos viejos hacia EST-03 y sin el nombre
+ * mostraria el codigo crudo (D-98).
+ */
+var ESTADOS_RETIRADOS = ['EST-03'];
+
+/** @return {!Array<!Object>} Los estados que todavia se pueden escoger. */
+function getEstadosVigentes_() {
+  return ESTADOS.filter(function (e) {
+    return ESTADOS_RETIRADOS.indexOf(e.id) === -1;
+  });
+}
+
 /** Tipo de iniciativa: naturaleza de la inversion. */
 var TIPOS_INICIATIVA = [
   { id: 'TIN-01', nombre: 'Negocio' },
@@ -457,6 +491,12 @@ var ESQUEMA_TRANSACCIONAL = {
       // arrastrando (D-96). Solo lo usan las tres primeras fases.
       { campo: 'Orden_Columna', etiqueta: 'Orden en la columna', tipo: 'number',
         ayuda: 'Orden de atención dentro de su columna del tablero. Se acomoda arrastrando las tarjetas en Gestión de fábrica; no hace falta escribirlo aquí.' },
+      // La aprobacion de la fase en la que esta HOY. Se borra al cambiar de
+      // fase, porque cada compuerta se aprueba por separado (D-98).
+      { campo: 'Aprobada', etiqueta: 'Aprobada en su fase', tipo: 'boolSN',
+        ayuda: 'Si ya tiene el visto bueno para salir de la fase en la que está. Se aprueba desde la tarjeta del tablero y se borra sola al pasar a la fase siguiente.' },
+      { campo: 'Aprobada_Por', etiqueta: 'Aprobada por', tipo: 'enum', fk: 'Usuarios' },
+      { campo: 'Fecha_Aprobacion', etiqueta: 'Fecha de aprobacion', tipo: 'datetime' },
       { campo: 'Version_Semantica', etiqueta: 'Version estimada', tipo: 'text' },
       { campo: 'Responsable_ID', etiqueta: 'Responsable actual', tipo: 'enum', fk: 'Usuarios' },
       // Las ocho fases dejan su estampa. Gestion de la demanda y Backlog no la

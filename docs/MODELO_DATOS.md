@@ -83,7 +83,10 @@ Portal Empresarial (`PL-08`).
 | `FAS-08` | Producción | 8 |
 
 ### `Estados`
-`ID_Estado` (PK), `Nombre_Estado`. Seis estados (ver decisión D-01).
+`ID_Estado` (PK), `Nombre_Estado`. Seis estados (ver decisión D-01), de los cuales
+**`EST-03` «Aprobada» ya no se ofrece**: la aprobación pasó a ser un dato aparte de la
+solicitud (D-98). Sigue en el catálogo para que la bitácora muestre el nombre de los
+movimientos antiguos.
 
 ### `Tipos_Solicitud`
 `ID_Tipo` (PK), `Nombre_Tipo`: Nueva funcionalidad, Mejora en una funcionalidad, Ajuste.
@@ -112,6 +115,11 @@ hoja, con cuatro dígitos (ver D-43).
 `Prioridad`, `Plataforma`.
 
 **Documentación:** `Doc_Requerimiento_URL` (se pega a mano), `Link_Taiga`. La carpeta de Drive es de la **iniciativa** (`Proyectos.Drive_URL`), no de cada solicitud.
+
+**Aprobación (D-98):** `Aprobada` (SÍ/NO), `Aprobada_Por` (FK → `Usuarios`),
+`Fecha_Aprobacion`. Describen la fase en la que la solicitud está **hoy**: al cambiar de fase
+se limpian, porque cada compuerta se aprueba por separado. Solo se piden para salir de
+*Gestión de la demanda*, *Backlog* y *Análisis y diseño*.
 
 **Orden de atención:** `Orden_Columna` — el puesto de la solicitud dentro de su columna del
 tablero, puesto a mano arrastrando. Solo lo usan *Gestión de la demanda*, *Backlog* y

@@ -489,6 +489,16 @@
   /* Orden de atencion, en las columnas que se acomodan a mano */
   .t-pos{background:var(--navy);color:#fff;border-radius:5px;min-width:18px;text-align:center;
          padding:1px 5px;font-size:10.5px;font-family:var(--display);font-weight:700;flex:none}
+
+  /* Sello de aprobacion de la tarjeta: un circulo vacio o un visto verde */
+  .t-aprob{margin-left:auto;background:none;border:0;padding:1px 3px;font-size:14px;line-height:1;
+           color:var(--ink-faint);cursor:pointer;border-radius:5px;flex:none}
+  .t-aprob:hover{background:var(--line-soft)}
+  .t-aprob.si{color:var(--verde)}
+  .t-aprob.fijo{cursor:default}
+  .t-aprob.fijo:hover{background:none}
+  /* El lapiz deja de empujar: con el sello ya hay algo que ocupa el espacio */
+  .t-aprob + .t-editar{margin-left:0}
   /* La raya que muestra donde va a caer la tarjeta al soltarla */
   .tarjeta.sitio-antes{box-shadow:0 -3px 0 -1px var(--esmeralda)}
   .col.sitio-final .tarjeta:last-of-type{box-shadow:0 3px 0 -1px var(--esmeralda)}

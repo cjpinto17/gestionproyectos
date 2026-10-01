@@ -51,6 +51,8 @@ var CATALOGO_PERMISOS = [
   { grupo: 'Gestión fábrica', campo: 'Mover_Fase', nombre: 'Mover de fase' },
   { grupo: 'Gestión fábrica', campo: 'Retroceder_Fase', nombre: 'Devolver a fase anterior' },
   { grupo: 'Gestión fábrica', campo: 'Saltar_Fases', nombre: 'Saltar fases' },
+  { grupo: 'Gestión fábrica', campo: 'Aprobar_Solicitud',
+    nombre: 'Aprobar para que salga de su fase' },
   { grupo: 'Gestión fábrica', campo: 'Bloquear_Solicitud', nombre: 'Marcar y levantar bloqueos' },
   { grupo: 'Gestión fábrica', campo: 'Comentar_Solicitud', nombre: 'Comentar' },
   { grupo: 'Gestión fábrica', campo: 'Migrar_Solicitud', nombre: 'Migrar históricas' },
@@ -79,14 +81,15 @@ var PERMISO_ADMINISTRAR = 'Administrar';
  */
 var PERMISOS_DE_FABRICA = {
   'RO-01': { menu: true },                                        // Solicitante
-  'RO-02': { menu: true, iniciativa: true, embudo: true },        // Product Owner
+  'RO-02': { menu: true, iniciativa: true, embudo: true,          // Product Owner
+             aprueba: true },
   'RO-03': { menu: true },                                        // Analista Fabrica
   'RO-04': { menu: true },                                        // Desarrollador
   'RO-05': { menu: true },                                        // Analista QA
   'RO-06': { menu: true },                                        // Equipo UAT
   'RO-07': { menu: true },                                        // Comite CAB
   'RO-08': { menu: true, iniciativa: true, embudo: true,          // Administrador
-             admin: true, versiones: true },
+             admin: true, versiones: true, aprueba: true },
   'RO-09': { menu: true },                                        // Business Owner
   'RO-10': { menu: true, editaSolicitud: true },                  // PM Fabrica SW
   'RO-11': { menu: true, editaSolicitud: true, versiones: true }  // Lider proyecto FS
@@ -151,6 +154,7 @@ function permisosDeFabrica_(rolId) {
     Bloquear_Solicitud: !!f.embudo,
     // Quien opera el embudo tambien mueve tareas de fabrica; se separa para
     // poder darselo a quien atiende tareas sin darle el tablero completo.
+    Aprobar_Solicitud: !!f.aprueba,
     Mover_Estado_Tarea: !!f.embudo,
     Gestionar_Versiones: !!f.versiones
   };
@@ -265,6 +269,11 @@ function puedeOperarTablero(rolId) {
 /** @return {boolean} */
 function puedeBloquear(rolId) {
   return tienePermiso(rolId, 'Bloquear_Solicitud');
+}
+
+/** @return {boolean} True si el rol puede aprobar una solicitud en su fase. */
+function puedeAprobar(rolId) {
+  return tienePermiso(rolId, 'Aprobar_Solicitud');
 }
 
 /** @return {boolean} True si el rol puede mover tareas entre estados. */

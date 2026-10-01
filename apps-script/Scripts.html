@@ -1536,6 +1536,7 @@ function tarjetaActividad(s, posicion) {
         esc(nombreEstado(s.Estado_Actual)) + '</span>' +
       (bloq ? '<button class="t-alerta" data-alerta="' + esc(s.ID_Solicitud) +
               '" aria-label="Ver causal de bloqueo">&#9888;&#65039;</button>' : '') +
+      selloAprobacion(s) +
       (CTX.puedeEditarSolicitud ? '<button class="t-editar" data-editar-sol="' +
               esc(s.ID_Solicitud) + '" title="Editar la solicitud" ' +
               'aria-label="Editar la solicitud">&#9998;</button>' : '') +
@@ -1549,6 +1550,68 @@ function tarjetaActividad(s, posicion) {
       '<span>' + esc(s.Nombre_Responsable || '—') + '</span>' +
       enlacesDeSolicitud(s) + '</div>' +
   '</article>';
+}
+
+/** Gemelo de faseExigeAprobacion() del servidor. */
+function faseExigeAprobacionCliente(faseId) {
+  return (CAT.fasesConAprobacion || []).indexOf(faseId) !== -1;
+}
+
+function estaAprobada(s) {
+  return String(s.Aprobada || '').toUpperCase().indexOf('S') === 0;
+}
+
+/**
+ * El sello de aprobacion de la tarjeta, en las tres fases que la piden.
+ *
+ * Quien puede aprobar ve un boton y decide ahi mismo, sin abrir la solicitud:
+ * aprobar es una decision de un segundo y obligar a entrar al detalle la volvia
+ * un tramite. Quien no puede ve lo mismo, pero sin poder oprimirlo: el estado de
+ * la aprobacion le interesa a todo el equipo, no solo a quien la otorga (D-98).
+ */
+function selloAprobacion(s) {
+  if (esTarea(s) || !faseExigeAprobacionCliente(s.Fase_Actual)) return '';
+
+  var aprobada = estaAprobada(s);
+  var puede = permiso('Aprobar_Solicitud');
+  var titulo = aprobada
+      ? (puede ? 'Aprobada · clic para retirar el visto bueno' : 'Aprobada')
+      : (puede ? 'Sin aprobar · clic para aprobar' : 'Sin aprobar');
+
+  return '<' + (puede ? 'button' : 'span') + ' class="t-aprob' + (aprobada ? ' si' : '') +
+    (puede ? '' : ' fijo') + '"' +
+    (puede ? ' data-aprobar="' + esc(s.ID_Solicitud) + '"' : '') +
+    ' title="' + esc(titulo) + '" aria-label="' + esc(titulo) + '">' +
+    (aprobada ? '&#10004;' : '&#9711;') +
+    '</' + (puede ? 'button' : 'span') + '>';
+}
+
+/**
+ * Da o quita el visto bueno desde la tarjeta.
+ *
+ * Se pinta de una vez y se revierte si el servidor dice que no, igual que el
+ * arrastre. Y NO se recarga el tablero en exito: lo unico que cambio es un
+ * dato de esa tarjeta, que ya esta en pantalla; pedir todo otra vez dejaria la
+ * pagina en blanco varios segundos por un clic (D-97).
+ */
+function alternarAprobacion(id) {
+  var s = solicitudPorId(id);
+  if (!s) return;
+
+  var antes = { Aprobada: s.Aprobada, Aprobada_Por: s.Aprobada_Por };
+  var aprobar = !estaAprobada(s);
+  s.Aprobada = aprobar ? 'SI' : 'NO';
+  s.Aprobada_Por = aprobar ? CTX.idUsuario : '';
+  pintarKanban();
+
+  api('aprobarSolicitud', id, aprobar).then(function () {
+    toast(id + (aprobar ? ' aprobada en ' : ' sin aprobar en ') + nombreFase(s.Fase_Actual) + '.');
+  }).catch(function (err) {
+    s.Aprobada = antes.Aprobada;
+    s.Aprobada_Por = antes.Aprobada_Por;
+    pintarKanban();
+    fallo(err);
+  });
 }
 
 /* --- Arrastrar y soltar --- */
@@ -1650,7 +1713,18 @@ function validarSoltar_(s, col) {
         ? { permitido: true, motivo: '' }
         : { permitido: false, motivo: 'Su rol no puede reordenar el tablero: es de consulta.' };
   }
-  return validarTransicionCliente(s.Fase_Actual, col.dataset.fase);
+  var v = validarTransicionCliente(s.Fase_Actual, col.dataset.fase);
+  if (!v.permitido) return v;
+
+  // La compuerta de aprobacion, avisada antes de soltar y no despues: espejo de
+  // faltaAprobacion_() del servidor (D-98).
+  if (faseExigeAprobacionCliente(s.Fase_Actual) && !estaAprobada(s) &&
+      ordenDeFase(col.dataset.fase) > ordenDeFase(s.Fase_Actual)) {
+    return { permitido: false,
+             motivo: 'Sin aprobar en "' + nombreFase(s.Fase_Actual) + '". ' +
+                     'Necesita el visto bueno antes de avanzarla.' };
+  }
+  return v;
 }
 document.addEventListener('drop', function (e) {
   var col = e.target.closest('.col');
@@ -1803,6 +1877,8 @@ document.addEventListener('click', function (e) {
     formularioIniciativa(lapizIni.dataset.editarIni);
     return;
   }
+  var sello = e.target.closest('[data-aprobar]');
+  if (sello) { alternarAprobacion(sello.dataset.aprobar); return; }
   var lapiz = e.target.closest('[data-editar-sol]');
   if (lapiz) { editarSolicitud(lapiz.dataset.editarSol); return; }
   var alerta = e.target.closest('[data-alerta]');

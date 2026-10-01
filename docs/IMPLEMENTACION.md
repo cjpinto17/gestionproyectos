@@ -586,6 +586,8 @@ lista las del archivo abierto.
 | `normalizarTareas` | `Mantenimiento.gs` | Sacar del embudo las solicitudes de tipo *Tarea* y traducir su fase a estado — **solo simula** |
 | `normalizarTareasAplicar` | `Mantenimiento.gs` | Lo mismo, pero **escribiendo de verdad** |
 | `reconstruirEstampas` | `Mantenimiento.gs` | Llenar desde la bitácora las fechas de fase que quedaron vacías — **solo simula** |
+| `normalizarAprobadas` | `Mantenimiento.gs` | Sacar del estado *Aprobada* las solicitudes que lo tengan — **solo simula** |
+| `normalizarAprobadasAplicar` | `Mantenimiento.gs` | Lo mismo, pero **escribiendo de verdad** |
 | `reconstruirEstampasAplicar` | `Mantenimiento.gs` | Lo mismo, pero **escribiendo de verdad** |
 | `renumerarSolicitudes` | `Mantenimiento.gs` | Llevar los ID viejos al formato `SOL-0015` — **solo simula** |
 | `renumerarSolicitudesAplicar` | `Mantenimiento.gs` | Lo mismo, pero **escribiendo de verdad** |

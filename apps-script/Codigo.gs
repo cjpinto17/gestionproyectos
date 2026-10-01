@@ -606,7 +606,9 @@ function getCatalogos() {
     plataformas: getPlataformas_(),
     usuarios: leerTabla_('Usuarios'),
     fases: FASES,
-    estados: ESTADOS,
+    estados: getEstadosVigentes_(),
+    // El catalogo completo, solo para resolver nombres de datos viejos.
+    estadosTodos: ESTADOS,
     estadosIniciativa: ESTADOS_INICIATIVA,
     tipos: getTiposSolicitud_(),
     tiposIniciativa: getTiposIniciativa_(),
@@ -619,6 +621,7 @@ function getCatalogos() {
     estadosTarea: ESTADOS_TABLERO_TAREA,
     // Cuales columnas del tablero se ordenan a mano (D-96).
     fasesOrdenables: FASES_ORDENABLES,
+    fasesConAprobacion: FASES_CON_APROBACION,
     lineasEstrategicas: getLineasEstrategicas_(),
     verticales: getVerticales_()
   };
@@ -721,7 +724,7 @@ function armarDatosKanban_(filtros) {
     usuarios: usuarios,
     plataformas: getPlataformas_(),
     fases: FASES,
-    estados: ESTADOS,
+    estados: ESTADOS,            // completo: hay filas viejas en EST-03
     tipos: getTiposSolicitud_(),
     prioridades: PRIORIDADES,
     causales: getCausalesBloqueo_(),
@@ -1468,6 +1471,9 @@ function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino) {
     var validacion = validarTransicion(ctx.rolId, s.Fase_Actual, faseDestino);
     if (!validacion.permitido) throw new Error(validacion.motivo);
 
+    var falta = faltaAprobacion_(s, faseDestino);
+    if (falta) throw new Error(falta);
+
     if (String(s.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0) {
       throw new Error('La solicitud esta bloqueada. Levante el bloqueo antes de avanzarla.');
     }
@@ -1484,6 +1490,12 @@ function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino) {
     nuevo.Fecha_Ultimo_Cambio = ahora;
     // Entra al final de su nueva columna, no donde la dejo la anterior (D-96).
     nuevo.Orden_Columna = ordenAlFinalDe_(faseDestino, idSolicitud);
+    // Cada compuerta se aprueba por separado: al cambiar de fase la aprobacion
+    // vuelve a cero, porque aprobaba la salida de la fase anterior y esa ya se
+    // uso. Si no se borrara, aprobar una vez abriria las tres (D-98).
+    nuevo.Aprobada = 'NO';
+    nuevo.Aprobada_Por = '';
+    nuevo.Fecha_Aprobacion = '';
     sellarEstampas_(nuevo, faseOrigen, faseDestino, ahora);
 
     escribirFila_('Solicitudes', s._fila, nuevo);
@@ -1503,6 +1515,76 @@ function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino) {
 
     return { ok: true, idSolicitud: idSolicitud, faseActual: faseDestino,
              estadoActual: nuevoEstado, avisos: avisos };
+  });
+}
+
+/** @return {boolean} Si la solicitud tiene hoy el visto bueno de su fase. */
+function estaAprobada_(solicitud) {
+  return String(solicitud.Aprobada || '').toUpperCase().indexOf('S') === 0;
+}
+
+/**
+ * El motivo por el que una solicitud no puede salir todavia de su fase, o ''.
+ *
+ * Solo frena hacia adelante. Devolver una solicitud a una fase anterior no pide
+ * aprobacion: se devuelve justamente porque algo no estaba bien, y exigir un
+ * visto bueno para reconocerlo seria pedir que alguien apruebe un retroceso.
+ *
+ * Las tareas no pasan por aqui: no recorren el embudo (D-79).
+ * @private
+ */
+function faltaAprobacion_(solicitud, faseDestino) {
+  if (esTipoTarea(solicitud.Tipo_Solicitud)) return '';
+  if (!faseExigeAprobacion(solicitud.Fase_Actual)) return '';
+  if (ordenDeFase(faseDestino) <= ordenDeFase(solicitud.Fase_Actual)) return '';
+  if (estaAprobada_(solicitud)) return '';
+
+  return 'La solicitud ' + solicitud.ID_Solicitud + ' no ha sido aprobada en "' +
+         nombreDeFase_(solicitud.Fase_Actual) + '". Quien tenga el permiso de aprobar ' +
+         'debe darle el visto bueno antes de avanzarla.';
+}
+
+/**
+ * Da o quita el visto bueno de una solicitud en la fase donde esta.
+ *
+ * Se llama desde el icono de la tarjeta, sin abrirla: aprobar es una decision
+ * de un segundo y obligar a entrar al detalle para tomarla la volvia un tramite.
+ *
+ * Aprobar no es avanzar, asi que una solicitud bloqueada SI se puede aprobar:
+ * el visto bueno queda dado y la tarjeta avanzara cuando se levante el bloqueo.
+ *
+ * @param {string} idSolicitud
+ * @param {boolean} aprobar true da el visto bueno, false lo retira.
+ * @return {!Object}
+ */
+function aprobarSolicitud(idSolicitud, aprobar) {
+  var ctx = exigirPermiso_('Aprobar_Solicitud',
+      'Su rol no puede aprobar solicitudes.');
+
+  return conBloqueo_(function () {
+    var s = buscarPorPk_('Solicitudes', idSolicitud);
+    if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+    if (esTipoTarea(s.Tipo_Solicitud)) {
+      throw new Error('Una tarea no se aprueba: no recorre el embudo de fases.');
+    }
+    if (!faseExigeAprobacion(s.Fase_Actual)) {
+      throw new Error('La fase "' + nombreDeFase_(s.Fase_Actual) + '" no pide aprobación. ' +
+                      'Solo la piden Gestión de la demanda, Backlog y Análisis y diseño.');
+    }
+
+    var ahora = new Date();
+    var nuevo = {};
+    Object.keys(s).forEach(function (k) { if (k !== '_fila') nuevo[k] = s[k]; });
+    nuevo.Aprobada = aprobar ? 'SI' : 'NO';
+    nuevo.Aprobada_Por = aprobar ? ctx.idUsuario : '';
+    nuevo.Fecha_Aprobacion = aprobar ? ahora : '';
+    nuevo.Fecha_Ultimo_Cambio = ahora;
+
+    escribirFila_('Solicitudes', s._fila, nuevo);
+
+    return { ok: true, idSolicitud: idSolicitud, aprobada: !!aprobar,
+             aprobadaPor: nuevo.Aprobada_Por, fecha: nuevo.Fecha_Aprobacion,
+             fase: s.Fase_Actual };
   });
 }
 
@@ -2227,7 +2309,10 @@ function opcionesDeReferencia_(columnas) {
   // Los catalogos ampliables salen de la hoja, no de la lista del codigo: si
   // alguien agrego una plataforma desde Administracion, tiene que aparecer aqui.
   var catalogos = {
-    Roles: getRoles_(), Fases: FASES, Estados: ESTADOS, Estados_Iniciativa: ESTADOS_INICIATIVA,
+    // Los estados se ofrecen sin los retirados: "Aprobada" dejo de ser un
+    // estado y pasó a ser un dato aparte (D-98).
+    Roles: getRoles_(), Fases: FASES, Estados: getEstadosVigentes_(),
+    Estados_Iniciativa: ESTADOS_INICIATIVA,
     Prioridad: PRIORIDADES,
     Tipos_Solicitud: getTiposSolicitud_(), Tipos_Iniciativa: getTiposIniciativa_(),
     Causales_Bloqueo: getCausalesBloqueo_(), Plataforma_Digital: getPlataformas_(),
@@ -2689,6 +2774,7 @@ var METODOS_PUBLICOS = {
   actualizarSolicitudCompleta: true,
   cambiarFaseSolicitud: true,
   reordenarSolicitud: true,
+  aprobarSolicitud: true,
   cambiarEstadoTarea: true,
   marcarBloqueo: true,
   refrescarDatos: true,

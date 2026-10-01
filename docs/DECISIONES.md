@@ -1880,6 +1880,51 @@ verdad —al cambiar de fase, por ejemplo— se deja a la vista mientras llegan 
 lugar de borrarlo para mostrar el esqueleto. El esqueleto solo tiene sentido cuando no hay nada que
 mostrar.
 
+### D-98 · Aprobar deja de ser un estado y pasa a ser una compuerta
+
+**"Aprobada" era un estado, y no podía serlo.** Una solicitud puede estar *en progreso* y *aprobada*
+a la vez —son dos cosas distintas— y el campo de estado solo podía decir una. Por eso casi no se
+usaba: ponerla en *Aprobada* costaba perder la información de que el trabajo iba en curso.
+
+Ahora la aprobación es un dato propio, con su responsable y su fecha. `EST-03` **sale de las listas
+donde alguien escoge**, pero **no del catálogo**: la bitácora guarda movimientos viejos hacia ese
+estado y sin el nombre mostraría el código crudo. Es el mismo criterio de las columnas retiradas
+(D-60): se deja de ofrecer, no se borra.
+
+**Tres compuertas, no una.** *Gestión de la demanda*, *Backlog* y *Análisis y diseño* son las fases
+donde todavía se decide **si** se hace y **cómo**; de *Desarrollo* en adelante lo que hay es
+ejecución de algo ya aprobado, y otra compuerta ahí solo frenaría al equipo sin agregar criterio.
+Cada una pide su propio visto bueno: **al cambiar de fase la aprobación vuelve a cero**, porque
+aprobaba la salida de la fase anterior y esa ya se usó. Si no se borrara, aprobar una vez abriría
+las tres.
+
+**Devolver no pide aprobación.** Una solicitud se devuelve justamente porque algo no estaba bien;
+exigir un visto bueno para reconocerlo sería pedir que alguien apruebe un retroceso. La compuerta
+solo mira hacia adelante.
+
+**Se aprueba desde la tarjeta, no desde el detalle.** Aprobar es una decisión de un segundo, y
+obligar a abrir la solicitud para tomarla la volvía un trámite. El sello es un círculo vacío o un
+visto verde, y el mismo clic lo quita.
+
+**Quien no puede aprobar igual ve el sello**, sin poder oprimirlo: saber si algo está aprobado le
+interesa a todo el equipo, no solo a quien lo otorga.
+
+**El permiso es configurable.** De fábrica lo tienen Product Owner y Administrador, que es lo que se
+pidió, pero vive en la misma cuadrícula de Administración que todos los demás: mañana se le puede
+dar a otro rol sin tocar código.
+
+**Una solicitud bloqueada sí se puede aprobar.** Avanzar con un bloqueo encima sigue prohibido, pero
+aprobar no es avanzar: el visto bueno queda dado y la tarjeta avanzará cuando se levante el bloqueo.
+Las tareas no se aprueban: no recorren el embudo (D-79).
+
+**Lo que esta decisión no guarda:** el historial de quién aprobó cada compuerta. Los tres campos
+describen la fase donde la solicitud está hoy, y al avanzar se limpian. Si más adelante hace falta
+auditar las aprobaciones una por una, es una tabla aparte y no un cambio a esto.
+
+**Para lo que ya existe** está `normalizarAprobadas` (`Mantenimiento.gs`): pasa a *En progreso* las
+solicitudes que estén en *Aprobada* y las marca aprobadas, conservando las dos cosas que ese estado
+significaba. No inventa quién aprobó ni cuándo —esos datos no existían—, así que quedan vacíos.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

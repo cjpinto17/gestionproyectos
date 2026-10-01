@@ -637,6 +637,86 @@ function reconstruirEstampas(aplicar) {
   });
 }
 
+/**
+ * Saca del estado "Aprobada" las solicitudes que lo tengan.
+ *
+ * "Aprobada" dejo de ser un estado: la aprobacion es ahora un dato aparte, con
+ * su responsable y su fecha (D-98). Una solicitud que lo tenia estaba diciendo
+ * dos cosas con un solo campo —que va en curso y que tiene visto bueno—, asi
+ * que se conservan las dos: pasa a "En progreso" y queda marcada como aprobada.
+ *
+ * No se inventa quien aprobo ni cuando: esos datos no existian. Quedan vacios,
+ * y la hoja muestra la aprobacion sin responsable, que es la verdad.
+ *
+ * Se ejecuta primero sin nada entre parentesis para ver que haria, y luego con
+ * normalizarAprobadasAplicar para escribir.
+ *
+ * @param {boolean=} aplicar
+ * @return {!Object}
+ */
+function normalizarAprobadas(aplicar) {
+  exigirOperador_();
+
+  return conBloqueo_(function () {
+    var columnas = asegurarColumnas_('Solicitudes');
+    var iId = columnas.indexOf('ID_Solicitud');
+    var iEstado = columnas.indexOf('Estado_Actual');
+    var iFase = columnas.indexOf('Fase_Actual');
+    var iAprob = columnas.indexOf('Aprobada');
+    if (iEstado === -1 || iAprob === -1) {
+      throw new Error('Faltan columnas en la hoja Solicitudes. ' +
+                      'Ejecute actualizarEstructura antes que esta funcion.');
+    }
+
+    var hoja = getHoja_('Solicitudes');
+    var ultimaFila = hoja.getLastRow();
+    if (ultimaFila < 2) return { total: 0, porCambiar: 0, mensaje: 'No hay solicitudes.' };
+
+    var rango = hoja.getRange(2, 1, ultimaFila - 1, columnas.length);
+    var valores = rango.getValues();
+    var porCambiar = 0, muestra = [], porFase = {};
+
+    for (var i = 0; i < valores.length; i++) {
+      var fila = valores[i];
+      if (!String(fila[iId] || '').trim()) continue;
+      if (String(fila[iEstado]) !== 'EST-03') continue;
+
+      var fase = iFase === -1 ? '' : String(fila[iFase] || '');
+      porFase[fase || '(sin fase)'] = (porFase[fase || '(sin fase)'] || 0) + 1;
+
+      if (aplicar) {
+        fila[iEstado] = 'EST-02';
+        fila[iAprob] = 'SI';
+      }
+      porCambiar++;
+      if (muestra.length < 10) {
+        muestra.push({ id: fila[iId], fase: fase, quedaEn: 'EST-02 + aprobada' });
+      }
+    }
+
+    if (aplicar && porCambiar) {
+      rango.setValues(valores);
+      invalidarTabla_('Solicitudes');
+    }
+
+    var reporte = {
+      total: valores.length,
+      porCambiar: porCambiar,
+      porFase: porFase,
+      muestra: muestra,
+      mensaje: porCambiar === 0
+          ? 'Ninguna solicitud esta en el estado "Aprobada": no hay nada que migrar.'
+          : (aplicar
+              ? 'Se pasaron ' + porCambiar + ' solicitudes a "En progreso", marcadas como aprobadas.'
+              : 'SIMULACION: se pasarian ' + porCambiar + ' solicitudes de "Aprobada" a ' +
+                '"En progreso", marcadas como aprobadas. Ejecute normalizarAprobadasAplicar ' +
+                'para hacerlo.')
+    };
+    Logger.log(JSON.stringify(reporte, null, 2));
+    return reporte;
+  });
+}
+
 /* ================================================================== */
 /* Gemelas que aplican, para poder usarlas desde el editor             */
 /* ================================================================== */
@@ -651,6 +731,11 @@ function reconstruirEstampas(aplicar) {
  * editor y el nombre dice cual es cual: la corta simula, la que termina en
  * "Aplicar" escribe. Nadie tiene que escribir codigo para usarlas.
  */
+
+/** Aplica de verdad lo que simula normalizarAprobadas. */
+function normalizarAprobadasAplicar() {
+  return normalizarAprobadas(true);
+}
 
 /** Aplica de verdad lo que simula reconstruirEstampas. */
 function reconstruirEstampasAplicar() {
