@@ -1047,9 +1047,20 @@ function indicadoresRoadmap_(datos, porPlataforma) {
     porPlat[k].total++;
     porPlat[k].tipos[s.Tipo_Solicitud] = (porPlat[k].tipos[s.Tipo_Solicitud] || 0) + 1;
   });
+  // Que plataformas tienen al menos una version en el roadmap. Una que entrega a
+  // produccion y no aparece aqui no es un error de la mezcla: es un hallazgo.
+  // Esta mezcla cuenta ACTIVIDADES entregadas, con o sin version, mientras que
+  // el resto de la pagina sale de las versiones; sin decirlo, ver una plataforma
+  // que no esta en ninguna version se lee como un dato inventado (D-109).
+  var conVersiones = {};
+  Object.keys(porPlataforma).forEach(function (k) {
+    if (porPlataforma[k].length) conVersiones[k] = true;
+  });
+
   var mezclaPorPlataforma = Object.keys(porPlat).map(function (k) {
     return { plataformaId: k, plataforma: nombrePlataforma[k] || 'Sin plataforma',
-             total: porPlat[k].total, tipos: conPorcentaje(porPlat[k].tipos, porPlat[k].total) };
+             total: porPlat[k].total, sinVersiones: !conVersiones[k],
+             tipos: conPorcentaje(porPlat[k].tipos, porPlat[k].total) };
   }).sort(function (a, b) { return b.total - a.total; });
 
   /* --- 3. Ritmo: cada cuanto llega valor al usuario --- */
@@ -1144,12 +1155,19 @@ function indicadoresRoadmap_(datos, porPlataforma) {
              plataforma: nombrePlataforma[s.Plataforma_ID] || s.Plataforma_ID || '' };
   });
 
+  // Las que entregan a produccion sin registrar una sola version: el roadmap no
+  // esta reflejando lo que esa plataforma saca.
+  var entreganSinRoadmap = mezclaPorPlataforma.filter(function (p) {
+    return p.sinVersiones && p.plataformaId !== 'SIN_PLATAFORMA';
+  }).map(function (p) { return { plataforma: p.plataforma, actividades: p.total }; });
+
   return {
     mezcla: { total: entregadas.length, tipos: conPorcentaje(mezcla, entregadas.length) },
     mezclaPorPlataforma: mezclaPorPlataforma,
     ritmo: { porPlataforma: ritmo, diasPromedio: red_(promedio_(todosLosHuecos), 0) },
     tamano: tamano,
-    higiene: { sinContenido: sinContenido, sinVersion: sinVersion }
+    higiene: { sinContenido: sinContenido, sinVersion: sinVersion,
+               entreganSinRoadmap: entreganSinRoadmap }
   };
 }
 

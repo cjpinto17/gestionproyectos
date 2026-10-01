@@ -2338,6 +2338,33 @@ escriben en español correcto. Los catálogos viejos del código siguen sin tild
 *Analisis y diseno*, *En Produccion*— y conviene corregirlos en algún momento; esta decisión no los
 toca para no mezclar un cambio de datos con uno de funcionalidad.
 
+### D-109 · Una plataforma sin versiones en un panel de versiones
+
+Se reportó que la *Mezcla por plataforma* mostraba una plataforma que no tiene ninguna versión en el
+roadmap. El número era correcto; el panel, mal explicado.
+
+**Por qué aparecía.** La mezcla agrupa por la plataforma de la **actividad**, no de la versión, y
+cuenta todo lo que llegó a Producción —con o sin versión registrada—, porque la pregunta que responde
+es *en qué se fue la capacidad* y dejar fuera lo entregado sin versión la respondería mal. Pero el
+panel quedó en una página de versiones, entre otros tres que sí salen de versiones, y sin decirlo. Lo
+que se leía como un dato inventado era en realidad una diferencia entre dos poblaciones que la
+pantalla no declaraba.
+
+**Lo que no se hizo:** restringir la mezcla a las actividades que tienen versión. Habría hecho
+desaparecer el síntoma y, con él, lo entregado por fuera del roadmap: el indicador mostraría menos
+entregas de las que hubo, que es peor que mostrar una fila que sorprende.
+
+**Lo que se hizo.** El subtítulo del panel dice ahora qué cuenta. Y la plataforma que entrega sin
+tener versiones queda marcada en su propia fila y sale en los *Avisos del plan*: el hallazgo que el
+usuario encontró solo lo encuentra ahora la aplicación, que es donde pertenece. Que una plataforma
+ponga cosas en producción sin registrar una sola versión es exactamente el tipo de hueco que esos
+avisos existen para mostrar.
+
+**Para interpretarlo:** la mezcla no tiene ventana de tiempo, cuenta toda la historia. Una plataforma
+cuyas actividades entraron ya marcadas en Producción durante la carga inicial aparecerá ahí aunque la
+fábrica no haya desplegado nada suyo desde entonces. Si eso estorba, el siguiente paso es darle
+ventana a la mezcla, no quitarle filas.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

@@ -2939,6 +2939,10 @@ function pintarIndicadoresRoadmap(i) {
   $('graficoMezclaPlat').innerHTML = i.mezclaPorPlataforma.length
       ? i.mezclaPorPlataforma.map(function (p) {
           return '<div class="mez-fila"><div class="mez-nombre">' + esc(p.plataforma) +
+            (p.sinVersiones
+              ? '<span class="mez-aviso" title="Esta plataforma entregó a producción pero no ' +
+                'tiene ninguna versión registrada en el roadmap">sin versiones</span>'
+              : '') +
             '<span class="mez-total num">' + p.total + '</span></div>' +
             '<div class="mez-barra">' + p.tipos.filter(function (t) { return t.cuenta; })
               .map(function (t) {
@@ -3025,6 +3029,19 @@ function pintarIndicadoresRoadmap(i) {
       (nSV > 6 ? '<p class="nota" style="margin:4px 0 0">y ' + (nSV - 6) + ' más.</p>' : '') +
       '</div>');
   }
+  if ((i.higiene.entreganSinRoadmap || []).length) {
+    var nSR = i.higiene.entreganSinRoadmap.length;
+    avisos.push('<div class="aviso-plan"><b>' + nSR +
+      (nSR === 1 ? ' plataforma entrega' : ' plataformas entregan') +
+      ' sin registrar versiones.</b> ' + (nSR === 1 ? 'Tiene' : 'Tienen') +
+      ' actividades en producción y ninguna versión en el roadmap, así que lo que ' +
+      (nSR === 1 ? 'saca no aparece' : 'sacan no aparece') + ' en el plan de entregas.' +
+      '<ul>' + i.higiene.entreganSinRoadmap.map(function (p) {
+        return '<li>' + esc(p.plataforma) + ' <span style="color:var(--ink-faint)">(' +
+          p.actividades + (p.actividades === 1 ? ' actividad' : ' actividades') +
+          ' en producción)</span></li>';
+      }).join('') + '</ul></div>');
+  }
   if (i.higiene.sinContenido.length) {
     var nSC = i.higiene.sinContenido.length;
     avisos.push('<div class="aviso-plan"><b>' + nSC +
@@ -3039,7 +3056,8 @@ function pintarIndicadoresRoadmap(i) {
   }
   $('avisosPlan').innerHTML = avisos.length ? avisos.join('')
       : '<p style="color:var(--verde);font-size:13px">El plan está sano: todas las versiones ' +
-        'planeadas tienen contenido y ninguna actividad avanzada se quedó sin versión.</p>';
+        'planeadas tienen contenido, ninguna actividad avanzada se quedó sin versión y todas ' +
+        'las plataformas que entregan tienen su roadmap al día.</p>';
 }
 
 /** La leyenda de colores de la mezcla, para no tener que adivinar las franjas. */
