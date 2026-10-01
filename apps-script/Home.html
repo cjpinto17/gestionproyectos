@@ -33,6 +33,37 @@
     <div class="seccion">Calidad y reproceso</div>
     <div class="kpis k4" id="kpisCalidad"></div>
 
+    <!-- Los indicadores de arriba miden la calidad DENTRO de la fabrica. Estos
+         miden lo que paso DESPUES del despliegue, que es la que el negocio
+         siente (D-101). -->
+    <div class="seccion">Calidad en producci&oacute;n</div>
+    <div class="kpis k4" id="kpisEstabilizacion"></div>
+    <div class="paneles" style="margin-top:10px">
+      <div class="panel">
+        <h3>Causa ra&iacute;z de las estabilizaciones</h3>
+        <div class="sub">D&oacute;nde se originan: es el gr&aacute;fico que dice d&oacute;nde invertir</div>
+        <div id="graficoCausaRaiz"></div>
+      </div>
+      <div class="panel">
+        <h3>Versiones que m&aacute;s costaron</h3>
+        <div class="sub">Incidentes que gener&oacute; cada versi&oacute;n ya desplegada</div>
+        <div id="graficoVersiones"></div>
+      </div>
+    </div>
+    <div class="paneles" style="margin-top:10px">
+      <div class="panel">
+        <h3>Indisponibilidad por mes</h3>
+        <div class="sub">Minutos de servicio ca&iacute;do, en horas de reloj</div>
+        <div id="graficoCaida"></div>
+      </div>
+      <div class="panel">
+        <h3>Tiempo de atenci&oacute;n por prioridad</h3>
+        <div class="sub">Horas desde que se registr&oacute; hasta que qued&oacute; terminada</div>
+        <div id="tablaAtencion"></div>
+      </div>
+    </div>
+    <p class="nota" id="notaReincidencia" hidden></p>
+
     <div class="seccion">Predictibilidad</div>
     <div class="kpis k4" id="kpisPredictibilidad"></div>
     <div class="paneles" style="margin-top:10px">

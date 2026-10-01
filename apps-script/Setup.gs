@@ -182,8 +182,76 @@ function actualizarEstructura() {
     });
   });
 
+  resumen.filasAgregadas = completarCatalogos_(
+      SpreadsheetApp.openById(getIdLibroParametrizacion_()));
+  if (resumen.filasAgregadas.length) limpiarCache_();
+
   Logger.log(JSON.stringify(resumen, null, 2));
   return resumen;
+}
+
+/**
+ * Agrega a los catalogos las filas que el codigo declara y la hoja no tiene.
+ *
+ * Hace falta porque sembrarCatalogos_() solo siembra una hoja VACIA: una vez
+ * sembrada, un catalogo nuevo escrito en el codigo no llegaba nunca a la hoja, y
+ * como los desplegables se arman con lo que dice la hoja, el dato existia en el
+ * codigo y no existia en la aplicacion. Es lo que habria pasado con el tipo
+ * "Estabilizacion" (D-101): declarado, invisible y sin forma de escogerlo.
+ *
+ * Compara por identificador y solo AGREGA. No renombra lo que ya esta —si
+ * alguien tradujo un nombre desde Administracion, su nombre manda— y no borra
+ * nada. La contrapartida, que conviene saber: una fila de catalogo que alguien
+ * borro a proposito vuelve a aparecer la proxima vez que esto corra, porque
+ * desde aqui no hay forma de distinguir "lo borre" de "nunca llego". Se reporta
+ * cada fila que se agrega para que se vea.
+ *
+ * @param {!Spreadsheet} libro Libro de parametrizacion.
+ * @return {!Array<string>} Las filas agregadas, como 'Hoja.ID'.
+ * @private
+ */
+function completarCatalogos_(libro) {
+  var agregadas = [];
+
+  Object.keys(CATALOGOS_AMPLIABLES).forEach(function (nombreHoja) {
+    var hoja = libro.getSheetByName(nombreHoja);
+    if (!hoja || hoja.getLastRow() < 1) return;
+
+    var def = ESQUEMA_PARAMETRIZACION[nombreHoja];
+    if (!def) return;
+    var encabezados = hoja.getRange(1, 1, 1, Math.max(hoja.getLastColumn(), 1)).getValues()[0]
+        .map(function (v) { return String(v || ''); });
+    var campos = def.columnas.map(function (c) { return c.campo; });
+    var colPk = encabezados.indexOf(def.pk);
+    if (colPk === -1) return;                 // la hoja aun no tiene su columna clave
+
+    var existentes = {};
+    if (hoja.getLastRow() > 1) {
+      hoja.getRange(2, colPk + 1, hoja.getLastRow() - 1, 1).getValues()
+          .forEach(function (f) { existentes[String(f[0]).trim()] = true; });
+    }
+
+    var delCodigo = CATALOGOS_AMPLIABLES[nombreHoja]();
+    var nuevas = delCodigo.filter(function (x) { return !existentes[String(x.id)]; });
+    if (!nuevas.length) return;
+
+    // Se escribe en el orden REAL de la hoja, no en el del esquema: si a la hoja
+    // le faltan columnas o las tiene movidas, escribir por posicion del esquema
+    // correria los valores de lugar.
+    var filas = nuevas.map(function (x) {
+      return encabezados.map(function (campo) {
+        var i = campos.indexOf(campo);
+        if (campo === def.pk) return x.id;
+        if (i === 1) return x.nombre;                 // la segunda columna es el nombre
+        if (i === 2 && /^Orden_/.test(campo)) return x.orden || '';
+        return '';
+      });
+    });
+    hoja.getRange(hoja.getLastRow() + 1, 1, filas.length, encabezados.length).setValues(filas);
+    nuevas.forEach(function (x) { agregadas.push(nombreHoja + '.' + x.id); });
+  });
+
+  return agregadas;
 }
 
 /**
@@ -246,6 +314,10 @@ function sembrarCatalogos_(libro) {
 
   sembrarSiVacio_(libro, 'Prioridad', PRIORIDADES.map(function (p) {
     return [p.id, p.nombre];
+  }));
+
+  sembrarSiVacio_(libro, 'Causas_Raiz', CAUSAS_RAIZ.map(function (c) {
+    return [c.id, c.nombre];
   }));
 
   sembrarSiVacio_(libro, 'Causales_Bloqueo', CAUSALES_BLOQUEO.map(function (c) {

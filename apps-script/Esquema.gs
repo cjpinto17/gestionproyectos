@@ -71,36 +71,103 @@ var TIPOS_SOLICITUD = [
   { id: 'TIP-01', nombre: 'Ajuste' },
   { id: 'TIP-02', nombre: 'Mejora' },
   { id: 'TIP-03', nombre: 'Nuevo' },
-  { id: 'TIP-04', nombre: 'Tarea' }
+  { id: 'TIP-04', nombre: 'Tarea' },
+  { id: 'TIP-05', nombre: 'Estabilizacion' }
 ];
 
 /**
- * Tipos que NO recorren el embudo de ocho fases (D-79).
+ * COMO SE GOBIERNA CADA TIPO DE SOLICITUD
+ * ---------------------------------------
+ * Hasta ahora habia dos mundos: las de fabrica, que recorren el embudo de ocho
+ * fases, y las tareas, que se mueven por estado (D-79). La estabilizacion es un
+ * tercero: tampoco recorre el embudo, pero no es una tarea —es la evidencia de
+ * que una version que ya salio a produccion fallo— y ni sus tarjetas ni sus
+ * numeros se pueden mezclar con los de la fabrica (D-101).
  *
- * Una tarea se hace y se cierra: obligarla a pasar por Analisis, QA y UAT es
- * pedirle al equipo que mantenga una ficcion, y el dia que deje de moverla los
- * indicadores quedan mintiendo. Se gobierna por estado.
- *
- * Vive en el codigo y no en la hoja porque de esto depende que metricas cuentan
- * cada registro, que tablero lo muestra y como aporta al avance de su
- * iniciativa. Agregar un tipo desde Administracion no puede decidir eso.
+ * Con dos mundos bastaba una pregunta de si o no. Con tres hace falta decir CUAL,
+ * asi que cada tipo declara su gobierno y de ahi salen todas las preguntas. Lo
+ * que no aparezca aqui es de fabrica: es lo que era antes y lo que seguira
+ * siendo cualquier tipo nuevo que alguien agregue sin leer esto.
  */
-var TIPOS_SIN_EMBUDO = ['TIP-04'];
+var GOBIERNO_FABRICA = 'fabrica';
+var GOBIERNO_TAREA = 'tarea';
+var GOBIERNO_ESTABILIZACION = 'estabilizacion';
+
+var GOBIERNO_POR_TIPO = {
+  'TIP-04': GOBIERNO_TAREA,
+  'TIP-05': GOBIERNO_ESTABILIZACION
+};
 
 /**
  * @param {string} tipoSolicitud
- * @return {boolean} True si el tipo se gobierna por estado y no por fase.
+ * @return {string} 'fabrica', 'tarea' o 'estabilizacion'.
  */
-function esTipoTarea(tipoSolicitud) {
-  return TIPOS_SIN_EMBUDO.indexOf(String(tipoSolicitud || '')) !== -1;
+function gobiernoDeTipo(tipoSolicitud) {
+  return GOBIERNO_POR_TIPO[String(tipoSolicitud || '')] || GOBIERNO_FABRICA;
 }
 
 /**
- * Estados que se muestran como columnas del tablero de tareas.
- * "Aprobada" se deja por fuera —es un concepto de fabrica— y "Cancelada"
- * tambien: no es trabajo pendiente y no merece una columna permanente.
+ * @param {string} tipoSolicitud
+ * @return {boolean} True si recorre el embudo de ocho fases.
  */
+function recorreEmbudo(tipoSolicitud) {
+  return gobiernoDeTipo(tipoSolicitud) === GOBIERNO_FABRICA;
+}
+
+/**
+ * @param {string} tipoSolicitud
+ * @return {boolean} True si se gobierna por estado en el tablero de tareas.
+ */
+function esTipoTarea(tipoSolicitud) {
+  return gobiernoDeTipo(tipoSolicitud) === GOBIERNO_TAREA;
+}
+
+/**
+ * @param {string} tipoSolicitud
+ * @return {boolean} True si es una estabilizacion de produccion.
+ */
+function esTipoEstabilizacion(tipoSolicitud) {
+  return gobiernoDeTipo(tipoSolicitud) === GOBIERNO_ESTABILIZACION;
+}
+
+/**
+ * Los tipos que dejan la fase vacia. Se DERIVA del mapa de gobiernos y no se
+ * escribe aparte: dos listas de lo mismo se desfasan, y cuando se desfasan el
+ * sistema dice una cosa en la pantalla y otra en la hoja (D-100).
+ */
+var TIPOS_SIN_EMBUDO = Object.keys(GOBIERNO_POR_TIPO);
+
 var ESTADOS_TABLERO_TAREA = ['EST-01', 'EST-02', 'EST-04', 'EST-06'];
+
+/**
+ * Columnas del tablero de estabilizacion: por iniciar, en progreso, terminada.
+ *
+ * Son tres y no cuatro: una estabilizacion no se "bloquea" en el sentido del
+ * embudo —se atiende hasta que se resuelve— y "En progreso" es el estado que ya
+ * existe, no uno nuevo. Crear un "En proceso" al lado de "En progreso" habria
+ * dejado dos estados que nadie distingue al leer un reporte (D-101).
+ */
+var ESTADOS_TABLERO_ESTABILIZACION = ['EST-01', 'EST-02', 'EST-06'];
+
+/** El estado en el que una estabilizacion se considera cerrada. */
+var ESTADO_ESTABILIZACION_CERRADA = 'EST-06';
+
+/**
+ * Las prioridades que exigen postmortem e indisponibilidad para poder cerrar.
+ * Critica y Alta: son las que el negocio siente y las que hay que explicar.
+ */
+var PRIORIDADES_CON_POSTMORTEM = ['PRI-01', 'PRI-02'];
+
+/**
+ * @param {string} prioridadId
+ * @return {boolean} True si esa prioridad exige postmortem al cerrar.
+ */
+function exigePostmortem(prioridadId) {
+  return PRIORIDADES_CON_POSTMORTEM.indexOf(String(prioridadId || '')) !== -1;
+}
+
+/** Que tanto del servicio se cayo. */
+var TIPOS_INDISPONIBILIDAD = ['Total', 'Parcial'];
 
 /**
  * Las columnas del tablero de fabrica cuyo orden se pone a mano, arrastrando.
@@ -165,6 +232,30 @@ var PRIORIDADES = [
   { id: 'PRI-02', nombre: 'Alta' },
   { id: 'PRI-03', nombre: 'Media' },
   { id: 'PRI-04', nombre: 'Baja' }
+];
+
+/**
+ * Causa raiz de una estabilizacion.
+ *
+ * Es lista y no texto libre a proposito: en texto libre cada persona la escribe
+ * distinto y a los seis meses no se puede sumar nada. Como lista sale el Pareto
+ * —"el 40% de nuestras estabilizaciones son de configuracion"—, que es el dato
+ * que mueve decisiones. Al lado vive un campo abierto para el detalle del caso,
+ * que es donde va lo que esta lista no puede capturar (D-101).
+ *
+ * Se edita desde Administracion como cualquier otro catalogo.
+ */
+var CAUSAS_RAIZ = [
+  { id: 'CR-01', nombre: 'Codigo o logica' },
+  { id: 'CR-02', nombre: 'Datos' },
+  { id: 'CR-03', nombre: 'Configuracion' },
+  { id: 'CR-04', nombre: 'Infraestructura' },
+  { id: 'CR-05', nombre: 'Integracion con terceros' },
+  { id: 'CR-06', nombre: 'Capacidad o rendimiento' },
+  { id: 'CR-07', nombre: 'Error de operacion' },
+  { id: 'CR-08', nombre: 'Falta de pruebas' },
+  { id: 'CR-09', nombre: 'Cambio no controlado' },
+  { id: 'CR-10', nombre: 'Proveedor externo' }
 ];
 
 var CAUSALES_BLOQUEO = [
@@ -396,6 +487,14 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'Nombre_Causal', etiqueta: 'Nombre de la causal', tipo: 'text', requerido: true }
     ]
   },
+  Causas_Raiz: {
+    etiqueta: 'Causas raiz de estabilizacion',
+    pk: 'ID_Causa',
+    columnas: [
+      { campo: 'ID_Causa', etiqueta: 'ID Causa', tipo: 'text', requerido: true },
+      { campo: 'Nombre_Causa', etiqueta: 'Nombre de la causa', tipo: 'text', requerido: true }
+    ]
+  },
   Lineas_Estrategicas: {
     etiqueta: 'Lineas Estrategicas de Negocio',
     pk: 'ID_LEN',
@@ -491,6 +590,33 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Aprobada_Por', etiqueta: 'Aprobada por', tipo: 'enum', fk: 'Usuarios' },
       { campo: 'Fecha_Aprobacion', etiqueta: 'Fecha de aprobacion', tipo: 'datetime' },
       { campo: 'Version_Semantica', etiqueta: 'Version estimada', tipo: 'text' },
+
+      /* --- Solo para las estabilizaciones (D-101) --- */
+      // Se escogen del Roadmap y no se escriben a mano: "3.4", "v3.4" y "3.4.0"
+      // escritas a mano son tres versiones distintas, y entonces el indicador de
+      // estabilizaciones por version no se puede sumar.
+      { campo: 'Version_Afectada', etiqueta: 'Version afectada', tipo: 'enum', fk: 'Roadmap_Versiones',
+        ayuda: 'En que version ya desplegada apareció el problema. Se escoge del Roadmap de versiones.' },
+      { campo: 'Version_Correccion', etiqueta: 'Version de correccion', tipo: 'enum', fk: 'Roadmap_Versiones',
+        ayuda: 'Con qué versión se despliega el arreglo. Hace falta para poder cerrar la estabilización.' },
+      { campo: 'Causa_Raiz', etiqueta: 'Causa raiz', tipo: 'enum', fk: 'Causas_Raiz',
+        ayuda: 'Qué lo originó. Hace falta para poder cerrar la estabilización.' },
+      { campo: 'Detalle_Causa_Raiz', etiqueta: 'Detalle de la causa raiz', tipo: 'longtext',
+        ayuda: 'Lo que la lista de causas no alcanza a decir: qué pasó exactamente en este caso.' },
+      { campo: 'Link_Postmortem', etiqueta: 'Postmortem', tipo: 'url',
+        ayuda: 'Enlace al análisis posterior. Obligatorio para cerrar una estabilización crítica o alta.' },
+      // El interruptor existe porque no toda critica tumba el servicio: un
+      // calculo mal hecho puede ser critico sin un minuto de caida, y obligar a
+      // inventar fechas ahi ensuciaria el indicador de disponibilidad.
+      { campo: 'Hubo_Indisponibilidad', etiqueta: 'Hubo indisponibilidad', tipo: 'boolSN',
+        ayuda: 'Si el servicio estuvo caído. Si dice que sí, hay que registrar inicio, fin y tipo.' },
+      // En horas de reloj, no en dias habiles como el resto de la aplicacion: un
+      // incidente del sabado no espera al lunes.
+      { campo: 'Inicio_Indisponibilidad', etiqueta: 'Inicio de la indisponibilidad', tipo: 'datetime' },
+      { campo: 'Fin_Indisponibilidad', etiqueta: 'Fin de la indisponibilidad', tipo: 'datetime' },
+      { campo: 'Tipo_Indisponibilidad', etiqueta: 'Tipo de indisponibilidad', tipo: 'enum',
+        opciones: TIPOS_INDISPONIBILIDAD },
+
       { campo: 'Responsable_ID', etiqueta: 'Responsable actual', tipo: 'enum', fk: 'Usuarios' },
       // Las ocho fases dejan su estampa. Gestion de la demanda y Backlog no la
       // tenian, asi que el tiempo que una solicitud esperaba antes de arrancar
@@ -660,6 +786,30 @@ function mapaEstadosIniciativa() { return mapaCatalogo_(ESTADOS_INICIATIVA); }
 /** @return {!Object<string,string>} Mapa ID_Plataforma -> nombre. */
 function mapaPlataformas() { return mapaCatalogo_(getPlataformas_()); }
 
+/** @return {string} Nombre legible de un estado. @private */
+function nombreDeEstado_(estadoId) {
+  return mapaEstados()[estadoId] || estadoId;
+}
+
+/**
+ * @return {!Object<string,string>} Mapa ID_Version -> numero de version.
+ *
+ * Las estabilizaciones apuntan a versiones del Roadmap por identificador; lo que
+ * la gente lee es el numero.
+ * @private
+ */
+function mapaVersiones_() {
+  var mapa = {};
+  try {
+    leerTabla_('Roadmap_Versiones').forEach(function (v) {
+      if (v.ID_Version) mapa[String(v.ID_Version)] = String(v.Numero_Version || v.ID_Version);
+    });
+  } catch (e) {
+    // La hoja aun no existe: se devuelven los identificadores crudos.
+  }
+  return mapa;
+}
+
 /** @return {!Object<string,string>} Mapa ID_LEN -> Nombre_LEN. */
 function mapaLineasEstrategicas() { return mapaCatalogo_(getLineasEstrategicas_()); }
 
@@ -691,6 +841,7 @@ var CATALOGOS_AMPLIABLES = {
   Lineas_Estrategicas: function () { return LINEAS_ESTRATEGICAS; },
   Verticales: function () { return VERTICALES; },
   Causales_Bloqueo: function () { return CAUSALES_BLOQUEO; },
+  Causas_Raiz: function () { return CAUSAS_RAIZ; },
   Tipos_Solicitud: function () { return TIPOS_SOLICITUD; },
   Tipos_Iniciativa: function () { return TIPOS_INICIATIVA; }
 };
@@ -741,6 +892,8 @@ function getPlataformas_() { return catalogoVigente('Plataforma_Digital'); }
 function getLineasEstrategicas_() { return catalogoVigente('Lineas_Estrategicas'); }
 /** @return {!Array} Verticales vigentes. */
 function getVerticales_() { return catalogoVigente('Verticales'); }
+/** @return {!Array} Causas raiz vigentes. */
+function getCausasRaiz_() { return catalogoVigente('Causas_Raiz'); }
 /** @return {!Array} Causales de bloqueo vigentes. */
 function getCausalesBloqueo_() { return catalogoVigente('Causales_Bloqueo'); }
 /** @return {!Array} Tipos de solicitud vigentes. */

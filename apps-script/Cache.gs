@@ -291,7 +291,10 @@ function alimentaIndicadores_(tabla) {
  */
 var TABLAS_DE_CATALOGO = [
   'Proyectos', 'Usuarios', 'Roles', 'Plataforma_Digital', 'Lineas_Estrategicas',
-  'Verticales', 'Causales_Bloqueo', 'Tipos_Solicitud', 'Tipos_Iniciativa'
+  'Verticales', 'Causales_Bloqueo', 'Tipos_Solicitud', 'Tipos_Iniciativa',
+  // Las causas raiz y las versiones del Roadmap tambien viajan en los catalogos
+  // desde que existe la estabilizacion (D-101).
+  'Causas_Raiz', 'Roadmap_Versiones'
 ];
 
 /**

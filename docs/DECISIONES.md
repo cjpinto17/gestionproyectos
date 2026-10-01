@@ -2011,6 +2011,82 @@ estaba roto: de la hoja al permiso. La prueba nueva sí lo recorre, y se comprob
 anterior —ahí falla, señalando exactamente la columna que faltaba— antes de darla por buena. Es el
 tercer defecto de la misma familia: una verificación que mira el lado que funciona (ver D-79 y D-99).
 
+### D-101 · Estabilización: el tercer gobierno, y la calidad que se mide después de producción
+
+Hasta aquí había dos mundos sobre la misma tabla: las solicitudes de fábrica, que recorren el embudo
+de ocho fases, y las tareas, que se mueven por estado (D-79). La estabilización es un tercero, y no
+es una variante de ninguno de los dos.
+
+**Qué es, y por qué no cabía en lo que había.** Una tarea es *trabajo*. Una estabilización es *la
+evidencia de que algo salió mal*: una versión que ya estaba en producción falló y hubo que atenderla.
+Se parece a una tarea en que se mueve por estado, y en nada más. Si se contara como trabajo de
+fábrica, el tiempo de atender incidentes quedaría mezclado para siempre con el lead time y el
+throughput, y los dos indicadores dejarían de significar lo que dicen.
+
+**Con dos mundos bastaba una pregunta de sí o no; con tres hay que decir cuál.** `esTipoTarea()`
+servía mientras "no es tarea" quisiera decir "es de fábrica". Ahora cada tipo declara su gobierno
+—`fabrica`, `tarea`, `estabilizacion`— y de ahí salen todas las preguntas. Lo que no se declare es de
+fábrica, que es lo que era antes y lo que seguirá siendo cualquier tipo que alguien agregue sin leer
+esto. La lista de "tipos sin embudo" ya no se escribe aparte: se deriva, por la lección de D-100.
+
+**Tres columnas, y ningún estado nuevo.** Por iniciar, En progreso y Terminada. Se pidió que la del
+medio se llamara *En proceso*, y es el estado que ya existe con el nombre *En progreso*: crear uno
+casi idéntico al lado habría dejado dos que nadie distingue al leer un reporte. Se reusó el que hay.
+
+**Abrir un incidente pide un solo dato; cerrarlo pide todo.** Al registrar solo se exige la **versión
+afectada**, porque en el momento de abrir nadie conoce todavía la causa —y si registrar costara ocho
+campos, nadie registraría, y el indicador de calidad terminaría midiendo solo los incidentes de quien
+tuvo paciencia—. Para pasar a *Terminada* hacen falta la **versión de corrección** y la **causa
+raíz**, y en prioridad **crítica y alta** también el **postmortem** y el **tiempo de
+indisponibilidad**. La tarjeta lleva un candado que dice exactamente qué falta, antes de que alguien
+intente arrastrarla; el servidor vuelve a validar lo mismo, porque la decisión es suya y no del
+navegador.
+
+**La indisponibilidad tiene un interruptor.** No toda crítica tumba el servicio: un cálculo mal hecho
+puede ser crítico sin un minuto de caída. Obligar a inventar fechas ahí ensuciaría el indicador de
+disponibilidad. Si se marca que sí hubo, los tres datos —inicio, fin y si fue total o parcial— son
+obligatorios para cerrar; si se marca que no, no se piden.
+
+**Y se mide en horas de reloj.** Es la única medida de la aplicación que no pasa por el calendario
+laboral: una caída del sábado a medianoche no espera al lunes para contar.
+
+**La causa raíz es lista, no texto libre.** En texto libre cada persona la escribe distinto y a los
+seis meses no se puede sumar nada. Como lista sale el Pareto —*el 40% de nuestras estabilizaciones
+son de configuración*—, que es el dato que mueve decisiones. Al lado vive un campo abierto para lo
+que la lista no alcanza a decir. Se edita desde Administración como cualquier catálogo.
+
+**Las versiones se escogen del Roadmap, no se escriben.** "3.4", "v3.4" y "3.4.0" escritas a mano son
+tres versiones distintas, y entonces *estabilizaciones por versión* no se puede sumar.
+
+**Calidad en producción: el bloque que faltaba.** El Home ya medía la calidad *dentro* de la fábrica
+—First Pass Yield, reprocesos, devoluciones de QA y UAT—. Todos esos pueden verse bien y el negocio
+seguir sufriendo, porque ninguno mira lo que pasa después del despliegue. El indicador que manda es
+la **tasa de escape**: de las versiones desplegadas en el período, cuántas necesitaron después una
+estabilización. Se puede entregar mucho y rápido y estar entregando mal, y es el único número que lo
+delata. Lo acompañan el Pareto de causa raíz, las versiones que más costaron, la indisponibilidad por
+mes, el tiempo de atención por prioridad y la **reincidencia** —misma causa, misma plataforma, antes
+de 90 días—, que es la que dice si los postmortem se están aplicando o solo escribiendo.
+
+**Lo que no entra en la fábrica, dicho una por una.** Lead time, throughput, WIP, cumplimiento de
+SLA, First Pass Yield, eficiencia de flujo, tiempos por fase y la distribución por plataforma, tipo,
+prioridad y fase: todos salen de la población de fábrica, que ahora excluye las estabilizaciones.
+Tampoco cuentan en el **avance de la iniciativa**: si contaran, un incidente abierto bajaría el
+porcentaje de la iniciativa —aporta 0 hasta cerrarse— y el plan se vería atrasado por algo que no es
+parte del plan. Se cuentan y se muestran aparte, en su propio grupo del listado de actividades.
+
+**Un catálogo nuevo en el código no llegaba a la hoja.** Las hojas de catálogo solo se siembran
+cuando están vacías, así que el tipo *Estabilización* habría quedado declarado, invisible y sin forma
+de escogerlo. `actualizarEstructura` ahora completa los catálogos: compara por identificador y solo
+agrega. No renombra lo que ya está —si alguien tradujo un nombre desde Administración, su nombre
+manda— y no borra nada. La contrapartida, que conviene saber: una fila de catálogo que alguien borró a
+propósito vuelve a aparecer, porque desde el código no hay forma de distinguir "la borré" de "nunca
+llegó". Cada fila agregada se reporta para que se vea.
+
+**Lo que esta decisión no incluye:** un SLA de atención por prioridad para las estabilizaciones (hoy
+se mide el tiempo, pero no hay objetivo contra el cual compararlo) ni el porcentaje de disponibilidad
+por plataforma, que exige acordar antes la ventana de servicio: 24×7 o jornada hábil. Ninguna de las
+dos se inventó sin esa definición.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
@@ -2031,4 +2107,6 @@ tercer defecto de la misma familia: una verificación que mira el lado que funci
 | S-08 | Versionamiento | ¿`Roadmap_Versiones` se alimenta automáticamente al asignar `Version_Semantica`, o se administra aparte? |
 | S-09 | SLA | ¿Días calendario o días hábiles? (ver D-10) |
 | S-10 | Aplicación de la iniciativa | ¿Una aplicación principal por iniciativa, o varias? (ver D-08) |
+| S-18 | Ventana de servicio | Para el % de disponibilidad por plataforma: ¿24×7 o jornada hábil? Sin eso el indicador no se puede calcular (ver D-101) |
+| S-19 | SLA de estabilización | ¿Cuántas horas objetivo para atender una crítica y una alta? Hoy se mide el tiempo, sin meta contra la cual compararlo |
 | S-11 | Metas | ¿Hay metas objetivo para Lead Time, throughput y First Pass Yield? Sin meta, el indicador informa pero no semaforiza |

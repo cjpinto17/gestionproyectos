@@ -530,16 +530,27 @@ function validarRegistro_(tabla, registro, esNuevo) {
  * @private
  */
 function validarSolicitud_(registro, errores) {
-  var tarea = esTipoTarea(registro.Tipo_Solicitud);
+  var gobierno = gobiernoDeTipo(registro.Tipo_Solicitud);
+  var deFabrica = gobierno === GOBIERNO_FABRICA;
 
-  if (!tarea && !registro.Fase_Actual) {
+  if (deFabrica && !registro.Fase_Actual) {
     errores.push('"Fase actual" es obligatorio para las solicitudes de fabrica.');
   }
-  if (tarea && registro.Fase_Actual) {
-    errores.push('Una tarea no recorre el embudo: deje la fase vacia.');
+  if (!deFabrica && registro.Fase_Actual) {
+    errores.push(gobierno === GOBIERNO_TAREA
+        ? 'Una tarea no recorre el embudo: deje la fase vacia.'
+        : 'Una estabilizacion no recorre el embudo: deje la fase vacia.');
   }
   if (!registro.Estado_Actual) {
     errores.push('"Estado actual" es obligatorio.');
+  }
+  // La version afectada es el unico dato que una estabilizacion no puede no
+  // tener: sin ella no se sabe que fallo, y ningun indicador por version se
+  // puede armar despues (D-101). Lo demas se exige al cerrar, no al abrir:
+  // cuando alguien registra un incidente todavia no conoce la causa.
+  if (gobierno === GOBIERNO_ESTABILIZACION && !registro.Version_Afectada) {
+    errores.push('"Version afectada" es obligatorio en una estabilizacion: ' +
+                 'es la version ya desplegada en la que aparecio el problema.');
   }
 }
 
@@ -653,10 +664,16 @@ function armarCatalogos_() {
     prioridades: PRIORIDADES,
     causales: getCausalesBloqueo_(),
     roles: getRoles_(),
-    // Cuales de los tipos se gobiernan por estado y no por fase: el formulario
-    // y los dos tableros lo necesitan para repartir (D-79).
-    tiposTarea: TIPOS_SIN_EMBUDO,
+    // Como se gobierna cada tipo: el formulario y los TRES tableros lo necesitan
+    // para repartir (D-79, D-101). Antes viajaba la lista de "tipos sin embudo",
+    // que ya no alcanza: con tres gobiernos hay que decir cual, no si o no.
+    gobiernoPorTipo: GOBIERNO_POR_TIPO,
     estadosTarea: ESTADOS_TABLERO_TAREA,
+    estadosEstabilizacion: ESTADOS_TABLERO_ESTABILIZACION,
+    causasRaiz: getCausasRaiz_(),
+    tiposIndisponibilidad: TIPOS_INDISPONIBILIDAD,
+    prioridadesConPostmortem: PRIORIDADES_CON_POSTMORTEM,
+    versiones: opcionesDeVersiones_(),
     // Cuales columnas del tablero se ordenan a mano (D-96).
     fasesOrdenables: FASES_ORDENABLES,
     fasesConAprobacion: FASES_CON_APROBACION,
@@ -736,6 +753,11 @@ function armarDatosKanban_(filtros) {
   var nombreProyecto = {}, nombreUsuario = {};
   proyectos.forEach(function (p) { nombreProyecto[p.ID_Proyecto] = p.Nombre_Proyecto; });
   usuarios.forEach(function (u) { nombreUsuario[u.ID_Usuario] = u.Nombre_Completo; });
+  // Las versiones y las causas raiz solo las usa el tablero de estabilizacion,
+  // pero resolver un nombre cuesta lo mismo se use o no, y leer las dos tablas
+  // aqui evita que cada tarjeta vaya a buscarlo.
+  var nombreVersion = mapaVersiones_();
+  var nombreCausaRaiz = mapaCatalogo_(getCausasRaiz_());
 
   // Los dias habiles no se pueden calcular en el navegador: dependen de los
   // festivos, que viven en el servidor. Se envian resueltos, junto al SLA de la
@@ -750,9 +772,20 @@ function armarDatosKanban_(filtros) {
 
     var desde = aFecha_(s.Fecha_Ultimo_Cambio) || aFecha_(s.Fecha_Registro);
     s.Dias_En_Fase = desde ? diasHabilesEntre(desde, ahora) : null;
-    // Una tarea no tiene SLA de fase: su compromiso es una fecha (D-79).
-    s.esTarea = esTipoTarea(s.Tipo_Solicitud);
-    s.Sla_Fase = s.esTarea ? null : (sla[s.Fase_Actual] || null);
+    // Una tarea no tiene SLA de fase: su compromiso es una fecha (D-79). Una
+    // estabilizacion tampoco: se mide en horas de reloj, no en dias habiles.
+    s.gobierno = gobiernoDeTipo(s.Tipo_Solicitud);
+    s.esTarea = s.gobierno === GOBIERNO_TAREA;
+    s.esEstabilizacion = s.gobierno === GOBIERNO_ESTABILIZACION;
+    s.Sla_Fase = s.gobierno === GOBIERNO_FABRICA ? (sla[s.Fase_Actual] || null) : null;
+    if (s.esEstabilizacion) {
+      s.Nombre_Version_Afectada = nombreVersion[s.Version_Afectada] || s.Version_Afectada || '';
+      s.Nombre_Version_Correccion =
+          nombreVersion[s.Version_Correccion] || s.Version_Correccion || '';
+      s.Nombre_Causa_Raiz = nombreCausaRaiz[s.Causa_Raiz] || '';
+      s.Minutos_Caida = minutosDeIndisponibilidad_(s);
+      s.Falta_Para_Cerrar = faltaParaCerrarEstabilizacion_(s);
+    }
     return s;
   });
 
@@ -886,7 +919,9 @@ function cambiarEstadoTarea(idSolicitud, estadoDestino) {
     var s = buscarPorPk_('Solicitudes', idSolicitud);
     if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
     if (!esTipoTarea(s.Tipo_Solicitud)) {
-      throw new Error('Esta solicitud recorre el embudo: se mueve de fase, no de estado.');
+      throw new Error(esTipoEstabilizacion(s.Tipo_Solicitud)
+          ? 'Esta es una estabilizacion: se mueve en su propio tablero.'
+          : 'Esta solicitud recorre el embudo: se mueve de fase, no de estado.');
     }
     if (!mapaEstados()[estadoDestino]) {
       throw new Error('El estado ' + estadoDestino + ' no existe.');
@@ -906,6 +941,156 @@ function cambiarEstadoTarea(idSolicitud, estadoDestino) {
     if (nuevo.Tiene_Bloqueo === 'NO') {
       nuevo.Causal_Bloqueo = '';
       nuevo.Observacion_Bloqueo = '';
+    }
+
+    escribirFila_('Solicitudes', s._fila, nuevo);
+
+    registrarTransicionAudit_({
+      idSolicitud: idSolicitud,
+      faseOrigen: '',
+      faseDestino: '',
+      estadoOrigen: s.Estado_Actual,
+      estadoDestino: estadoDestino,
+      desde: aFecha_(s.Fecha_Ultimo_Cambio) || aFecha_(s.Fecha_Registro),
+      correoUsuario: ctx.correo
+    });
+
+    return { ok: true, idSolicitud: idSolicitud, estadoActual: estadoDestino,
+             avisos: notificar_(nuevo, 'cambio_fase') };
+  });
+}
+
+/* ================================================================== */
+/* Estabilizacion (D-101)                                              */
+/* ================================================================== */
+
+/**
+ * Minutos que el servicio estuvo caido, o null si no aplica.
+ *
+ * En minutos de RELOJ, no en dias habiles como todo lo demas en esta
+ * aplicacion: una caida del sabado a medianoche no espera al lunes para contar.
+ * Esa es la unica medida del sistema que no pasa por el calendario laboral.
+ *
+ * @param {!Object} s Solicitud.
+ * @return {?number}
+ * @private
+ */
+function minutosDeIndisponibilidad_(s) {
+  if (!esSi_(s.Hubo_Indisponibilidad)) return null;
+  var ini = aFecha_(s.Inicio_Indisponibilidad);
+  var fin = aFecha_(s.Fin_Indisponibilidad);
+  if (!ini || !fin) return null;
+  var minutos = Math.round((fin.getTime() - ini.getTime()) / 60000);
+  return minutos >= 0 ? minutos : null;
+}
+
+/**
+ * Lo que le falta a una estabilizacion para poder cerrarse, o '' si no le falta
+ * nada.
+ *
+ * Es una sola funcion y no una validacion repartida porque la respuesta se
+ * necesita en tres sitios: al mover la tarjeta, al pintarla —para avisar antes
+ * de que alguien la arrastre— y en el detalle. Tres copias de esta regla se
+ * habrian desfasado.
+ *
+ * El postmortem y la indisponibilidad solo se exigen en critica y alta: son las
+ * que el negocio siente y las que hay que poder explicar. En media y baja los
+ * campos existen, se pueden llenar, y no frenan nada.
+ *
+ * @param {!Object} s Solicitud de tipo estabilizacion.
+ * @return {string} El motivo, listo para mostrar.
+ * @private
+ */
+function faltaParaCerrarEstabilizacion_(s) {
+  var falta = [];
+  if (!s.Version_Correccion) falta.push('la version con la que se despliega el arreglo');
+  if (!s.Causa_Raiz) falta.push('la causa raiz');
+
+  if (exigePostmortem(s.Prioridad)) {
+    if (!String(s.Link_Postmortem || '').trim()) falta.push('el enlace del postmortem');
+    if (!String(s.Hubo_Indisponibilidad || '').trim()) {
+      falta.push('decir si hubo indisponibilidad');
+    } else if (esSi_(s.Hubo_Indisponibilidad)) {
+      if (!aFecha_(s.Inicio_Indisponibilidad)) falta.push('la fecha y hora de inicio de la caida');
+      if (!aFecha_(s.Fin_Indisponibilidad)) falta.push('la fecha y hora de fin de la caida');
+      if (!String(s.Tipo_Indisponibilidad || '').trim()) {
+        falta.push('si la caida fue total o parcial');
+      }
+      var ini = aFecha_(s.Inicio_Indisponibilidad), fin = aFecha_(s.Fin_Indisponibilidad);
+      if (ini && fin && fin.getTime() < ini.getTime()) {
+        falta.push('corregir la caida: termina antes de empezar');
+      }
+    }
+  }
+
+  if (!falta.length) return '';
+  return 'Falta ' + unirEnEspanol_(falta) + '.';
+}
+
+/**
+ * Une una lista en espanol: "a, b y c". Un "y" en el ultimo elemento convierte
+ * una lista de campos en una frase que se lee.
+ * @param {!Array<string>} partes
+ * @return {string}
+ * @private
+ */
+function unirEnEspanol_(partes) {
+  if (partes.length <= 1) return partes[0] || '';
+  return partes.slice(0, -1).join(', ') + ' y ' + partes[partes.length - 1];
+}
+
+/**
+ * Mueve una estabilizacion entre sus tres columnas.
+ *
+ * Es el equivalente de cambiar de fase para este gobierno, y deja rastro en la
+ * misma bitacora: la historia de una actividad no puede depender de por que
+ * tablero se movio.
+ *
+ * La compuerta esta al cerrar. Abrir un incidente tiene que ser inmediato —si
+ * registrarlo costara llenar ocho campos, nadie lo registraria y el indicador
+ * de calidad quedaria midiendo solo los incidentes de quien tuvo paciencia—,
+ * pero cerrarlo exige la version del arreglo, la causa raiz y, en critica y
+ * alta, el postmortem y la indisponibilidad.
+ *
+ * @param {string} idSolicitud
+ * @param {string} estadoDestino
+ * @return {!Object}
+ */
+function cambiarEstadoEstabilizacion(idSolicitud, estadoDestino) {
+  var ctx = exigirPermiso_('Gestionar_Estabilizacion',
+      'Su rol no puede mover las estabilizaciones.');
+
+  return conBloqueo_(function () {
+    var s = buscarPorPk_('Solicitudes', idSolicitud);
+    if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+    if (!esTipoEstabilizacion(s.Tipo_Solicitud)) {
+      throw new Error('Esta solicitud no es una estabilizacion.');
+    }
+    if (ESTADOS_TABLERO_ESTABILIZACION.indexOf(estadoDestino) === -1) {
+      throw new Error('Una estabilizacion solo se mueve entre "' +
+                      ESTADOS_TABLERO_ESTABILIZACION.map(nombreDeEstado_).join('", "') + '".');
+    }
+    if (s.Estado_Actual === estadoDestino) {
+      throw new Error('La estabilizacion ya se encuentra en ese estado.');
+    }
+
+    if (estadoDestino === ESTADO_ESTABILIZACION_CERRADA) {
+      var falta = faltaParaCerrarEstabilizacion_(s);
+      if (falta) {
+        throw new Error('No se puede dar por terminada ' + idSolicitud + '. ' + falta +
+                        ' Se registra editando la solicitud.');
+      }
+    }
+
+    var ahora = new Date();
+    var nuevo = {};
+    Object.keys(s).forEach(function (k) { if (k !== '_fila') nuevo[k] = s[k]; });
+    nuevo.Estado_Actual = estadoDestino;
+    nuevo.Fecha_Ultimo_Cambio = ahora;
+    // Terminada es, para una estabilizacion, el momento en que el arreglo quedo
+    // en produccion: es la fecha contra la cual se mide el tiempo de atencion.
+    if (estadoDestino === ESTADO_ESTABILIZACION_CERRADA && !nuevo.Fecha_Despliegue) {
+      nuevo.Fecha_Despliegue = ahora;
     }
 
     escribirFila_('Solicitudes', s._fila, nuevo);
@@ -996,9 +1181,9 @@ function getDetalleIniciativa(idProyecto) {
   // "En curso" es lo que todavia no termino, en los dos gobiernos: una de
   // fabrica que sigue en el embudo, o una tarea que no esta cerrada (D-79).
   var enVuelo = suyas.filter(function (x) {
-    return esTipoTarea(x.Tipo_Solicitud)
-        ? ['EST-05', 'EST-06'].indexOf(x.Estado_Actual) === -1
-        : FASES_EN_VUELO.indexOf(x.Fase_Actual) !== -1;
+    return recorreEmbudo(x.Tipo_Solicitud)
+        ? FASES_EN_VUELO.indexOf(x.Fase_Actual) !== -1
+        : ['EST-05', 'EST-06'].indexOf(x.Estado_Actual) === -1;
   }).length;
   var bloqueadas = suyas.filter(function (x) {
     return String(x.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0;
@@ -1013,10 +1198,13 @@ function getDetalleIniciativa(idProyecto) {
     return {
       id: x.ID_Solicitud,
       nombre: x.Nombre_Solicitud,
-      // Una tarea no tiene fase que mostrar: en su lugar se dice que es tarea.
+      // Lo que no recorre el embudo no tiene fase que mostrar: en su lugar se
+      // dice por que gobierno se mueve.
       esTarea: esTipoTarea(x.Tipo_Solicitud),
-      fase: esTipoTarea(x.Tipo_Solicitud) ? 'Tarea'
-          : (nombreFase[x.Fase_Actual] || x.Fase_Actual),
+      esEstabilizacion: esTipoEstabilizacion(x.Tipo_Solicitud),
+      fase: recorreEmbudo(x.Tipo_Solicitud)
+          ? (nombreFase[x.Fase_Actual] || x.Fase_Actual)
+          : (esTipoTarea(x.Tipo_Solicitud) ? 'Tarea' : 'Estabilización'),
       estado: nombreEstado[x.Estado_Actual] || x.Estado_Actual,
       estadoId: x.Estado_Actual || '',
       responsable: nombreUsuario[x.Responsable_ID] || '',
@@ -1265,7 +1453,7 @@ function formatearIdSolicitud_(numero) {
  * @private
  */
 function faseDeIngreso_(datos, rolId) {
-  if (esTipoTarea(datos.Tipo_Solicitud)) return '';
+  if (!recorreEmbudo(datos.Tipo_Solicitud)) return '';
   var pedida = String(datos.Fase_Actual || '').trim();
   if (!pedida || pedida === 'FAS-01') return 'FAS-01';
 
@@ -1572,7 +1760,7 @@ function estaAprobada_(solicitud) {
  * @private
  */
 function faltaAprobacion_(solicitud, faseDestino) {
-  if (esTipoTarea(solicitud.Tipo_Solicitud)) return '';
+  if (!recorreEmbudo(solicitud.Tipo_Solicitud)) return '';
   if (!faseExigeAprobacion(solicitud.Fase_Actual)) return '';
   if (ordenDeFase(faseDestino) <= ordenDeFase(solicitud.Fase_Actual)) return '';
   if (estaAprobada_(solicitud)) return '';
@@ -1602,8 +1790,8 @@ function aprobarSolicitud(idSolicitud, aprobar) {
   return conBloqueo_(function () {
     var s = buscarPorPk_('Solicitudes', idSolicitud);
     if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
-    if (esTipoTarea(s.Tipo_Solicitud)) {
-      throw new Error('Una tarea no se aprueba: no recorre el embudo de fases.');
+    if (!recorreEmbudo(s.Tipo_Solicitud)) {
+      throw new Error('Esta solicitud no se aprueba: no recorre el embudo de fases.');
     }
     if (!faseExigeAprobacion(s.Fase_Actual)) {
       throw new Error('La fase "' + nombreDeFase_(s.Fase_Actual) + '" no pide aprobación. ' +
@@ -1650,8 +1838,8 @@ function reordenarSolicitud(idSolicitud, idDespuesDe) {
     var s = buscarPorPk_('Solicitudes', idSolicitud);
     if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
 
-    if (esTipoTarea(s.Tipo_Solicitud)) {
-      throw new Error('Una tarea no se ordena por columna: se gobierna por estado.');
+    if (!recorreEmbudo(s.Tipo_Solicitud)) {
+      throw new Error('Esta solicitud no se ordena por columna: se gobierna por estado.');
     }
     if (!faseSeOrdena(s.Fase_Actual)) {
       throw new Error('La columna "' + nombreDeFase_(s.Fase_Actual) + '" no se ordena a mano: ' +
@@ -1660,7 +1848,7 @@ function reordenarSolicitud(idSolicitud, idDespuesDe) {
 
     // La columna completa, en el orden que tiene hoy.
     var enLaColumna = leerTabla_('Solicitudes').filter(function (x) {
-      return x.Fase_Actual === s.Fase_Actual && !esTipoTarea(x.Tipo_Solicitud);
+      return x.Fase_Actual === s.Fase_Actual && recorreEmbudo(x.Tipo_Solicitud);
     }).sort(compararOrdenColumna_);
 
     if (idDespuesDe && idDespuesDe !== idSolicitud) {
@@ -2343,6 +2531,27 @@ function adminCargarTabla(tabla) {
  * Arma las listas desplegables de las columnas que referencian otra tabla.
  * @private
  */
+/**
+ * Las versiones del Roadmap, para escoger una.
+ *
+ * Se muestran como "Banca Movil 3.4": el numero solo no basta cuando ocho
+ * plataformas versionan por separado y todas tienen una 2.0.
+ *
+ * @return {!Array<{valor: string, texto: string}>}
+ * @private
+ */
+function opcionesDeVersiones_() {
+  var nombrePlataforma = mapaPlataformas();
+  return leerTabla_('Roadmap_Versiones')
+      .filter(function (v) { return v.ID_Version; })
+      .map(function (v) {
+        var plat = nombrePlataforma[v.Plataforma_ID] || v.Plataforma_ID || '';
+        return { valor: String(v.ID_Version),
+                 texto: (plat ? plat + ' ' : '') + (v.Numero_Version || v.ID_Version) };
+      })
+      .sort(function (a, b) { return a.texto.localeCompare(b.texto, 'es'); });
+}
+
 function opcionesDeReferencia_(columnas) {
   // Los catalogos ampliables salen de la hoja, no de la lista del codigo: si
   // alguien agrego una plataforma desde Administracion, tiene que aparecer aqui.
@@ -2354,11 +2563,18 @@ function opcionesDeReferencia_(columnas) {
     Prioridad: PRIORIDADES,
     Tipos_Solicitud: getTiposSolicitud_(), Tipos_Iniciativa: getTiposIniciativa_(),
     Causales_Bloqueo: getCausalesBloqueo_(), Plataforma_Digital: getPlataformas_(),
-    Lineas_Estrategicas: getLineasEstrategicas_(), Verticales: getVerticales_()
+    Lineas_Estrategicas: getLineasEstrategicas_(), Verticales: getVerticales_(),
+    Causas_Raiz: getCausasRaiz_()
   };
   var opciones = {};
   columnas.forEach(function (col) {
     if (!col.fk) return;
+    // El Roadmap no se lee bien con la regla general: su segunda columna es la
+    // plataforma, asi que el desplegable habria mostrado "PL-03" en vez de "3.4".
+    if (col.fk === 'Roadmap_Versiones') {
+      opciones[col.campo] = opcionesDeVersiones_();
+      return;
+    }
     if (catalogos[col.fk]) {
       opciones[col.campo] = catalogos[col.fk].map(function (x) {
         return { valor: x.id, texto: x.nombre };
@@ -2813,6 +3029,7 @@ var METODOS_PUBLICOS = {
   cambiarFaseSolicitud: true,
   reordenarSolicitud: true,
   aprobarSolicitud: true,
+  cambiarEstadoEstabilizacion: true,
   cambiarEstadoTarea: true,
   marcarBloqueo: true,
   refrescarDatos: true,

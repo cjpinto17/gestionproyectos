@@ -63,6 +63,9 @@ var CATALOGO_PERMISOS = [
 
   { grupo: 'Tareas', campo: 'Mover_Estado_Tarea', nombre: 'Cambiar el estado de una tarea' },
 
+  { grupo: 'Estabilizacion', campo: 'Gestionar_Estabilizacion',
+    nombre: 'Mover y cerrar estabilizaciones' },
+
   { grupo: 'Roadmap', campo: 'Gestionar_Versiones', nombre: 'Crear y editar versiones' }
 ];
 
@@ -163,6 +166,9 @@ function permisosDeFabrica_(rolId) {
     // Quien opera el embudo tambien mueve tareas; se separa para poder darselo
     // a quien atiende tareas sin darle el tablero completo.
     Mover_Estado_Tarea: !!f.embudo,
+    // Estabilizar es trabajo de quien opera la fabrica: los mismos que mueven
+    // el embudo, mas quien edita solicitudes (PM y lider de proyecto).
+    Gestionar_Estabilizacion: !!(f.embudo || f.editaSolicitud),
     Gestionar_Versiones: !!f.versiones
   };
 }
@@ -283,6 +289,11 @@ function puedeOperarTablero(rolId) {
 /** @return {boolean} */
 function puedeBloquear(rolId) {
   return tienePermiso(rolId, 'Bloquear_Solicitud');
+}
+
+/** @return {boolean} True si el rol puede mover y cerrar estabilizaciones. */
+function puedeGestionarEstabilizacion(rolId) {
+  return tienePermiso(rolId, 'Gestionar_Estabilizacion');
 }
 
 /** @return {boolean} True si el rol puede aprobar una solicitud en su fase. */

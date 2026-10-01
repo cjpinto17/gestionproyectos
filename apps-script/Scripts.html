@@ -435,6 +435,83 @@ function cargarHome() {
 }
 $('ventanaMeses').addEventListener('change', cargarHome);
 
+/**
+ * Los indicadores de lo que se rompio despues de salir a produccion (D-101).
+ *
+ * El numero que manda es la tasa de escape: de lo que se desplego en el periodo,
+ * cuanto necesito despues una estabilizacion. Los demas explican por que.
+ */
+function pintarCalidadProduccion(e) {
+  if (!e) return;
+
+  var escape = e.escape.pctVersiones;
+  $('kpisEstabilizacion').innerHTML = [
+    kpi('Tasa de escape', escape, ' %',
+        e.escape.versionesConIncidente + ' de ' + e.escape.versionesDesplegadas +
+        ' versiones desplegadas necesitaron estabilización',
+        escape === null ? '' : (escape <= 15 ? 'bien' : (escape <= 35 ? '' : 'mal'))),
+    kpi('Estabilizaciones', e.registradas, '',
+        e.criticas + ' de prioridad crítica o alta'),
+    kpi('Indisponibilidad', e.indisponibilidad.horas, ' h',
+        'Total ' + enHoras(e.indisponibilidad.minutosTotal) + ' · parcial ' +
+        enHoras(e.indisponibilidad.minutosParcial)),
+    kpi('Abiertas hoy', e.abiertas, '',
+        e.sinDatosParaCerrar
+          ? e.sinDatosParaCerrar + ' sin los datos para poder cerrarse'
+          : 'Ninguna le falta información',
+        e.abiertasCriticas ? 'mal' : '')
+  ].join('');
+
+  $('graficoCausaRaiz').innerHTML = e.pareto.length
+      ? e.pareto.map(function (c) {
+          return barra(c.nombre, c.cuenta, e.pareto[0].cuenta, c.cuenta + ' (' + c.pct + '%)', '');
+        }).join('')
+      : '<p style="color:var(--ink-muted);font-size:13px">Todavía no hay estabilizaciones con ' +
+        'causa raíz registrada.</p>';
+
+  var versiones = e.porVersion.filter(function (v) { return v.incidentes > 0; });
+  $('graficoVersiones').innerHTML = versiones.length
+      ? versiones.slice(0, 8).map(function (v) {
+          return barra(v.etiqueta, v.incidentes, versiones[0].incidentes,
+                       v.incidentes + (v.minutosCaida ? ' · ' + enHoras(v.minutosCaida) : ''),
+                       v.criticas ? 'rojo' : '');
+        }).join('')
+      : '<p style="color:var(--ink-muted);font-size:13px">Ninguna versión ha generado ' +
+        'estabilizaciones.</p>';
+
+  var meses = e.indisponibilidad.porMes;
+  $('graficoCaida').innerHTML = meses.some(function (x) { return x.minutos > 0; })
+      ? columnas(meses.map(function (x) {
+          return { etq: etiquetaMes(x.mes), v1: x.minutos, txt: enHoras(x.minutos) };
+        }))
+      : '<p style="color:var(--ink-muted);font-size:13px">Sin minutos de indisponibilidad ' +
+        'registrados en la ventana.</p>';
+
+  $('tablaAtencion').innerHTML = e.atencion.porPrioridad.length
+      ? '<table class="tabla-compacta"><thead><tr><th>Prioridad</th><th class="num">Promedio</th>' +
+        '<th class="num">Mediana</th><th class="num">Casos</th></tr></thead><tbody>' +
+        e.atencion.porPrioridad.map(function (p) {
+          return '<tr><td>' + esc(p.nombre) + '</td>' +
+            '<td class="num">' + enHoras(p.promedioHoras * 60) + '</td>' +
+            '<td class="num">' + enHoras(p.medianaHoras * 60) + '</td>' +
+            '<td class="num">' + p.muestra + '</td></tr>';
+        }).join('') + '</tbody></table>'
+      : '<p style="color:var(--ink-muted);font-size:13px">Ninguna estabilización cerrada en ' +
+        'la ventana.</p>';
+
+  // La reincidencia se avisa solo cuando existe: es el indicador que dice si los
+  // postmortem se estan aplicando, y un cero no merece ocupar espacio.
+  var nota = $('notaReincidencia');
+  if (!e.reincidencias.length) { nota.hidden = true; nota.textContent = ''; return; }
+  nota.hidden = false;
+  nota.innerHTML = '<b>' + e.reincidencias.length + ' reincidencia' +
+    (e.reincidencias.length === 1 ? '' : 's') + ':</b> la misma causa se repitió en la misma ' +
+    'plataforma antes de 90 días. ' + e.reincidencias.slice(0, 5).map(function (r) {
+      return esc(r.plataforma) + ' · ' + esc(r.causa) + ' (' + esc(r.repetida) + ' repitió ' +
+             esc(r.anterior) + ' a los ' + r.dias + ' días)';
+    }).join(' · ') + (e.reincidencias.length > 5 ? ' y más.' : '.');
+}
+
 function pintarHome(m) {
   $('kpisPortafolio').innerHTML = [
     kpi('Iniciativas en progreso', m.portafolio.iniciativasEnProgreso,
@@ -498,6 +575,8 @@ function pintarHome(m) {
     kpi('Eficiencia de flujo', m.predictibilidad.eficienciaFlujoPct, ' %',
         'Lead Time sin el tiempo bloqueado')
   ].join('');
+
+  pintarCalidadProduccion(m.estabilizacion);
 
   $('graficoSla').innerHTML = m.predictibilidad.cumplimientoSlaPorFase.map(function (s) {
     if (s.cumplimientoPct === null) return barra(s.fase, 0, 100, 'sin datos', '');
@@ -801,7 +880,11 @@ function detalleIniciativa(idProyecto) {
     else if (estaVencida(s)) vencidas++;
   });
 
-  var resumen = actividades.length + (actividades.length === 1 ? ' actividad' : ' actividades') +
+  var estabilizaciones = actividades.filter(esEstabilizacion).length;
+  var delPlan = actividades.length - estabilizaciones;
+  var resumen = delPlan + (delPlan === 1 ? ' actividad' : ' actividades') +
+      (estabilizaciones ? ' · ' + estabilizaciones +
+        (estabilizaciones === 1 ? ' estabilización' : ' estabilizaciones') : '') +
       (bloqueadas ? ' · ' + bloqueadas + (bloqueadas === 1 ? ' bloqueada' : ' bloqueadas') : '') +
       (vencidas ? ' · ' + vencidas + (vencidas === 1 ? ' vencida' : ' vencidas') + ' en su fase' : '');
 
@@ -811,8 +894,12 @@ function detalleIniciativa(idProyecto) {
   // se estaba hablando. El grupo se rotula aunque sea el unico: la diferencia
   // entre tres y ocho casillas es sutil y no tiene por que adivinarse.
   var grupos = [
-    { titulo: 'Gestión de fábrica', lista: actividades.filter(function (s) { return !esTarea(s); }) },
-    { titulo: 'Tareas', lista: actividades.filter(esTarea) }
+    { titulo: 'Gestión de fábrica', lista: actividades.filter(esDeFabrica) },
+    { titulo: 'Tareas', lista: actividades.filter(esTarea) },
+    // Las estabilizaciones van al final y aparte: no son alcance planeado de la
+    // iniciativa —no cuentan en su avance— sino lo que hubo que atender porque
+    // algo que ya estaba en produccion fallo (D-101).
+    { titulo: 'Estabilización', lista: actividades.filter(esEstabilizacion) }
   ];
 
   return '<div class="sol-cab">' + esc(resumen) + '</div>' +
@@ -844,7 +931,10 @@ function estaVencida(s) {
  */
 function casillasDeAvance(s, bloqueada, vencida) {
   var total, indice;
-  if (esTarea(s)) {
+  if (!esDeFabrica(s)) {
+    // Tres casillas: por iniciar, en progreso, terminada. Es lo que tienen tanto
+    // una tarea como una estabilizacion, y pintarles ocho de las que seis nunca
+    // se llenarian las haria parecer atrasadas siempre.
     total = 3;
     indice = { 'EST-01': 1, 'EST-02': 2, 'EST-03': 2, 'EST-04': 2, 'EST-06': 3 }[s.Estado_Actual] || 0;
   } else {
@@ -860,7 +950,7 @@ function casillasDeAvance(s, bloqueada, vencida) {
       casillas += '<i class="actual' + (bloqueada ? ' mal' : (vencida ? ' ojo' : '')) + '"></i>';
     } else casillas += '<i></i>';
   }
-  return '<span class="fases' + (esTarea(s) ? ' de-tarea' : '') + '">' + casillas + '</span>';
+  return '<span class="fases' + (esDeFabrica(s) ? '' : ' de-tarea') + '">' + casillas + '</span>';
 }
 
 /** Una actividad dentro del desplegable de su iniciativa. */
@@ -868,7 +958,7 @@ function filaSolicitud(s) {
   var bloqueada = estaBloqueada(s);
   var vencida = !bloqueada && estaVencida(s);
   var alerta = bloqueada ? 'bloqueada' : (vencida ? 'vencida' : '');
-  var tarea = esTarea(s);
+  var sinFase = !esDeFabrica(s);
 
   return '<div class="sol ' + alerta + '">' +
     '<span class="sol-id">' + esc(s.ID_Solicitud) +
@@ -886,9 +976,9 @@ function filaSolicitud(s) {
         : '') +
     '</span>' +
     casillasDeAvance(s, bloqueada, vencida) +
-    // Una tarea no tiene fase que mostrar: sin esto quedaba un " · " suelto
-    // delante del estado, como si faltara un dato.
-    '<span class="sol-fase">' + (tarea ? '' : esc(nombreFase(s.Fase_Actual)) + ' · ') +
+    // Lo que no recorre el embudo no tiene fase que mostrar: sin esto quedaba un
+    // " · " suelto delante del estado, como si faltara un dato.
+    '<span class="sol-fase">' + (sinFase ? '' : esc(nombreFase(s.Fase_Actual)) + ' · ') +
       '<span class="badge ' + (CLASE_ESTADO[s.Estado_Actual] || 'e-por-iniciar') + '">' +
       esc(nombreEstado(s.Estado_Actual)) + '</span></span>' +
     '<span class="sol-quien"><span class="sol-rot">Responsable</span>' +
@@ -1456,18 +1546,30 @@ $('vistaGestion').addEventListener('click', function (e) {
   pintarKanban();
 });
 
-function esTarea(s) { return !!s.esTarea; }
+/**
+ * Por que gobierno se mueve una solicitud. Gemelo de gobiernoDeTipo() del
+ * servidor; cuando la solicitud viene del tablero ya lo trae resuelto.
+ */
+function gobiernoDe(s) {
+  if (s && s.gobierno) return s.gobierno;
+  return (CAT.gobiernoPorTipo || {})[s && s.Tipo_Solicitud] || 'fabrica';
+}
+function esTarea(s) { return gobiernoDe(s) === 'tarea'; }
+function esEstabilizacion(s) { return gobiernoDe(s) === 'estabilizacion'; }
+function esDeFabrica(s) { return gobiernoDe(s) === 'fabrica'; }
 
 function pintarKanban() {
-  var tareas = VISTA_GESTION === 'tareas';
-  $('notaFabrica').hidden = tareas;
-  $('notaTareas').hidden = !tareas;
-  if (tareas) pintarTableroTareas(); else pintarTableroFabrica();
+  $('notaFabrica').hidden = VISTA_GESTION !== 'fabrica';
+  $('notaTareas').hidden = VISTA_GESTION !== 'tareas';
+  $('notaEstabilizacion').hidden = VISTA_GESTION !== 'estabilizacion';
+  if (VISTA_GESTION === 'tareas') pintarTableroTareas();
+  else if (VISTA_GESTION === 'estabilizacion') pintarTableroEstabilizacion();
+  else pintarTableroFabrica();
 }
 
 function pintarTableroFabrica() {
   var r = DATOS.kanban;
-  var visibles = solicitudesFiltradas().filter(function (s) { return !esTarea(s); });
+  var visibles = solicitudesFiltradas().filter(esDeFabrica);
   $('kanban').innerHTML = r.fases.map(function (f) {
     var aMano = faseSeOrdenaCliente(f.id);
     var enFase = visibles.filter(function (s) { return s.Fase_Actual === f.id; })
@@ -1476,7 +1578,7 @@ function pintarTableroFabrica() {
       '<span class="orden num">' + f.orden + '</span><h3>' + esc(f.nombre) + '</h3>', enFase);
   }).join('');
 
-  var total = r.solicitudes.filter(function (s) { return !esTarea(s); }).length;
+  var total = r.solicitudes.filter(esDeFabrica).length;
   $('subGestion').textContent = visibles.length + ' de ' + total +
       ' solicitudes de fábrica · ' + (permiso('Mover_Fase')
         ? 'arrastre las tarjetas para cambiarlas de fase'
@@ -1505,6 +1607,46 @@ function pintarTableroTareas() {
       ' · ' + (permiso('Mover_Estado_Tarea')
         ? 'arrastre las tarjetas para cambiarles el estado'
         : 'tablero de consulta: su rol no cambia el estado de las tareas');
+}
+
+/**
+ * El tablero de estabilizacion: tres columnas por estado (D-101).
+ *
+ * Se ordena por prioridad y antiguedad, nunca a mano: un incidente se atiende
+ * por severidad, y dejar que alguien reacomode ese orden seria permitir que una
+ * critica espere detras de una media porque alguien la arrastro.
+ */
+function pintarTableroEstabilizacion() {
+  var r = DATOS.kanban;
+  var columnas = CAT.estadosEstabilizacion || ['EST-01', 'EST-02', 'EST-06'];
+  var visibles = solicitudesFiltradas().filter(esEstabilizacion);
+  $('kanban').innerHTML = columnas.map(function (id, i) {
+    var enEstado = visibles.filter(function (s) { return s.Estado_Actual === id; })
+        .sort(ordenDeAtencion);
+    return columnaTablero('data-estado-estab="' + esc(id) + '"',
+      '<span class="orden num">' + (i + 1) + '</span><h3>' + esc(nombreEstado(id)) + '</h3>',
+      enEstado);
+  }).join('');
+
+  var total = r.solicitudes.filter(esEstabilizacion).length;
+  var fuera = visibles.filter(function (s) {
+    return columnas.indexOf(s.Estado_Actual) === -1;
+  }).length;
+  var caida = visibles.reduce(function (a, s) { return a + (s.Minutos_Caida || 0); }, 0);
+  $('subGestion').textContent = visibles.length + ' de ' + total + ' estabilizaciones' +
+      (fuera ? ' · ' + fuera + ' sin columna (canceladas)' : '') +
+      (caida ? ' · ' + enHoras(caida) + ' de indisponibilidad acumulada' : '') +
+      ' · ' + (permiso('Gestionar_Estabilizacion')
+        ? 'arrastre las tarjetas para moverlas'
+        : 'tablero de consulta: su rol no mueve estabilizaciones');
+}
+
+/** Minutos en una forma que se lee: "45 min", "3 h 20 min". */
+function enHoras(minutos) {
+  var m = Math.max(0, Math.round(minutos || 0));
+  if (m < 60) return m + ' min';
+  var h = Math.floor(m / 60), resto = m % 60;
+  return h + ' h' + (resto ? ' ' + resto + ' min' : '');
 }
 
 /** El armazon de una columna, igual para los dos tableros. */
@@ -1581,6 +1723,7 @@ function tarjetaActividad(s, posicion) {
       (bloq ? '<button class="t-alerta" data-alerta="' + esc(s.ID_Solicitud) +
               '" aria-label="Ver causal de bloqueo">&#9888;&#65039;</button>' : '') +
       selloAprobacion(s) +
+      selloCierre(s) +
       (CTX.puedeEditarSolicitud ? '<button class="t-editar" data-editar-sol="' +
               esc(s.ID_Solicitud) + '" title="Editar la solicitud" ' +
               'aria-label="Editar la solicitud">&#9998;</button>' : '') +
@@ -1589,11 +1732,62 @@ function tarjetaActividad(s, posicion) {
     '<div class="t-nombre">' + esc(s.Nombre_Solicitud) + '</div>' +
     '<div class="t-pie">' +
       (esTarea(s) ? compromisoDeTarea(s)
+        : esEstabilizacion(s) ? datosDeEstabilizacion(s)
         : (s.Version_Semantica ? '<span class="t-ver num">' + esc(s.Version_Semantica) + '</span>' : '')) +
       (s.Nombre_Plataforma ? '<span class="t-plat">' + esc(s.Nombre_Plataforma) + '</span>' : '') +
       '<span>' + esc(s.Nombre_Responsable || '—') + '</span>' +
       enlacesDeSolicitud(s) + '</div>' +
   '</article>';
+}
+
+/**
+ * Lo que la tarjeta de una estabilizacion muestra en su pie.
+ *
+ * La version afectada va primero y en rojo: es el dato que explica por que
+ * existe la tarjeta. Despues la de correccion, cuando ya se sabe, y el tiempo
+ * que el servicio estuvo caido.
+ */
+function datosDeEstabilizacion(s) {
+  var partes = [];
+  if (s.Nombre_Version_Afectada) {
+    partes.push('<span class="t-ver num t-rota" title="Versión en la que apareció">' +
+      esc(s.Nombre_Version_Afectada) + '</span>');
+  }
+  if (s.Nombre_Version_Correccion) {
+    partes.push('<span class="t-ver num t-arregla" title="Versión que lleva el arreglo">&#8594; ' +
+      esc(s.Nombre_Version_Correccion) + '</span>');
+  }
+  if (s.Minutos_Caida) {
+    partes.push('<span class="t-caida" title="' +
+      esc((s.Tipo_Indisponibilidad || 'Indisponibilidad') + ' del servicio') + '">&#9201; ' +
+      esc(enHoras(s.Minutos_Caida)) +
+      (String(s.Tipo_Indisponibilidad) === 'Parcial' ? ' parcial' : '') + '</span>');
+  }
+  if (s.Nombre_Causa_Raiz) {
+    partes.push('<span class="t-causa" title="Causa raíz">' + esc(s.Nombre_Causa_Raiz) + '</span>');
+  }
+  return partes.join('');
+}
+
+/**
+ * El candado de una estabilizacion: que le falta para poder cerrarse.
+ *
+ * Se muestra ANTES de que alguien intente arrastrarla a Terminada, no despues.
+ * El servidor vuelve a validar lo mismo —es su decision, no la del navegador—,
+ * pero enterarse de que falta la causa raiz solo al tercer intento de mover la
+ * tarjeta es una forma de no decirselo.
+ */
+function selloCierre(s) {
+  if (!esEstabilizacion(s)) return '';
+  if (s.Estado_Actual === 'EST-06') {
+    return '<span class="t-cierre listo" title="Cerrada con todo registrado">&#10004;</span>';
+  }
+  if (!s.Falta_Para_Cerrar) {
+    return '<span class="t-cierre listo" title="Tiene todo lo que hace falta para cerrarla">' +
+      '&#10004;</span>';
+  }
+  return '<span class="t-cierre" title="' + esc(s.Falta_Para_Cerrar) +
+    '" aria-label="' + esc(s.Falta_Para_Cerrar) + '">&#128274;</span>';
 }
 
 /** Gemelo de faseExigeAprobacion() del servidor. */
@@ -1614,7 +1808,7 @@ function estaAprobada(s) {
  * la aprobacion le interesa a todo el equipo, no solo a quien la otorga (D-98).
  */
 function selloAprobacion(s) {
-  if (esTarea(s) || !faseExigeAprobacionCliente(s.Fase_Actual)) return '';
+  if (!esDeFabrica(s) || !faseExigeAprobacionCliente(s.Fase_Actual)) return '';
 
   var aprobada = estaAprobada(s);
   var puede = permiso('Aprobar_Solicitud');
@@ -1730,6 +1924,26 @@ function tarjetaBajoElCursor_(col, y) {
  * permiso de mover tareas. Y ninguna cruza al tablero del otro.
  */
 function validarSoltar_(s, col) {
+  if (esEstabilizacion(s)) {
+    if (!col.dataset.estadoEstab) {
+      return { permitido: false,
+               motivo: 'Una estabilizacion se mueve en su propio tablero.' };
+    }
+    if (!permiso('Gestionar_Estabilizacion')) {
+      return { permitido: false, motivo: 'Su rol no puede mover las estabilizaciones.' };
+    }
+    if (s.Estado_Actual === col.dataset.estadoEstab) {
+      return { permitido: false, motivo: 'La estabilización ya se encuentra en ese estado.' };
+    }
+    // La compuerta de cierre, avisada antes de soltar: espejo de
+    // faltaParaCerrarEstabilizacion_() del servidor (D-101).
+    if (col.dataset.estadoEstab === 'EST-06' && s.Falta_Para_Cerrar) {
+      return { permitido: false,
+               motivo: 'No se puede dar por terminada. ' + s.Falta_Para_Cerrar +
+                       ' Use el lápiz de la tarjeta para registrarlo.' };
+    }
+    return { permitido: true, motivo: '' };
+  }
   if (esTarea(s)) {
     if (!col.dataset.estado) {
       return { permitido: false, motivo: 'Una tarea no recorre el embudo de fases.' };
@@ -1789,16 +2003,21 @@ document.addEventListener('drop', function (e) {
   var v = validarSoltar_(s, col);
   if (!v.permitido) { toast(v.motivo, true); return; }
 
-  var tarea = esTarea(s);
-  var campo = tarea ? 'Estado_Actual' : 'Fase_Actual';
-  var destino = tarea ? col.dataset.estado : col.dataset.fase;
+  // Cada gobierno mueve su propio campo con su propio metodo (D-79, D-101).
+  var gobierno = gobiernoDe(s);
+  var porEstado = gobierno !== 'fabrica';
+  var campo = porEstado ? 'Estado_Actual' : 'Fase_Actual';
+  var destino = gobierno === 'estabilizacion' ? col.dataset.estadoEstab
+      : gobierno === 'tarea' ? col.dataset.estado : col.dataset.fase;
+  var metodo = gobierno === 'estabilizacion' ? 'cambiarEstadoEstabilizacion'
+      : gobierno === 'tarea' ? 'cambiarEstadoTarea' : 'cambiarFaseSolicitud';
   var original = s[campo];
 
   s[campo] = destino;               // se mueve ya, y se revierte si el servidor dice que no
   pintarKanban();
 
-  api(tarea ? 'cambiarEstadoTarea' : 'cambiarFaseSolicitud', id, destino).then(function (r) {
-    toast(id + ' pasó a ' + (tarea ? nombreEstado(destino) : nombreFase(destino)) + '.');
+  api(metodo, id, destino).then(function (r) {
+    toast(id + ' pasó a ' + (porEstado ? nombreEstado(destino) : nombreFase(destino)) + '.');
     (r.avisos || []).forEach(function (a) { toast(a, true); });
     invalidarCacheCliente();
     cargarGestion(true);
@@ -1835,7 +2054,7 @@ function reordenarEnColumna_(s, col, vecina) {
   }
 
   var enColumna = DATOS.kanban.solicitudes
-      .filter(function (x) { return x.Fase_Actual === s.Fase_Actual && !esTarea(x); })
+      .filter(function (x) { return x.Fase_Actual === s.Fase_Actual && esDeFabrica(x); })
       .sort(ordenPuestoAMano);
 
   var sinEsta = enColumna.filter(function (x) { return x.ID_Solicitud !== s.ID_Solicitud; });
@@ -2321,6 +2540,20 @@ $('btnNueva').addEventListener('click', function () {
       '<small style="color:var(--ink-faint)">Se listan las versiones del roadmap: ' +
       'plataforma y versión. En la solicitud queda solo el código.</small>' +
     '</label>' +
+    // Ojo: esta lista NO es la de "Versión estimada" de arriba. Esa guarda el
+    // numero de version (texto), porque es asi como la fabrica relaciona una
+    // actividad con su release. Esta guarda el identificador de la version del
+    // roadmap, que es lo que permite contar incidentes por version sin depender
+    // de como alguien escribio el numero (D-101).
+    '<label class="campo solo-estabilizacion" hidden><span>Versión afectada *</span>' +
+      '<select id="nsVersionAfectada"><option value="">(elija la versión)</option>' +
+      (CAT.versiones || []).map(function (v) {
+        return '<option value="' + esc(v.valor) + '">' + esc(v.texto) + '</option>';
+      }).join('') + '</select>' +
+      '<small style="color:var(--ink-faint)">En qué versión ya desplegada apareció el ' +
+      'problema. Es el único dato que se pide para abrir el incidente; la causa raíz, el ' +
+      'postmortem y la indisponibilidad se registran después, y hacen falta para cerrarlo.</small>' +
+    '</label>' +
     '<label class="campo solo-tarea" hidden><span>Fecha compromiso</span>' +
       '<input type="date" id="nsCompromiso">' +
       '<small style="color:var(--ink-faint)">Para qué día se comprometió. Sin esta fecha una ' +
@@ -2348,6 +2581,9 @@ $('btnNueva').addEventListener('click', function () {
       if (doc && !/^https?:\/\//i.test(doc)) {
         throw new Error('El enlace del documento debe empezar por http:// o https://');
       }
+      if (gobiernoDelFormulario() === 'estabilizacion' && !$('nsVersionAfectada').value) {
+        throw new Error('Elija la versión afectada: es en la que apareció el problema.');
+      }
       return api('crearSolicitud', {
         Nombre_Solicitud: nombre,
         Alcance: $('nsAlcance').value,
@@ -2357,11 +2593,14 @@ $('btnNueva').addEventListener('click', function () {
         Prioridad: $('nsPrioridad').value,
         // Sin campo de fase (el rol no mueve fases, o es una tarea) va vacia y
         // el servidor pone la que corresponda.
-        Fase_Actual: (!tipoEsTarea() && $('nsFase')) ? $('nsFase').value : '',
+        Fase_Actual: (gobiernoDelFormulario() === 'fabrica' && $('nsFase'))
+            ? $('nsFase').value : '',
         Solicitante_ID: $('nsSolicitante').value,
         Responsable_ID: $('nsResponsable').value,
         Proceso_Impactado: $('nsProceso').value,
-        Version_Semantica: tipoEsTarea() ? '' : $('nsVersion').value,
+        Version_Semantica: gobiernoDelFormulario() === 'fabrica' ? $('nsVersion').value : '',
+        Version_Afectada: gobiernoDelFormulario() === 'estabilizacion'
+            ? $('nsVersionAfectada').value : '',
         Fecha_Compromiso: tipoEsTarea() ? $('nsCompromiso').value : '',
         Doc_Requerimiento_URL: $('nsDoc').value.trim()
       }).then(function (r) {
@@ -2373,7 +2612,8 @@ $('btnNueva').addEventListener('click', function () {
     });
 
   // El formulario se adapta al tipo: una tarea no tiene version comprometida
-  // —no pasa por el roadmap— y en cambio si tiene fecha compromiso (D-79).
+  // —no pasa por el roadmap— y en cambio si tiene fecha compromiso (D-79); una
+  // estabilizacion pide en cambio la version que fallo (D-101).
   $('nsTipo').addEventListener('change', ajustarFormularioPorTipo);
   ajustarFormularioPorTipo();
 
@@ -2867,10 +3107,13 @@ function formularioRegistro(valorPk) {
 }
 
 /* --- Migracion de solicitudes (solo Administrador) --- */
-/** True si el tipo elegido en el formulario de alta es una tarea. */
-function tipoEsTarea() {
-  return (CAT.tiposTarea || []).indexOf($('nsTipo').value) !== -1;
+/** El gobierno del tipo elegido en el formulario de alta. */
+function gobiernoDelFormulario() {
+  return (CAT.gobiernoPorTipo || {})[$('nsTipo').value] || 'fabrica';
 }
+
+/** True si el tipo elegido en el formulario de alta es una tarea. */
+function tipoEsTarea() { return gobiernoDelFormulario() === 'tarea'; }
 
 /** Muestra u oculta los campos que solo aplican a un gobierno u otro. */
 /**
@@ -2901,9 +3144,16 @@ function campoFaseInicial() {
 }
 
 function ajustarFormularioPorTipo() {
-  var tarea = tipoEsTarea();
-  document.querySelectorAll('.solo-fabrica').forEach(function (n) { n.hidden = tarea; });
-  document.querySelectorAll('.solo-tarea').forEach(function (n) { n.hidden = !tarea; });
+  var gobierno = gobiernoDelFormulario();
+  document.querySelectorAll('.solo-fabrica').forEach(function (n) {
+    n.hidden = gobierno !== 'fabrica';
+  });
+  document.querySelectorAll('.solo-tarea').forEach(function (n) {
+    n.hidden = gobierno !== 'tarea';
+  });
+  document.querySelectorAll('.solo-estabilizacion').forEach(function (n) {
+    n.hidden = gobierno !== 'estabilizacion';
+  });
 }
 
 /* --- Direccion de la aplicacion --- */

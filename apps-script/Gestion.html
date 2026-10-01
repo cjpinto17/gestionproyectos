@@ -1,5 +1,6 @@
-<!-- Gestion.html | Pagina 3: dos tableros. El de FABRICA, por las ocho fases
-     del embudo, y el de TAREAS, por estado: una tarea no recorre el embudo. -->
+<!-- Gestion.html | Pagina 3: tres tableros. El de FABRICA, por las ocho fases
+     del embudo; el de TAREAS, por estado; y el de ESTABILIZACION, por estado y
+     con tres columnas, para lo que se rompio despues de salir a produccion. -->
 <section class="pagina" id="pg-gestion" hidden>
     <div class="fila encabezado">
       <div>
@@ -11,6 +12,7 @@
           <div class="vista-toggle" id="vistaGestion">
             <button type="button" data-vista="fabrica" class="activa">F&aacute;brica</button>
             <button type="button" data-vista="tareas">Tareas</button>
+            <button type="button" data-vista="estabilizacion">Estabilizaci&oacute;n</button>
           </div></div>
         <div class="combo"><label for="fProyecto">Iniciativa</label>
           <input type="text" id="fProyecto" list="dlProyecto" placeholder="Todas" autocomplete="off">
@@ -37,5 +39,6 @@
     </div>
     <div class="kanban" id="kanban"></div>
     <p class="nota" id="notaFabrica">Arrastre una tarjeta a otra columna para cambiarla de fase. En <b>Gesti&oacute;n de la demanda</b>, <b>Backlog</b> y <b>An&aacute;lisis y dise&ntilde;o</b> tambi&eacute;n puede arrastrarla <b>arriba y abajo dentro de su propia columna</b> para fijar el orden de atenci&oacute;n: el n&uacute;mero de cada tarjeta es el puesto en que se va a atender, y una raya verde le muestra d&oacute;nde va a caer antes de soltarla. Ese orden manda sobre la prioridad, que sigue visible en la tarjeta para tenerla en cuenta al ordenar. Lo que llega de otra columna entra de &uacute;ltimo. Las dem&aacute;s columnas se ordenan solas, por prioridad y antig&uuml;edad. En esas mismas tres columnas cada tarjeta lleva un <b>sello de aprobaci&oacute;n</b>: un c&iacute;rculo vac&iacute;o si a&uacute;n no la tiene y un visto verde si ya. <b>Sin ese visto la tarjeta no pasa a la fase siguiente</b>, y quien tenga el permiso de aprobar lo da con un clic en el sello, sin abrir la solicitud. La aprobaci&oacute;n vale para la fase donde est&aacute;: al avanzar vuelve a pedirse. Devolver una tarjeta no pide aprobaci&oacute;n. El sistema valida su rol antes de guardar: si la transición no le corresponde, la tarjeta regresa a su lugar y se explica el motivo. Los filtros se aplican al instante, sin recargar.</p>
+    <p class="nota" id="notaEstabilizacion" hidden>Una estabilizaci&oacute;n es lo que hubo que atender porque una versi&oacute;n que ya estaba en producci&oacute;n fall&oacute;. No recorre el embudo de ocho fases y no entra en los indicadores de la f&aacute;brica: tiene los suyos, en el bloque <b>Calidad en producci&oacute;n</b> del Home. Arrastre una tarjeta para moverla entre <b>Por iniciar</b>, <b>En progreso</b> y <b>Terminada</b>. Abrir un incidente pide un solo dato: <b>en qu&eacute; versi&oacute;n apareci&oacute;</b>. Cerrarlo pide m&aacute;s, y el candado de la tarjeta le dice exactamente qu&eacute; falta: la <b>versi&oacute;n con la que se despliega el arreglo</b>, la <b>causa ra&iacute;z</b>, y en las de prioridad <b>cr&iacute;tica y alta</b> tambi&eacute;n el <b>postmortem</b> y el <b>tiempo de indisponibilidad</b>. Todo eso se registra con el l&aacute;piz de la tarjeta.</p>
     <p class="nota" id="notaTareas" hidden>Las tareas no recorren el embudo de ocho fases: se gobiernan por estado. Arrastre una tarjeta para cambiarlo. Mover una tarea a <b>Bloqueada</b> la marca como bloqueada, y sacarla de ahí le levanta el bloqueo. En rojo las que ya pasaron su fecha compromiso. Las canceladas no ocupan columna: se ven filtrando por estado desde Administración.</p>
 </section>

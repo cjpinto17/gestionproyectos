@@ -278,11 +278,19 @@ function cargarDatos_() {
   // yield— cuentan la fase de cada registro. Una tarea no tiene fase, asi que
   // o inflaria la demanda quedandose en la primera o inflaria el throughput
   // si alguien la empujara a la ultima. Se separan en el origen (D-79).
+  //
+  // Las estabilizaciones se separan por una razon distinta y mas fuerte: no son
+  // trabajo planeado sino la consecuencia de un fallo, y contarlas junto a la
+  // fabrica ensuciaria para siempre el lead time y el throughput con el tiempo
+  // de atender incidentes. Tienen sus propios indicadores (D-101).
   perezoso('solicitudesFabrica', function () {
-    return datos.solicitudes.filter(function (s) { return !esTipoTarea(s.Tipo_Solicitud); });
+    return datos.solicitudes.filter(function (s) { return recorreEmbudo(s.Tipo_Solicitud); });
   });
   perezoso('tareas', function () {
     return datos.solicitudes.filter(function (s) { return esTipoTarea(s.Tipo_Solicitud); });
+  });
+  perezoso('estabilizaciones', function () {
+    return datos.solicitudes.filter(function (s) { return esTipoEstabilizacion(s.Tipo_Solicitud); });
   });
   perezoso('auditoria', function () { return leerTabla_('Auditoria_Transiciones'); });
   perezoso('proyectos', function () { return leerTabla_('Proyectos'); });
@@ -780,6 +788,7 @@ function calcularMetricasHome_(n) {
     },
 
     tareas: calcularTareasAbiertas_(datos.tareas, n),
+    estabilizacion: calidadProduccion_(datos, n),
     bloqueos: calcularBloqueos_(datos.solicitudesFabrica),
     envejecimiento: calcularEnvejecimiento_(datos.solicitudesFabrica, sla),
 
@@ -1031,6 +1040,244 @@ function normalizarPrioridad_(valor) {
   return '';
 }
 
+/* ================================================================== */
+/* Calidad en produccion: los numeros de la estabilizacion (D-101)      */
+/* ================================================================== */
+
+/** Dias habiles dentro de los cuales un incidente se atribuye al despliegue. */
+var DIAS_ESCAPE = 15;
+
+/** Dias dentro de los cuales dos incidentes de la misma causa son reincidencia. */
+var DIAS_REINCIDENCIA = 90;
+
+/**
+ * Los indicadores de lo que se rompio despues de salir a produccion.
+ *
+ * El Home ya medía la calidad DENTRO de la fabrica: first pass yield,
+ * reprocesos, devoluciones de QA y de UAT. Todos ellos pueden verse bien y el
+ * negocio seguir sufriendo, porque ninguno mira lo que pasa despues del
+ * despliegue. Esto mide eso.
+ *
+ * El indicador que manda es la TASA DE ESCAPE: de lo que salio a produccion en
+ * el periodo, cuanto genero una estabilizacion. Se puede entregar mucho y rapido
+ * y estar entregando mal, y es el unico numero que lo delata.
+ *
+ * @param {!Object} datos
+ * @param {number} n Ventana en meses.
+ * @return {!Object}
+ * @private
+ */
+function calidadProduccion_(datos, n) {
+  var ventana = ultimosMeses_(n);
+  var nombrePlataforma = mapaPlataformas();
+  var nombreCausa = mapaCatalogo_(getCausasRaiz_());
+  var versiones = leerTabla_('Roadmap_Versiones');
+
+  // Datos de cada version del Roadmap, para poder hablar de ella por su nombre.
+  var version = {};
+  versiones.forEach(function (v) {
+    if (!v.ID_Version) return;
+    version[String(v.ID_Version)] = {
+      id: String(v.ID_Version),
+      numero: String(v.Numero_Version || v.ID_Version),
+      plataformaId: v.Plataforma_ID || '',
+      plataforma: nombrePlataforma[v.Plataforma_ID] || v.Plataforma_ID || '',
+      desplegada: aFecha_(v.Fecha_Despliegue_Real)
+    };
+  });
+
+  var enVentana = datos.estabilizaciones.filter(function (s) {
+    var f = aFecha_(s.Fecha_Registro);
+    return f && ventana.indexOf(claveMes_(f)) !== -1;
+  });
+
+  /* --- 1. Por version afectada: que release nos esta costando caro --- */
+  var porVersion = {};
+  datos.estabilizaciones.forEach(function (s) {
+    var v = version[String(s.Version_Afectada)];
+    var clave = v ? v.id : 'SIN_VERSION';
+    porVersion[clave] = porVersion[clave] || {
+      idVersion: clave,
+      etiqueta: v ? (v.plataforma + ' ' + v.numero) : 'Sin version registrada',
+      plataforma: v ? v.plataforma : '',
+      incidentes: 0, criticas: 0, minutosCaida: 0
+    };
+    var fila = porVersion[clave];
+    fila.incidentes++;
+    if (exigePostmortem(s.Prioridad)) fila.criticas++;
+    fila.minutosCaida += minutosDeIndisponibilidad_(s) || 0;
+  });
+  var listaVersiones = Object.keys(porVersion).map(function (k) { return porVersion[k]; })
+      .sort(function (a, b) { return b.incidentes - a.incidentes; });
+
+  /* --- 2. Tasa de escape --- */
+  // Por version: de las que se desplegaron en la ventana, cuantas necesitaron
+  // despues una estabilizacion. Es la lectura mas honesta, porque una version es
+  // lo que de verdad se entrega al usuario.
+  var conIncidente = {};
+  datos.estabilizaciones.forEach(function (s) {
+    if (s.Version_Afectada) conIncidente[String(s.Version_Afectada)] = true;
+  });
+  var desplegadasEnVentana = Object.keys(version).filter(function (k) {
+    var d = version[k].desplegada;
+    return d && ventana.indexOf(claveMes_(d)) !== -1;
+  });
+  var escaparon = desplegadasEnVentana.filter(function (k) { return conIncidente[k]; });
+
+  // Por actividad: de las que llegaron a produccion en la ventana, cuantas
+  // pertenecen a una version que fallo dentro de los dias de escape. Une la
+  // actividad con su version por plataforma y numero, que es como el equipo las
+  // relaciona hoy (la actividad guarda el numero, no el identificador).
+  var incidentesDeVersion = {};
+  datos.estabilizaciones.forEach(function (s) {
+    var v = version[String(s.Version_Afectada)];
+    if (!v) return;
+    var f = aFecha_(s.Fecha_Registro);
+    if (!f) return;
+    var clave = v.plataformaId + '|' + v.numero;
+    (incidentesDeVersion[clave] = incidentesDeVersion[clave] || []).push(f);
+  });
+  var aProduccion = datos.solicitudesFabrica.filter(function (s) {
+    var f = aFecha_(s.Fecha_Despliegue);
+    return s.Fase_Actual === 'FAS-08' && f && ventana.indexOf(claveMes_(f)) !== -1;
+  });
+  var conEscape = aProduccion.filter(function (s) {
+    var lista = incidentesDeVersion[(s.Plataforma_ID || '') + '|' +
+                                   String(s.Version_Semantica || '')];
+    if (!lista) return false;
+    var despliegue = aFecha_(s.Fecha_Despliegue);
+    return lista.some(function (f) {
+      return f.getTime() >= despliegue.getTime() &&
+             diasHabilesEntre(despliegue, f) <= DIAS_ESCAPE;
+    });
+  });
+
+  /* --- 3. Indisponibilidad --- */
+  var minutosTotal = 0, minutosParcial = 0, sinDato = 0;
+  var minutosPorMes = {}, minutosPorPlataforma = {};
+  enVentana.forEach(function (s) {
+    var min = minutosDeIndisponibilidad_(s);
+    if (min === null) {
+      if (exigePostmortem(s.Prioridad) && esSi_(s.Hubo_Indisponibilidad)) sinDato++;
+      return;
+    }
+    if (String(s.Tipo_Indisponibilidad) === 'Parcial') minutosParcial += min;
+    else minutosTotal += min;
+
+    var f = aFecha_(s.Inicio_Indisponibilidad) || aFecha_(s.Fecha_Registro);
+    if (f) {
+      var mes = claveMes_(f);
+      minutosPorMes[mes] = (minutosPorMes[mes] || 0) + min;
+    }
+    var plat = nombrePlataforma[s.Plataforma_ID] || s.Plataforma_ID || 'Sin plataforma';
+    minutosPorPlataforma[plat] = (minutosPorPlataforma[plat] || 0) + min;
+  });
+
+  /* --- 4. Tiempo de atencion, en horas de reloj --- */
+  var horasPorPrioridad = {};
+  var horas = [];
+  enVentana.forEach(function (s) {
+    var ini = aFecha_(s.Fecha_Registro);
+    var fin = aFecha_(s.Fecha_Despliegue);
+    if (!ini || !fin || s.Estado_Actual !== ESTADO_ESTABILIZACION_CERRADA) return;
+    var h = (fin.getTime() - ini.getTime()) / 3600000;
+    if (h < 0) return;
+    horas.push(h);
+    var p = s.Prioridad || 'SIN_PRIORIDAD';
+    (horasPorPrioridad[p] = horasPorPrioridad[p] || []).push(h);
+  });
+
+  /* --- 5. Pareto de causa raiz --- */
+  var porCausa = contarPor_(enVentana, function (s) { return s.Causa_Raiz; });
+  var totalConCausa = Object.keys(porCausa).reduce(function (a, k) { return a + porCausa[k]; }, 0);
+  var pareto = Object.keys(porCausa).map(function (k) {
+    return { causa: k, nombre: nombreCausa[k] || k, cuenta: porCausa[k],
+             pct: totalConCausa ? red_((porCausa[k] * 100) / totalConCausa) : null };
+  }).sort(function (a, b) { return b.cuenta - a.cuenta; });
+
+  /* --- 6. Reincidencia: misma causa, misma plataforma, dentro de 90 dias --- */
+  // Es el indicador que mide si los postmortem sirven. Si no baja, se estan
+  // escribiendo y no se estan aplicando.
+  var porClave = {};
+  datos.estabilizaciones.forEach(function (s) {
+    if (!s.Causa_Raiz) return;
+    var f = aFecha_(s.Fecha_Registro);
+    if (!f) return;
+    var clave = (s.Plataforma_ID || '') + '|' + s.Causa_Raiz;
+    (porClave[clave] = porClave[clave] || []).push({ id: s.ID_Solicitud, fecha: f });
+  });
+  var reincidencias = [];
+  Object.keys(porClave).forEach(function (clave) {
+    var lista = porClave[clave].sort(function (a, b) { return a.fecha - b.fecha; });
+    for (var i = 1; i < lista.length; i++) {
+      var dias = (lista[i].fecha.getTime() - lista[i - 1].fecha.getTime()) / MS_DIA;
+      if (dias > DIAS_REINCIDENCIA) continue;
+      if (ventana.indexOf(claveMes_(lista[i].fecha)) === -1) continue;
+      var partes = clave.split('|');
+      reincidencias.push({
+        plataforma: nombrePlataforma[partes[0]] || partes[0] || 'Sin plataforma',
+        causa: nombreCausa[partes[1]] || partes[1],
+        anterior: lista[i - 1].id, repetida: lista[i].id, dias: red_(dias, 0)
+      });
+    }
+  });
+
+  /* --- 7. Lo que esta abierto hoy --- */
+  var abiertas = datos.estabilizaciones.filter(function (s) {
+    return s.Estado_Actual !== ESTADO_ESTABILIZACION_CERRADA &&
+           s.Estado_Actual !== ESTADO_CANCELADA;
+  });
+
+  return {
+    ventanaMeses: n,
+    registradas: enVentana.length,
+    criticas: enVentana.filter(function (s) { return exigePostmortem(s.Prioridad); }).length,
+    abiertas: abiertas.length,
+    abiertasCriticas: abiertas.filter(function (s) { return exigePostmortem(s.Prioridad); }).length,
+    // Las que ya se podrian cerrar si alguien registrara lo que falta.
+    sinDatosParaCerrar: abiertas.filter(function (s) {
+      return !!faltaParaCerrarEstabilizacion_(s);
+    }).length,
+
+    escape: {
+      diasHabiles: DIAS_ESCAPE,
+      versionesDesplegadas: desplegadasEnVentana.length,
+      versionesConIncidente: escaparon.length,
+      pctVersiones: desplegadasEnVentana.length
+          ? red_((escaparon.length * 100) / desplegadasEnVentana.length) : null,
+      actividadesAProduccion: aProduccion.length,
+      actividadesConEscape: conEscape.length,
+      pctActividades: aProduccion.length
+          ? red_((conEscape.length * 100) / aProduccion.length) : null
+    },
+
+    porVersion: listaVersiones.slice(0, 15),
+    pareto: pareto,
+    reincidencias: reincidencias,
+
+    indisponibilidad: {
+      minutosTotal: minutosTotal,
+      minutosParcial: minutosParcial,
+      minutos: minutosTotal + minutosParcial,
+      horas: red_((minutosTotal + minutosParcial) / 60),
+      sinRegistrar: sinDato,
+      porMes: ventana.map(function (m) { return { mes: m, minutos: minutosPorMes[m] || 0 }; }),
+      porPlataforma: minutosPorPlataforma
+    },
+
+    atencion: {
+      muestra: horas.length,
+      promedioHoras: red_(promedio_(horas)),
+      medianaHoras: red_(mediana_(horas)),
+      porPrioridad: PRIORIDADES.map(function (p) {
+        var lista = horasPorPrioridad[p.id] || [];
+        return { prioridad: p.id, nombre: p.nombre, muestra: lista.length,
+                 promedioHoras: red_(promedio_(lista)), medianaHoras: red_(mediana_(lista)) };
+      }).filter(function (x) { return x.muestra > 0; })
+    }
+  };
+}
+
 /**
  * Pagina Iniciativas: matriz de solo lectura Vertical (filas) x LEN (columnas).
  * Las iniciativas sin clasificar caen en las claves SIN_VERTICAL / SIN_LEN y la
@@ -1056,7 +1303,17 @@ function calcularMatrizIniciativas_() {
   var actividadesPorProyecto = {};
   var abiertasPorProyecto = {};
   var solicitudesPorProyecto = {};
+  var estabilizacionesPorProyecto = {};
   datos.solicitudes.forEach(function (s) {
+    // Una estabilizacion no es alcance planeado de la iniciativa: si contara
+    // como actividad, un incidente abierto bajaria el avance de la iniciativa
+    // —porque aporta 0 hasta cerrarse— y el plan se veria atrasado por algo que
+    // no es parte del plan. Se cuenta aparte y se muestra aparte (D-101).
+    if (esTipoEstabilizacion(s.Tipo_Solicitud)) {
+      estabilizacionesPorProyecto[s.ID_Proyecto] =
+          (estabilizacionesPorProyecto[s.ID_Proyecto] || 0) + 1;
+      return;
+    }
     actividadesPorProyecto[s.ID_Proyecto] = (actividadesPorProyecto[s.ID_Proyecto] || 0) + 1;
     if (FASES_EN_VUELO.indexOf(s.Fase_Actual) !== -1) {
       abiertasPorProyecto[s.ID_Proyecto] = (abiertasPorProyecto[s.ID_Proyecto] || 0) + 1;
@@ -1095,6 +1352,7 @@ function calcularMatrizIniciativas_() {
       fechaFinReal: p.Fecha_Fin_Real || null,
       actividades: actividadesPorProyecto[p.ID_Proyecto] || 0,
       actividadesAbiertas: abiertasPorProyecto[p.ID_Proyecto] || 0,
+      estabilizaciones: estabilizacionesPorProyecto[p.ID_Proyecto] || 0,
       avanceReal: avanceRealIniciativa_(solicitudesPorProyecto[p.ID_Proyecto] || []),
       avanceEsperado: avanceEsperadoIniciativa_(p.Fecha_Inicio, p.Fecha_Fin_Estimada, ahora),
       lenId: p.LEN_ID || null,

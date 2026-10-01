@@ -499,6 +499,22 @@
   .t-aprob.fijo:hover{background:none}
   /* El lapiz deja de empujar: con el sello ya hay algo que ocupa el espacio */
   .t-aprob + .t-editar{margin-left:0}
+  /* Candado de cierre de una estabilizacion: que le falta para poder cerrarse */
+  .t-cierre{margin-left:auto;padding:1px 3px;font-size:13px;line-height:1;flex:none;
+            color:var(--alerta);cursor:help}
+  .t-cierre.listo{color:var(--verde)}
+  .t-cierre + .t-editar{margin-left:0}
+  /* Datos de una estabilizacion en el pie de la tarjeta. La version que fallo va
+     en rojo porque es la razon de ser de la tarjeta; la del arreglo, en verde. */
+  .t-ver.t-rota{color:var(--rojo);background:#FDECEC}
+  .t-ver.t-arregla{color:var(--verde);background:#E8FBF1}
+  .t-caida{font-family:var(--display);font-weight:600;color:#8A4B10;background:#FDF0E2;
+           border-radius:4px;padding:1px 5px;font-size:10.5px}
+  .t-causa{background:#F2EDF8;color:#5B4A77;border-radius:4px;padding:1px 6px;font-size:10.5px}
+  /* Tabla pequena dentro de un panel: la general pide 620px de ancho minimo */
+  .tabla-compacta{min-width:0;font-size:12.5px}
+  .tabla-compacta thead th{padding:6px 8px}
+  .tabla-compacta td{padding:6px 8px}
   /* La raya que muestra donde va a caer la tarjeta al soltarla */
   .tarjeta.sitio-antes{box-shadow:0 -3px 0 -1px var(--esmeralda)}
   .col.sitio-final .tarjeta:last-of-type{box-shadow:0 3px 0 -1px var(--esmeralda)}
