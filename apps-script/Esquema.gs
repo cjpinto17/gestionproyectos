@@ -258,31 +258,27 @@ var ESQUEMA_PARAMETRIZACION = {
   Permisos_Rol: {
     etiqueta: 'Permisos por rol',
     pk: 'Rol_ID',
-    columnas: [
-      { campo: 'Rol_ID', etiqueta: 'Rol', tipo: 'enum', fk: 'Roles', requerido: true },
-      // Menu principal: que paginas ve el rol.
-      { campo: 'Ver_Home', etiqueta: 'Ver Home', tipo: 'boolSN' },
-      { campo: 'Ver_Iniciativas', etiqueta: 'Ver Iniciativas', tipo: 'boolSN' },
-      { campo: 'Ver_Gestion', etiqueta: 'Ver Gestion fabrica', tipo: 'boolSN' },
-      { campo: 'Ver_Roadmap', etiqueta: 'Ver Roadmap', tipo: 'boolSN' },
-      { campo: 'Ver_Reportes', etiqueta: 'Ver Reportes', tipo: 'boolSN' },
-      { campo: 'Administrar', etiqueta: 'Administracion', tipo: 'boolSN' },
-      // Acciones sobre iniciativas.
-      { campo: 'Editar_Iniciativa', etiqueta: 'Editar iniciativa', tipo: 'boolSN' },
-      { campo: 'Comentar_Iniciativa', etiqueta: 'Comentar iniciativa', tipo: 'boolSN' },
-      // Acciones sobre solicitudes.
-      { campo: 'Crear_Solicitud', etiqueta: 'Crear solicitud', tipo: 'boolSN' },
-      { campo: 'Editar_Solicitud', etiqueta: 'Editar solicitud', tipo: 'boolSN' },
-      { campo: 'Mover_Fase', etiqueta: 'Mover de fase', tipo: 'boolSN' },
-      { campo: 'Retroceder_Fase', etiqueta: 'Devolver a una fase anterior', tipo: 'boolSN' },
-      { campo: 'Saltar_Fases', etiqueta: 'Saltar fases', tipo: 'boolSN' },
-      { campo: 'Bloquear_Solicitud', etiqueta: 'Marcar y levantar bloqueos', tipo: 'boolSN' },
-      { campo: 'Comentar_Solicitud', etiqueta: 'Comentar solicitud', tipo: 'boolSN' },
-      { campo: 'Migrar_Solicitud', etiqueta: 'Migrar solicitudes historicas', tipo: 'boolSN' },
-      { campo: 'Mover_Estado_Tarea', etiqueta: 'Cambiar el estado de una tarea', tipo: 'boolSN' },
-      // Roadmap.
-      { campo: 'Gestionar_Versiones', etiqueta: 'Crear y editar versiones', tipo: 'boolSN' }
-    ]
+
+    /**
+     * Las columnas NO se escriben aqui: se derivan de CATALOGO_PERMISOS
+     * (Rbac.gs), que es la misma lista que Administracion muestra.
+     *
+     * Estaban escritas dos veces, y eso costo un defecto: al agregar la
+     * aprobacion (D-98) se actualizo el catalogo y no esta lista, asi que la
+     * pantalla ofrecia la casilla, la hoja no tenia columna donde guardarla y
+     * ningun rol podia aprobar —ni siquiera el Administrador— aunque la casilla
+     * se viera marcada. Derivarlas hace imposible volver a desfasarlas (D-100).
+     *
+     * Es un getter y no un valor porque los dos archivos viven en el mismo
+     * ambito global pero se cargan por separado: asi la lista se lee cuando
+     * alguien la pide, no mientras los archivos se estan cargando.
+     */
+    get columnas() {
+      return [{ campo: 'Rol_ID', etiqueta: 'Rol', tipo: 'enum', fk: 'Roles', requerido: true }]
+          .concat(CATALOGO_PERMISOS.map(function (p) {
+            return { campo: p.campo, etiqueta: p.grupo + ': ' + p.nombre, tipo: 'boolSN' };
+          }));
+    }
   },
 
   /**
@@ -294,17 +290,14 @@ var ESQUEMA_PARAMETRIZACION = {
   Permisos_Fase: {
     etiqueta: 'Fases por rol',
     pk: 'Rol_ID',
-    columnas: [
-      { campo: 'Rol_ID', etiqueta: 'Rol', tipo: 'enum', fk: 'Roles', requerido: true },
-      { campo: 'FAS_01', etiqueta: 'Gestion de la demanda', tipo: 'boolSN' },
-      { campo: 'FAS_02', etiqueta: 'Backlog', tipo: 'boolSN' },
-      { campo: 'FAS_03', etiqueta: 'Analisis y diseno', tipo: 'boolSN' },
-      { campo: 'FAS_04', etiqueta: 'Desarrollo', tipo: 'boolSN' },
-      { campo: 'FAS_05', etiqueta: 'Pruebas QA', tipo: 'boolSN' },
-      { campo: 'FAS_06', etiqueta: 'Pruebas UAT', tipo: 'boolSN' },
-      { campo: 'FAS_07', etiqueta: 'Aceptacion TI', tipo: 'boolSN' },
-      { campo: 'FAS_08', etiqueta: 'Produccion', tipo: 'boolSN' }
-    ]
+
+    /** Igual que arriba: las ocho fases salen de FASES y no de una copia. */
+    get columnas() {
+      return [{ campo: 'Rol_ID', etiqueta: 'Rol', tipo: 'enum', fk: 'Roles', requerido: true }]
+          .concat(FASES.map(function (f) {
+            return { campo: f.id.replace('-', '_'), etiqueta: f.nombre, tipo: 'boolSN' };
+          }));
+    }
   },
 
   Proyectos: {

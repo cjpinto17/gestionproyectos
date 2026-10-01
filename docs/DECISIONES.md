@@ -1981,6 +1981,36 @@ la mañana pagaría los 8,7 segundos completos.
 prueba pasaba sobre algo que no existe —el mismo error que dejó pasar el defecto de D-79—. La copia
 se borró y la prueba ahora lee el archivo de verdad.
 
+### D-100 · Un permiso que la pantalla ofrecía y la hoja no podía guardar
+
+Al probar la aprobación, nadie podía aprobar: ni el Product Owner ni el Administrador, con el permiso
+marcado en Administración. No era un problema de permisos, era un defecto de D-98.
+
+**La causa.** La lista de permisos estaba escrita **dos veces**: en `CATALOGO_PERMISOS` (`Rbac.gs`),
+que es la que Administración muestra, y en las columnas de la hoja `Permisos_Rol` (`Esquema.gs`), que
+es donde se guardan. Al agregar la aprobación actualicé la primera y olvidé la segunda. El resultado
+era silencioso en los tres puntos donde debería haber avisado:
+
+- la pantalla mostraba la casilla, porque sale del catálogo;
+- al guardar, la columna no existía, así que el valor se escribía en ninguna parte y la operación
+  decía que todo salió bien;
+- al preguntar «¿este rol puede aprobar?», la celda ausente se leía como un **no**.
+
+**Las columnas ya no se escriben dos veces.** El esquema de `Permisos_Rol` deriva sus columnas de
+`CATALOGO_PERMISOS`, y el de `Permisos_Fase` de `FASES`. Agregar un permiso en un solo lugar ahora
+basta para que aparezca en la pantalla *y* tenga dónde guardarse; desfasarlas volvió a ser imposible.
+
+**Y una columna que falta ya no significa «no».** Cuando la hoja no tiene la columna de un permiso
+—porque se agregó al código después de crear la hoja— manda el valor de fábrica, no la negación. Una
+celda vacía o en `NO` sí es una negación y se respeta. Así un permiso nuevo funciona desde el
+despliegue, sin esperar a que alguien corra `actualizarEstructura`.
+
+**Por qué mi verificación no lo encontró.** La prueba en el navegador de D-98 le entregaba a la
+pantalla el permiso ya concedido, a mano, para poder ver el sello. Nunca ejercitó el camino que
+estaba roto: de la hoja al permiso. La prueba nueva sí lo recorre, y se comprobó contra el código
+anterior —ahí falla, señalando exactamente la columna que faltaba— antes de darla por buena. Es el
+tercer defecto de la misma familia: una verificación que mira el lado que funciona (ver D-79 y D-99).
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

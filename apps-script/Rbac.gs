@@ -33,7 +33,11 @@
 
 /**
  * Los permisos que existen, en el orden en que se muestran en Administracion.
- * Agregar uno aqui y en el esquema basta para que aparezca en la pantalla.
+ *
+ * Esta es la UNICA lista: el esquema de la hoja Permisos_Rol deriva sus columnas
+ * de aqui (Esquema.gs). Agregar un permiso aqui basta para que aparezca en la
+ * pantalla Y tenga donde guardarse. Antes habia que acordarse de las dos, y
+ * olvidar la segunda dejaba el permiso sin efecto (D-100).
  */
 var CATALOGO_PERMISOS = [
   { grupo: 'Menú principal', campo: 'Ver_Home', nombre: 'Home' },
@@ -152,9 +156,12 @@ function permisosDeFabrica_(rolId) {
     Saltar_Fases: !!f.admin,
     Migrar_Solicitud: !!f.admin,
     Bloquear_Solicitud: !!f.embudo,
-    // Quien opera el embudo tambien mueve tareas de fabrica; se separa para
-    // poder darselo a quien atiende tareas sin darle el tablero completo.
+    // La compuerta de aprobacion es de quien responde por el alcance: Product
+    // Owner y Administrador (D-98). Se separa del embudo porque mover una
+    // tarjeta y dar el visto bueno no son la misma decision.
     Aprobar_Solicitud: !!f.aprueba,
+    // Quien opera el embudo tambien mueve tareas; se separa para poder darselo
+    // a quien atiende tareas sin darle el tablero completo.
     Mover_Estado_Tarea: !!f.embudo,
     Gestionar_Versiones: !!f.versiones
   };
@@ -176,9 +183,16 @@ function permisosDeRol_(rolId) {
   var fila = filaDePermisos_('Permisos_Rol', rolId);
   if (!fila) return permisosDeFabrica_(rolId);
 
+  // Una columna que la hoja no tiene no es un "no": es un permiso que se agrego
+  // al codigo despues de que la hoja se creo, y que todavia no tiene donde
+  // guardarse. Negarlo en silencio fue el defecto de la aprobacion (D-100):
+  // nadie podia aprobar, ni el Administrador, y la pantalla de permisos no daba
+  // ninguna pista de por que. Mientras la columna no exista manda el valor de
+  // fabrica; una celda vacia o en NO si es una negacion, y se respeta.
+  var fabrica = permisosDeFabrica_(rolId);
   var permisos = {};
   CATALOGO_PERMISOS.forEach(function (p) {
-    permisos[p.campo] = esSi_(fila[p.campo]);
+    permisos[p.campo] = (p.campo in fila) ? esSi_(fila[p.campo]) : !!fabrica[p.campo];
   });
   return permisos;
 }
