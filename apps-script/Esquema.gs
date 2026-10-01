@@ -183,6 +183,40 @@ function exigePostmortem(prioridadId) {
 var TIPOS_INDISPONIBILIDAD = ['Total', 'Parcial'];
 
 /**
+ * Los tres momentos de las historias de usuario dentro de Analisis y diseno.
+ *
+ * Es el detalle de una fase que hasta ahora era una sola casilla: una solicitud
+ * podia llevar tres semanas "en analisis" sin que se supiera si las historias se
+ * estaban escribiendo, si ya estaban donde el PO, o si el PO ya las habia
+ * revisado. Son tres esperas distintas y se destraban de maneras distintas.
+ *
+ * Van con tilde porque es lo que la gente lee en la tarjeta y en el formulario.
+ *
+ * NO reemplazan al sello de aprobacion de la fase (D-98): se decidio que fueran
+ * independientes. El sello dice que la solicitud puede salir de la fase; esto
+ * dice en que va el trabajo de adentro (D-108).
+ */
+var ESTADOS_HISTORIAS = ['En construcción', 'Enviadas al PO', 'Aprobadas'];
+
+/** En el que entran al llegar a la fase: es donde empieza el trabajo. */
+var ESTADO_HISTORIAS_INICIAL = 'En construcción';
+
+/** La fase en la que se escriben las historias. */
+var FASE_HISTORIAS = 'FAS-03';
+
+/**
+ * @param {string} faseId
+ * @param {string} tipoSolicitud
+ * @return {boolean} True si ahi se lleva el control de las historias.
+ *
+ * Solo las de fabrica —Nuevo, Mejora y Ajuste— y solo en Analisis y diseno: una
+ * tarea no pasa por ahi y una estabilizacion no escribe historias.
+ */
+function llevaHistorias(faseId, tipoSolicitud) {
+  return recorreEmbudo(tipoSolicitud) && String(faseId || '') === FASE_HISTORIAS;
+}
+
+/**
  * La fase que no se puede empezar sin saber quien la analiza (D-102).
  *
  * Se exige al ENTRAR y no al salir: el analista es quien hace el trabajo de la
@@ -668,6 +702,9 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Responsable_ID', etiqueta: 'Responsable actual', tipo: 'enum', fk: 'Usuarios' },
       // Quien analiza. Se pide al entrar a Analisis y diseno y no se borra
       // despues: queda como registro de quien hizo el analisis (D-102).
+      { campo: 'Estado_Historias', etiqueta: 'Historias de usuario', tipo: 'enum',
+        opciones: ESTADOS_HISTORIAS,
+        ayuda: 'En qué va la escritura de las historias dentro de Análisis y diseño. Se cambia desde la tarjeta del tablero.' },
       { campo: 'Analista_ID', etiqueta: 'Analista asignado', tipo: 'enum', fk: 'Analistas',
         ayuda: 'Quién hace el análisis y diseño. Se pide al mover la tarjeta a esa fase, y la lista se administra en Administración → Analistas.' },
       // Las ocho fases dejan su estampa. Gestion de la demanda y Backlog no la

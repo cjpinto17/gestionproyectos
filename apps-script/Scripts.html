@@ -35,6 +35,16 @@ var CLASE_ESTADO = {
 var CLASE_TIPO = { 'TIP-03': 'tipo-nuevo', 'TIP-02': 'tipo-mejora', 'TIP-01': 'tipo-ajuste',
                   'TIP-05': 'tipo-estab' };
 
+/**
+ * Color de cada momento de las historias: escribiendo es trabajo en curso,
+ * esperando al PO es una espera que alguien tiene que destrabar, y aprobadas es
+ * trabajo listo. Verlos del mismo color era no poder barrer la columna de un
+ * vistazo buscando lo que lleva dias esperando (D-108).
+ */
+var CLASE_HISTORIAS = {
+  'En construcción': 'h-curso', 'Enviadas al PO': 'h-espera', 'Aprobadas': 'h-listo'
+};
+
 
 var CLASE_ESTADO_INI = {
   'EIN-01': 'e-por-iniciar',   // gris
@@ -1752,6 +1762,7 @@ function tarjetaActividad(s, posicion) {
       (s.Nombre_Plataforma ? '<span class="t-plat">' + esc(s.Nombre_Plataforma) + '</span>' : '') +
       '<span>' + esc(s.Nombre_Responsable || '—') + '</span>' +
       selloAnalista(s) +
+      selloHistorias(s) +
       enlacesDeSolicitud(s) + '</div>' +
   '</article>';
 }
@@ -1852,6 +1863,63 @@ function cambiarAnalista(id) {
       fallo(err);
     });
   });
+}
+
+/**
+ * En que van las historias de usuario, en la tarjeta de Analisis y diseno.
+ *
+ * Solo ahi y solo en las de fabrica: una tarea no pasa por esa fase y una
+ * estabilizacion no escribe historias. Es informativo —no toca el sello de
+ * aprobacion ni frena nada (D-108)— pero distingue tres esperas que antes se
+ * veian iguales: escribiendo, esperando al PO, o ya revisadas.
+ */
+function selloHistorias(s) {
+  if (!esDeFabrica(s) || s.Fase_Actual !== (CAT.faseHistorias || 'FAS-03')) return '';
+
+  var valor = String(s.Estado_Historias || '');
+  var puede = CTX.puedeEditarSolicitud;
+  var titulo = valor
+      ? ('Historias de usuario: ' + valor + (puede ? ' · clic para cambiarlo' : ''))
+      : (puede ? 'Historias de usuario sin registrar · clic para indicarlo'
+               : 'Historias de usuario sin registrar');
+
+  return '<' + (puede ? 'button' : 'span') + ' class="t-hist ' +
+    (CLASE_HISTORIAS[valor] || 'sin') + '"' +
+    (puede ? ' data-historias="' + esc(s.ID_Solicitud) + '"' : '') +
+    ' title="' + esc(titulo) + '" aria-label="' + esc(titulo) + '">&#128221; ' +
+    esc(valor || 'sin registrar') + '</' + (puede ? 'button' : 'span') + '>';
+}
+
+/** Cambia el estado de las historias desde la tarjeta. */
+function cambiarHistorias(id) {
+  var s = solicitudPorId(id);
+  if (!s) return;
+  var actual = String(s.Estado_Historias || '');
+
+  abrirModal('Historias de usuario de ' + s.ID_Solicitud, s.Nombre_Solicitud,
+    '<div class="formulario">' +
+      '<label class="campo"><span>¿En qué van?</span>' +
+        '<select id="histEstado">' +
+        (CAT.estadosHistorias || []).map(function (e) {
+          return '<option value="' + esc(e) + '"' + (e === actual ? ' selected' : '') +
+                 '>' + esc(e) + '</option>';
+        }).join('') + '</select>' +
+        '<small style="color:var(--ink-faint)">Es informativo: no mueve la tarjeta ni ' +
+        'reemplaza el visto bueno de la fase, que se sigue dando con el sello.</small></label>' +
+    '</div>',
+    function () {
+      var valor = $('histEstado').value;
+      var antes = s.Estado_Historias;
+      s.Estado_Historias = valor;
+      pintarKanban();
+      return api('cambiarEstadoHistorias', id, valor).then(function () {
+        toast(id + ': historias ' + valor.toLowerCase() + '.');
+      }).catch(function (err) {
+        s.Estado_Historias = antes;
+        pintarKanban();
+        throw err;
+      });
+    });
 }
 
 /** Gemelo de faseExigeAprobacion() del servidor. */
@@ -2271,6 +2339,8 @@ document.addEventListener('click', function (e) {
   if (sello) { alternarAprobacion(sello.dataset.aprobar); return; }
   var quienAnaliza = e.target.closest('[data-analista]');
   if (quienAnaliza) { cambiarAnalista(quienAnaliza.dataset.analista); return; }
+  var historias = e.target.closest('[data-historias]');
+  if (historias) { cambiarHistorias(historias.dataset.historias); return; }
   var lapiz = e.target.closest('[data-editar-sol]');
   if (lapiz) { editarSolicitud(lapiz.dataset.editarSol); return; }
   var alerta = e.target.closest('[data-alerta]');

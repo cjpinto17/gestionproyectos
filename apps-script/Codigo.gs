@@ -671,6 +671,8 @@ function armarCatalogos_() {
     causasRaiz: getCausasRaiz_(),
     analistas: getAnalistas_(),
     fasesConAnalista: FASES_CON_ANALISTA,
+    estadosHistorias: ESTADOS_HISTORIAS,
+    faseHistorias: FASE_HISTORIAS,
     tiposIndisponibilidad: TIPOS_INDISPONIBILIDAD,
     prioridadesConPostmortem: PRIORIDADES_CON_POSTMORTEM,
     versiones: opcionesDeVersiones_(),
@@ -1501,6 +1503,10 @@ function crearSolicitud(datos) {
       Link_Taiga: datos.Link_Taiga || '',
       Version_Semantica: limpiarVersion_(datos.Version_Semantica),
       Responsable_ID: datos.Responsable_ID || ctx.idUsuario,
+      // Quien registra una solicitud ya en Analisis y diseno arranca con sus
+      // historias en construccion, igual que si hubiera llegado arrastrandola.
+      Estado_Historias: llevaHistorias(fase, datos.Tipo_Solicitud)
+          ? ESTADO_HISTORIAS_INICIAL : '',
       Fecha_Ultimo_Cambio: ahora
     };
     validarRegistro_('Solicitudes', registro, true);
@@ -1740,6 +1746,12 @@ function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino, idAnalist
     // la aprobacion vale para una fase, el analista es un hecho de la historia
     // de la solicitud y sigue sirviendo despues (D-102).
     if (analista) nuevo.Analista_ID = analista;
+    // Al llegar a Analisis y diseno las historias empiezan a escribirse: el
+    // control arranca solo, sin que nadie tenga que acordarse de iniciarlo. Si
+    // la solicitud vuelve a pasar por la fase se respeta lo que ya tenia.
+    if (llevaHistorias(faseDestino, nuevo.Tipo_Solicitud) && !nuevo.Estado_Historias) {
+      nuevo.Estado_Historias = ESTADO_HISTORIAS_INICIAL;
+    }
     sellarEstampas_(nuevo, faseOrigen, faseDestino, ahora);
 
     escribirFila_('Solicitudes', s._fila, nuevo);
@@ -1788,6 +1800,45 @@ function faltaAnalista_(solicitud, faseDestino, idAnalista) {
 
   return 'Antes de pasar ' + solicitud.ID_Solicitud + ' a "' + nombreDeFase_(faseDestino) +
          '" hay que decir quien la analiza.';
+}
+
+/**
+ * Cambia en que van las historias de usuario de una solicitud (D-108).
+ *
+ * Es un dato de la fase, no del embudo: no mueve la tarjeta, no toca el sello de
+ * aprobacion y no frena nada. Dice si las historias se estan escribiendo, si ya
+ * estan donde el PO o si el PO ya las aprobo, que son tres esperas distintas y
+ * se destraban de maneras distintas.
+ *
+ * @param {string} idSolicitud
+ * @param {string} estado Uno de ESTADOS_HISTORIAS. Vacio lo borra.
+ * @return {!Object}
+ */
+function cambiarEstadoHistorias(idSolicitud, estado) {
+  exigirPermiso_('Editar_Solicitud',
+      'Su rol no puede cambiar el estado de las historias.');
+
+  return conBloqueo_(function () {
+    var s = buscarPorPk_('Solicitudes', idSolicitud);
+    if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+    if (!llevaHistorias(s.Fase_Actual, s.Tipo_Solicitud)) {
+      throw new Error('Las historias de usuario se llevan en "' +
+                      nombreDeFase_(FASE_HISTORIAS) + '", y solo en las solicitudes de fabrica.');
+    }
+
+    var valor = String(estado || '').trim();
+    if (valor && ESTADOS_HISTORIAS.indexOf(valor) === -1) {
+      throw new Error('El estado de las historias tiene que ser uno de: ' +
+                      ESTADOS_HISTORIAS.join(', ') + '.');
+    }
+
+    var nuevo = {};
+    Object.keys(s).forEach(function (k) { if (k !== '_fila') nuevo[k] = s[k]; });
+    nuevo.Estado_Historias = valor;
+    escribirFila_('Solicitudes', s._fila, nuevo);
+
+    return { ok: true, idSolicitud: idSolicitud, estadoHistorias: valor };
+  });
 }
 
 /**
@@ -3119,6 +3170,7 @@ var METODOS_PUBLICOS = {
   aprobarSolicitud: true,
   cambiarEstadoEstabilizacion: true,
   asignarAnalista: true,
+  cambiarEstadoHistorias: true,
   cambiarEstadoTarea: true,
   marcarBloqueo: true,
   refrescarDatos: true,

@@ -2305,6 +2305,39 @@ lista SI/NO en las de sí o no, la lista fija en las que la tienen, y sin regla 
 A las columnas que apuntan a otra tabla no les pone lista: su contenido es un identificador que
 cambia cuando alguien agrega un catálogo, y una lista congelada envejecería mal.
 
+### D-108 · Las historias de usuario, dentro de Análisis y diseño
+
+Análisis y diseño era una sola casilla: una solicitud podía llevar tres semanas ahí sin que se
+supiera si las historias se estaban escribiendo, si ya estaban donde el Product Owner, o si el PO ya
+las había revisado. **Son tres esperas distintas y se destraban de maneras distintas** —una necesita
+analista, otra necesita que alguien revise, la tercera ya no necesita nada—, y verlas iguales
+impedía barrer la columna buscando lo que lleva días parado.
+
+La tarjeta lleva ahora un rótulo con en qué van: *En construcción*, *Enviadas al PO* o *Aprobadas*,
+cada uno de su color.
+
+**Solo donde aplica:** Nuevo, Mejora y Ajuste, y solo en Análisis y diseño. Una tarea no pasa por esa
+fase y una estabilización no escribe historias.
+
+**Arranca solo.** Al llegar la tarjeta a la fase —arrastrándola o registrándola directamente ahí— las
+historias quedan *En construcción*, que es donde empieza el trabajo. Nadie tiene que acordarse de
+iniciar el control. Si la solicitud vuelve a pasar por la fase se respeta lo que ya tenía.
+
+**Es independiente del sello de aprobación**, por decisión explícita. El sello (D-98) dice que la
+solicitud puede salir de la fase; esto dice en qué va el trabajo de adentro. Se consideró unirlos
+—que marcar *Aprobadas* diera el visto bueno— y se prefirió dejarlos separados, con el costo conocido
+de que la tarjeta pueda mostrar las historias aprobadas y el sello sin dar. El diálogo lo dice al
+cambiarlo, para que esa diferencia no sorprenda.
+
+**Quién lo cambia:** cualquiera que pueda editar la solicitud, no solo quien aprueba. Es un dato de
+seguimiento, no una decisión: quien escribe las historias es quien sabe cuándo las envió. Quien no
+puede editar lo ve igual, sin poder oprimirlo.
+
+**Con tilde.** Los tres valores se leen tal cual en la tarjeta y en el formulario, así que se
+escriben en español correcto. Los catálogos viejos del código siguen sin tildes —*Critica*,
+*Analisis y diseno*, *En Produccion*— y conviene corregirlos en algún momento; esta decisión no los
+toca para no mezclar un cambio de datos con uno de funcionalidad.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

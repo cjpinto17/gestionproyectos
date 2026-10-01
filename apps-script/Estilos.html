@@ -562,6 +562,16 @@
   .t-analista.vacio{background:var(--alerta-bg);color:var(--alerta)}
   span.t-analista{cursor:default}
   span.t-analista:hover{background:#EAF4EC}
+  /* En que van las historias de usuario, solo en Analisis y diseno (D-108) */
+  .t-hist{border:0;border-radius:4px;padding:1px 6px;font-size:10.5px;font-family:inherit;
+          cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .t-hist.h-curso{background:#EDF1F8;color:#42557A}
+  .t-hist.h-espera{background:var(--alerta-bg);color:var(--alerta)}
+  .t-hist.h-listo{background:#E8FBF1;color:var(--verde)}
+  .t-hist.sin{background:var(--line-soft);color:var(--ink-faint)}
+  .t-hist:hover{filter:brightness(.95)}
+  span.t-hist{cursor:default}
+  span.t-hist:hover{filter:none}
   /* Tabla pequena dentro de un panel: la general pide 620px de ancho minimo */
   .tabla-compacta{min-width:0;font-size:12.5px}
   .tabla-compacta thead th{padding:6px 8px}
