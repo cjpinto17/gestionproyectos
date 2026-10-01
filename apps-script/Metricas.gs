@@ -972,6 +972,165 @@ function tiemposPorFase_(datos, ventana) {
   });
 }
 
+/* ================================================================== */
+/* Indicadores del roadmap (D-104)                                     */
+/* ================================================================== */
+
+/**
+ * Las fases en las que una actividad ya esta comprometida a salir.
+ *
+ * De Desarrollo en adelante el trabajo esta en curso y va a llegar a produccion:
+ * si no tiene version asignada, va a llegar sin plan.
+ */
+var FASES_COMPROMETIDAS = ['FAS-04', 'FAS-05', 'FAS-06', 'FAS-07'];
+
+/**
+ * Los indicadores de la pagina Roadmap.
+ *
+ * El roadmap medía puntualidad y volumen: si entregamos cuando dijimos y cuantas
+ * versiones hay. Con el tipo de cada actividad (D-103) se puede responder algo
+ * mas util para el negocio: EN QUE se esta yendo la capacidad de la fabrica.
+ *
+ * @param {!Object} datos
+ * @param {!Object<string,!Array>} porPlataforma Versiones ya armadas.
+ * @return {!Object}
+ * @private
+ */
+function indicadoresRoadmap_(datos, porPlataforma) {
+  var nombrePlataforma = mapaPlataformas();
+  var tipos = getTiposSolicitud_();
+
+  /* --- 1. Mezcla de inversion: en que se va la capacidad --- */
+  // Se cuenta lo que YA esta en produccion, con o sin version asignada: la
+  // pregunta es que entregamos, no que planeamos entregar.
+  var entregadas = datos.solicitudesFabrica.filter(function (s) {
+    return s.Fase_Actual === 'FAS-08';
+  });
+  var mezcla = contarPor_(entregadas, function (s) { return s.Tipo_Solicitud; });
+
+  function conPorcentaje(cuentas, total) {
+    return tipos.map(function (t) {
+      return { tipo: t.id, nombre: t.nombre, cuenta: cuentas[t.id] || 0,
+               pct: total ? red_((cuentas[t.id] || 0) * 100 / total) : null };
+    });
+  }
+
+  /* --- 2. La misma mezcla, plataforma por plataforma --- */
+  // El promedio general esconde que una plataforma sea casi todo ajuste y otra
+  // casi todo producto nuevo, que es justo lo que hay que ver.
+  var porPlat = {};
+  entregadas.forEach(function (s) {
+    var k = s.Plataforma_ID || 'SIN_PLATAFORMA';
+    porPlat[k] = porPlat[k] || { total: 0, tipos: {} };
+    porPlat[k].total++;
+    porPlat[k].tipos[s.Tipo_Solicitud] = (porPlat[k].tipos[s.Tipo_Solicitud] || 0) + 1;
+  });
+  var mezclaPorPlataforma = Object.keys(porPlat).map(function (k) {
+    return { plataformaId: k, plataforma: nombrePlataforma[k] || 'Sin plataforma',
+             total: porPlat[k].total, tipos: conPorcentaje(porPlat[k].tipos, porPlat[k].total) };
+  }).sort(function (a, b) { return b.total - a.total; });
+
+  /* --- 3. Ritmo: cada cuanto llega valor al usuario --- */
+  var hoy = new Date();
+  var ritmo = Object.keys(porPlataforma).map(function (k) {
+    var desplegadas = porPlataforma[k]
+        .filter(function (v) { return aFecha_(v.fechaReal); })
+        .sort(function (a, b) { return aFecha_(a.fechaReal) - aFecha_(b.fechaReal); });
+
+    var huecos = [];
+    for (var i = 1; i < desplegadas.length; i++) {
+      huecos.push((aFecha_(desplegadas[i].fechaReal).getTime() -
+                   aFecha_(desplegadas[i - 1].fechaReal).getTime()) / MS_DIA);
+    }
+    var ultima = desplegadas.length ? aFecha_(desplegadas[desplegadas.length - 1].fechaReal) : null;
+    return {
+      plataformaId: k,
+      plataforma: nombrePlataforma[k] || 'Sin plataforma',
+      desplegadas: desplegadas.length,
+      // Con una sola version no hay intervalo que medir: no se inventa uno.
+      diasPromedio: huecos.length ? red_(promedio_(huecos), 0) : null,
+      ultimoDespliegue: ultima ? Utilities.formatDate(ultima, CONFIG.ZONA_HORARIA, 'yyyy-MM-dd') : null,
+      diasDesdeUltimo: ultima ? Math.round((hoy.getTime() - ultima.getTime()) / MS_DIA) : null
+    };
+  }).filter(function (x) { return x.desplegadas > 0; })
+    .sort(function (a, b) { return (a.diasPromedio || 9999) - (b.diasPromedio || 9999); });
+
+  var todosLosHuecos = [];
+  ritmo.forEach(function (r) { if (r.diasPromedio !== null) todosLosHuecos.push(r.diasPromedio); });
+
+  /* --- 4. Tamano de las versiones, y lo que cuesta el tamano --- */
+  var yaSalieron = [];
+  Object.keys(porPlataforma).forEach(function (k) {
+    porPlataforma[k].forEach(function (v) {
+      if (aFecha_(v.fechaReal)) yaSalieron.push(v);
+    });
+  });
+
+  // Incidentes que genero cada version, de la estabilizacion (D-101).
+  var incidentesPorVersion = {};
+  datos.estabilizaciones.forEach(function (s) {
+    var id = String(s.Version_Afectada || '');
+    if (id) incidentesPorVersion[id] = (incidentesPorVersion[id] || 0) + 1;
+  });
+
+  var tamanos = yaSalieron.map(function (v) { return v.actividades.length; });
+  var medianaTamano = mediana_(tamanos);
+
+  // Se parte por la MEDIANA y no por un numero fijo: un umbral de "6 o mas" que
+  // yo escogiera diria mas de mi suposicion que de este portafolio. La mediana
+  // se adapta a lo que el equipo de verdad entrega.
+  var pequenas = [], grandes = [];
+  yaSalieron.forEach(function (v) {
+    var inc = incidentesPorVersion[v.idVersion] || 0;
+    (v.actividades.length <= medianaTamano ? pequenas : grandes).push(inc);
+  });
+
+  var tamano = {
+    versiones: yaSalieron.length,
+    promedio: red_(promedio_(tamanos)),
+    mediana: medianaTamano,
+    maximo: tamanos.length ? Math.max.apply(null, tamanos) : null,
+    // La comparacion que sirve para decidir: ¿entregar mas grande nos sale caro?
+    comparacion: (pequenas.length && grandes.length) ? {
+      corte: medianaTamano,
+      pequenas: { versiones: pequenas.length, incidentesPromedio: red_(promedio_(pequenas)) },
+      grandes: { versiones: grandes.length, incidentesPromedio: red_(promedio_(grandes)) }
+    } : null,
+    detalle: yaSalieron.map(function (v) {
+      return { version: v.plataforma + ' ' + v.numeroVersion, actividades: v.actividades.length,
+               incidentes: incidentesPorVersion[v.idVersion] || 0 };
+    }).sort(function (a, b) { return b.actividades - a.actividades; }).slice(0, 10)
+  };
+
+  /* --- 5. Higiene del plan: dos avisos, no dos indicadores --- */
+  var sinContenido = [];
+  Object.keys(porPlataforma).forEach(function (k) {
+    porPlataforma[k].forEach(function (v) {
+      if (!aFecha_(v.fechaReal) && !v.actividades.length) {
+        sinContenido.push({ version: v.plataforma + ' ' + v.numeroVersion,
+                            fechaPlaneada: v.fechaPlaneada || null });
+      }
+    });
+  });
+
+  var sinVersion = datos.solicitudesFabrica.filter(function (s) {
+    return FASES_COMPROMETIDAS.indexOf(s.Fase_Actual) !== -1 &&
+           !String(s.Version_Semantica || '').trim();
+  }).map(function (s) {
+    return { id: s.ID_Solicitud, nombre: s.Nombre_Solicitud,
+             fase: s.Fase_Actual,
+             plataforma: nombrePlataforma[s.Plataforma_ID] || s.Plataforma_ID || '' };
+  });
+
+  return {
+    mezcla: { total: entregadas.length, tipos: conPorcentaje(mezcla, entregadas.length) },
+    mezclaPorPlataforma: mezclaPorPlataforma,
+    ritmo: { porPlataforma: ritmo, diasPromedio: red_(promedio_(todosLosHuecos), 0) },
+    tamano: tamano,
+    higiene: { sinContenido: sinContenido, sinVersion: sinVersion }
+  };
+}
+
 /**
  * Pagina Roadmap: versiones agrupadas por plataforma digital, con la fecha
  * planeada y la fecha real de paso a produccion.
@@ -1032,7 +1191,8 @@ function getRoadmapVersiones() {
     // tiene que decir "Nuevo" y no "TIP-03" aunque alguien los renombre.
     tipos: getTiposSolicitud_(),
     porPlataforma: porPlataforma,
-    cumplimiento: calcularCumplimientoFecha_(datos.roadmap)
+    cumplimiento: calcularCumplimientoFecha_(datos.roadmap),
+    indicadores: indicadoresRoadmap_(datos, porPlataforma)
   };
 }
 

@@ -2171,6 +2171,52 @@ detalle lo dice en su cabecera: *"1 de 3 en producción"*.
 las que envejecen y hacen que la prueba pase sobre un código que no está desplegado —el error de
 D-79—. Ahora lo arma `armarRoadmap.py` desde los archivos reales, como los demás.
 
+### D-104 · Indicadores del roadmap: en qué se va la capacidad
+
+El roadmap medía **puntualidad y volumen**: si entregamos cuando dijimos y cuántas versiones hay. Con
+el tipo de cada actividad (D-103) se puede responder algo que le importa más al negocio: **en qué se
+está yendo la capacidad de la fábrica**.
+
+**Mezcla de inversión.** Qué porcentaje de lo entregado es Nuevo, Mejora o Ajuste. Es la pregunta que
+un comité de inversión hace y que antes no se podía responder con datos: *¿cuánto construimos y
+cuánto sostenemos?* Si el ajuste domina, la fábrica no está construyendo. Se cuenta lo que **ya está
+en producción**, con o sin versión asignada: la pregunta es qué entregamos, no qué planeamos.
+
+**Sin color de semáforo en esa cifra.** Que una plataforma madura se sostenga con ajustes no es malo,
+y pintar *Ajuste* en rojo sería opinar donde hay que informar. La proporción se ve en la barra por
+plataforma, que sí lleva los colores; las cifras van neutras.
+
+**La misma mezcla, plataforma por plataforma.** El promedio general esconde que una plataforma sea
+casi todo ajuste y otra casi todo producto nuevo, que es justo lo que hay que ver para decidir dónde
+invertir.
+
+**Ritmo de entrega.** Días promedio entre versiones que llegan a producción, por plataforma. Traduce
+a lenguaje de negocio *cada cuánto podemos poner valor en manos del usuario*. Con una sola versión
+desplegada no se inventa un intervalo: se dice "una sola".
+
+**Tamaño contra incidentes.** Cruza el tamaño de cada versión con las estabilizaciones que generó
+(D-101) y responde algo accionable: *¿entregar más grande nos sale caro?* El corte entre "pequeñas" y
+"grandes" es la **mediana**, no un número fijo: un umbral de "6 o más" que yo escogiera diría más de
+mi suposición que de este portafolio. Y la conclusión se escribe en palabras debajo de las dos
+cifras, porque dos números enfrentados no dicen qué hacer con ellos.
+
+**Dos avisos de higiene, no dos indicadores.** No miden la gestión: miden si el roadmap refleja el
+trabajo real. *Actividades que van a salir sin plan* —en Desarrollo o más adelante, sin versión
+asignada— es riesgo concreto, y va marcado en rojo. *Versiones planeadas vacías* es plan sin armar. Si
+no hay nada que avisar, se dice que el plan está sano, en lugar de dejar un panel en blanco.
+
+**Lo que no se puede medir y por qué.** Quedaron fuera el *cumplimiento de alcance* (cuántas
+actividades comprometidas en una versión terminaron saliendo en otra) y el *tiempo desde que se
+compromete hasta que sale*. Los dos exigen saber **cuándo** se asignó la versión, y la bitácora
+registra cambios de fase y de estado, no cambios de versión. Para tenerlos habría que empezar a
+registrar ese cambio, y el indicador solo serviría meses después, cuando hubiera historia.
+
+**Una colisión de nombres que la prueba en el navegador atajó.** Las clases de la mezcla se llamaron
+primero `.mz-*`, que ya era el prefijo de la matriz de iniciativas: la fila heredó `display:flex` y la
+barra quedó del tamaño de su contenido en lugar de ocupar el panel. Se renombraron a `.mez-*`. La
+prueba ahora mide el ancho real de la barra contra el de su panel —el síntoma, no la forma del
+código— y comprueba además que la matriz conserve las suyas.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
@@ -2191,6 +2237,7 @@ D-79—. Ahora lo arma `armarRoadmap.py` desde los archivos reales, como los dem
 | S-08 | Versionamiento | ¿`Roadmap_Versiones` se alimenta automáticamente al asignar `Version_Semantica`, o se administra aparte? |
 | S-09 | SLA | ¿Días calendario o días hábiles? (ver D-10) |
 | S-10 | Aplicación de la iniciativa | ¿Una aplicación principal por iniciativa, o varias? (ver D-08) |
+| S-21 | Historial de versión | Para medir cumplimiento de alcance y tiempo comprometido→entregado hay que registrar en la bitácora los cambios de versión de una solicitud (ver D-104) |
 | S-20 | Lista de analistas | La hoja `Analistas` se crea vacía: hay que registrar quiénes analizan desde Administración → Analistas (ver D-102) |
 | S-18 | Ventana de servicio | Para el % de disponibilidad por plataforma: ¿24×7 o jornada hábil? Sin eso el indicador no se puede calcular (ver D-101) |
 | S-19 | SLA de estabilización | ¿Cuántas horas objetivo para atender una crítica y una alta? Hoy se mide el tiempo, sin meta contra la cual compararlo |

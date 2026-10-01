@@ -428,6 +428,35 @@
   .rm-tipo{background:var(--line-soft);color:var(--ink-muted);border-radius:4px;
            padding:0 5px;font-size:10px;font-family:var(--display);font-weight:600;
            line-height:16px;white-space:nowrap}
+  /* Mezcla de inversion: una barra por plataforma, partida por tipo (D-104).
+     Aqui los colores van saturados y con texto blanco, al reves que las
+     pastillas: en una franja de 20px el pastel no se distingue del vecino. */
+  .mez-fila{margin-bottom:12px}
+  .mez-nombre{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-muted);
+             margin-bottom:4px}
+  .mez-total{margin-left:auto;font-weight:700;color:var(--navy)}
+  .mez-barra{display:flex;height:20px;border-radius:5px;overflow:hidden;background:var(--line-soft)}
+  .mez-parte{display:flex;align-items:center;justify-content:center;font-size:10.5px;
+            font-family:var(--display);font-weight:700;color:#fff;min-width:0}
+  .mez-parte.tipo-nuevo,.punto.tipo-nuevo{background:#2F8F5B}
+  .mez-parte.tipo-mejora,.punto.tipo-mejora{background:#2B4D80}
+  .mez-parte.tipo-ajuste,.punto.tipo-ajuste{background:#C4821A}
+  /* Dos cifras enfrentadas: versiones pequenas contra versiones grandes */
+  .cmp{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .cmp-lado{background:#F8FAFE;border:1px solid var(--line-soft);border-radius:var(--radio);
+            padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+  .cmp-rot{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);
+           font-family:var(--display);font-weight:600}
+  .cmp-cifra{font-family:var(--display);font-weight:800;font-size:23px;color:var(--navy);
+             line-height:1.1}
+  .cmp-lado.mal .cmp-cifra{color:var(--rojo)}
+  .cmp-pie{font-size:11px;color:var(--ink-muted)}
+  /* Avisos de higiene del plan */
+  .aviso-plan{border-left:3px solid var(--line);background:#F8FAFE;border-radius:6px;
+              padding:10px 12px;font-size:12.5px;margin-bottom:10px}
+  .aviso-plan.mal{border-left-color:var(--rojo)}
+  .aviso-plan ul{margin:6px 0 0;padding-left:18px}
+  .aviso-plan li{margin-bottom:2px}
   .rm-tipo.tipo-nuevo{background:#E3F2E8;color:#1F6B40}
   .rm-tipo.tipo-mejora{background:#E4EDFA;color:#2B4D80}
   .rm-tipo.tipo-ajuste{background:var(--alerta-bg);color:var(--alerta)}

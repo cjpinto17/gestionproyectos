@@ -34,6 +34,7 @@ var CLASE_ESTADO = {
  */
 var CLASE_TIPO = { 'TIP-03': 'tipo-nuevo', 'TIP-02': 'tipo-mejora', 'TIP-01': 'tipo-ajuste' };
 
+
 var CLASE_ESTADO_INI = {
   'EIN-01': 'e-por-iniciar',   // gris
   'EIN-02': 'e-en-progreso',   // amarillo
@@ -2792,6 +2793,8 @@ function pintarRoadmap() {
     kpi('Versiones en producción', todas.length - planeadas, '', 'Histórico del roadmap')
   ].join('');
 
+  pintarIndicadoresRoadmap(r.indicadores);
+
   var html = Object.keys(r.porPlataforma).filter(function (k) {
     return !fp || k === fp;
   }).map(function (idPlat) {
@@ -2837,6 +2840,144 @@ function pintarRoadmap() {
 
   $('roadmap').innerHTML = html ||
       '<div class="panel" style="text-align:center;color:var(--ink-faint)">Todavía no hay versiones registradas.</div>';
+}
+
+/**
+ * Los indicadores del roadmap (D-104).
+ *
+ * No siguen el filtro de plataforma de la pagina: son la lectura del portafolio
+ * completo, y el filtro esta pensado para recorrer el detalle de una plataforma.
+ * El panel "Mezcla por plataforma" ya responde la pregunta por separado.
+ */
+function pintarIndicadoresRoadmap(i) {
+  if (!i) return;
+
+  /* --- Mezcla de inversion --- */
+  var conDatos = i.mezcla.total > 0;
+  $('kpisMezcla').innerHTML = i.mezcla.tipos.map(function (t) {
+    // Sin color de semaforo: que una plataforma madura se sostenga con ajustes
+    // no es malo, y pintar "Ajuste" en rojo seria opinar donde hay que informar.
+    // La proporcion se ve en la barra de abajo, que si lleva los colores.
+    return kpi(t.nombre, conDatos ? t.pct : null, ' %',
+               t.cuenta + ' de ' + i.mezcla.total + ' actividades en producción');
+  }).join('') +
+  kpi('Ritmo de entrega', i.ritmo.diasPromedio, ' d',
+      'Días promedio entre versiones, todas las plataformas');
+
+  /* --- Mezcla por plataforma --- */
+  $('graficoMezclaPlat').innerHTML = i.mezclaPorPlataforma.length
+      ? i.mezclaPorPlataforma.map(function (p) {
+          return '<div class="mez-fila"><div class="mez-nombre">' + esc(p.plataforma) +
+            '<span class="mez-total num">' + p.total + '</span></div>' +
+            '<div class="mez-barra">' + p.tipos.filter(function (t) { return t.cuenta; })
+              .map(function (t) {
+                return '<span class="mez-parte ' + (CLASE_TIPO[t.tipo] || '') + '" style="width:' +
+                  (t.pct || 0) + '%" title="' + esc(t.cuenta + ' ' + t.nombre + ' · ' + t.pct + '%') +
+                  '">' + (t.pct >= 14 ? t.pct + '%' : '') + '</span>';
+              }).join('') + '</div></div>';
+        }).join('') + leyendaTipos()
+      : '<p style="color:var(--ink-muted);font-size:13px">Todavía no hay actividades en producción.</p>';
+
+  /* --- Ritmo por plataforma --- */
+  $('tablaRitmo').innerHTML = i.ritmo.porPlataforma.length
+      ? '<table class="tabla-compacta"><thead><tr><th>Plataforma</th>' +
+        '<th class="num">Versiones</th><th class="num">Cada</th>' +
+        '<th class="num">Última</th></tr></thead><tbody>' +
+        i.ritmo.porPlataforma.map(function (p) {
+          return '<tr><td>' + esc(p.plataforma) + '</td>' +
+            '<td class="num">' + p.desplegadas + '</td>' +
+            '<td class="num">' + (p.diasPromedio === null
+              ? '<span style="color:var(--ink-faint)">una sola</span>'
+              : p.diasPromedio + ' d') + '</td>' +
+            '<td class="num">' + (p.diasDesdeUltimo === null ? '—'
+              : 'hace ' + p.diasDesdeUltimo + ' d') + '</td></tr>';
+        }).join('') + '</tbody></table>'
+      : '<p style="color:var(--ink-muted);font-size:13px">Ninguna versión ha llegado a producción.</p>';
+
+  /* --- Tamano contra incidentes --- */
+  var t = i.tamano;
+  var cabeza = '<p class="nota" style="margin:0 0 8px">' +
+    (t.versiones
+      ? t.versiones + ' versiones desplegadas · ' + t.promedio + ' actividades en promedio' +
+        (t.maximo ? ' · la mayor llevó ' + t.maximo : '')
+      : 'Ninguna versión ha llegado a producción todavía.') + '</p>';
+
+  var comparacion = '';
+  if (t.comparacion) {
+    var c = t.comparacion;
+    var peor = c.grandes.incidentesPromedio > c.pequenas.incidentesPromedio;
+    comparacion =
+      '<div class="cmp"><div class="cmp-lado"><span class="cmp-rot">Hasta ' + c.corte +
+        ' actividades</span><span class="cmp-cifra num">' + c.pequenas.incidentesPromedio +
+        '</span><span class="cmp-pie">incidentes por versión · ' + c.pequenas.versiones +
+        ' versiones</span></div>' +
+      '<div class="cmp-lado' + (peor ? ' mal' : '') + '"><span class="cmp-rot">Más de ' + c.corte +
+        '</span><span class="cmp-cifra num">' + c.grandes.incidentesPromedio +
+        '</span><span class="cmp-pie">incidentes por versión · ' + c.grandes.versiones +
+        ' versiones</span></div></div>' +
+      '<p class="nota" style="margin:8px 0 0">' + (peor
+        ? 'Las versiones grandes están generando más estabilizaciones. Entregar más seguido y más pequeño reduce el riesgo de cada entrega.'
+        : 'El tamaño de la versión no está explicando los incidentes: la causa hay que buscarla en el Pareto de causa raíz.') +
+      '</p>';
+  } else if (t.versiones) {
+    comparacion = '<p class="nota" style="margin:0">Hacen falta más versiones desplegadas para ' +
+      'comparar las grandes contra las pequeñas.</p>';
+  }
+
+  var detalle = t.detalle.length
+      ? '<table class="tabla-compacta" style="margin-top:10px"><thead><tr><th>Versión</th>' +
+        '<th class="num">Actividades</th><th class="num">Incidentes</th></tr></thead><tbody>' +
+        t.detalle.map(function (d) {
+          return '<tr><td>' + esc(d.version) + '</td>' +
+            '<td class="num">' + d.actividades + '</td>' +
+            '<td class="num"' + (d.incidentes ? ' style="color:var(--rojo);font-weight:700"' : '') +
+            '>' + d.incidentes + '</td></tr>';
+        }).join('') + '</tbody></table>'
+      : '';
+
+  $('tablaTamano').innerHTML = cabeza + comparacion + detalle;
+
+  /* --- Avisos del plan --- */
+  var avisos = [];
+  if (i.higiene.sinVersion.length) {
+    var nSV = i.higiene.sinVersion.length;
+    avisos.push('<div class="aviso-plan mal"><b>' + nSV +
+      (nSV === 1 ? ' actividad va' : ' actividades van') + ' a salir sin plan.</b> ' +
+      (nSV === 1 ? 'Está' : 'Están') + ' en Desarrollo o más adelante y no ' +
+      (nSV === 1 ? 'tiene' : 'tienen') + ' versión asignada, así que ' +
+      (nSV === 1 ? 'llegará' : 'llegarán') +
+      ' a producción sin estar en ninguna versión del roadmap.' +
+      '<ul>' + i.higiene.sinVersion.slice(0, 6).map(function (a) {
+        return '<li>' + esc(a.id) + ' · ' + esc(a.nombre) + ' <span style="color:var(--ink-faint)">(' +
+          esc(nombreFase(a.fase)) + (a.plataforma ? ' · ' + esc(a.plataforma) : '') + ')</span></li>';
+      }).join('') + '</ul>' +
+      (nSV > 6 ? '<p class="nota" style="margin:4px 0 0">y ' + (nSV - 6) + ' más.</p>' : '') +
+      '</div>');
+  }
+  if (i.higiene.sinContenido.length) {
+    var nSC = i.higiene.sinContenido.length;
+    avisos.push('<div class="aviso-plan"><b>' + nSC +
+      (nSC === 1 ? ' versión planeada está vacía.' : ' versiones planeadas están vacías.') +
+      '</b> No ' + (nSC === 1 ? 'tiene' : 'tienen') + ' ninguna actividad asignada: o el plan ' +
+      'todavía no se armó, o el trabajo está asignado a otra versión.' +
+      '<ul>' + i.higiene.sinContenido.slice(0, 6).map(function (v) {
+        return '<li>' + esc(v.version) +
+          (v.fechaPlaneada ? ' <span style="color:var(--ink-faint)">(planeada para ' +
+            esc(fecha(v.fechaPlaneada)) + ')</span>' : '') + '</li>';
+      }).join('') + '</ul></div>');
+  }
+  $('avisosPlan').innerHTML = avisos.length ? avisos.join('')
+      : '<p style="color:var(--verde);font-size:13px">El plan está sano: todas las versiones ' +
+        'planeadas tienen contenido y ninguna actividad avanzada se quedó sin versión.</p>';
+}
+
+/** La leyenda de colores de la mezcla, para no tener que adivinar las franjas. */
+function leyendaTipos() {
+  return '<div class="leyenda" style="margin-top:8px">' + (CAT.tipos || [])
+    .filter(function (t) { return CLASE_TIPO[t.id]; })
+    .map(function (t) {
+      return '<span><span class="punto ' + CLASE_TIPO[t.id] + '"></span>' + esc(t.nombre) + '</span>';
+    }).join('') + '</div>';
 }
 
 /**
