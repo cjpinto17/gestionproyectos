@@ -2217,6 +2217,31 @@ barra quedó del tamaño de su contenido en lugar de ocupar el panel. Se renombr
 prueba ahora mide el ancho real de la barra contra el de su panel —el síntoma, no la forma del
 código— y comprueba además que la matriz conserve las suyas.
 
+### D-105 · Las versiones cuentan solo trabajo de fábrica, y una batería que mentía
+
+**El cambio pedido.** El contenido de cada versión salía de *todas* las solicitudes que tuvieran ese
+número de versión y esa plataforma. Ahora sale solo de las de fábrica. Una tarea no recorre el embudo
+ni sale en una versión: el formulario de alta no le ofrece el campo, pero la edición genérica sí, y la
+data antigua puede traerlo. Con ella dentro, inflaba el contenido de la versión, el contador por tipo
+y el tamaño contra el que se comparan los incidentes. Las estabilizaciones quedan fuera por lo mismo,
+y además llevan su versión en otro campo (D-101).
+
+**Y algo más grave que apareció al probarlo.** La batería de pruebas se corría buscando la palabra
+*FALLA* en la salida. Una prueba que **revienta** no imprime esa palabra, así que se contaba como
+verde. Al corregir el runner para mirar el código de salida aparecieron **nueve pruebas muertas**, de
+treinta y seis: todas rotas por mis propios cambios de D-101 a D-104 —el mapa de gobiernos reemplazó a
+`esTipoTarea`, el esquema ganó catálogos nuevos, el roadmap ganó indicadores— y ninguna lo había
+dicho.
+
+Las nueve están reparadas, y con ellas salieron a la luz tres expectativas desactualizadas que
+llevaban días sin comprobarse de verdad: el formulario ya no pregunta "¿es tarea?" sino de qué
+gobierno es, y dos mensajes de error dejaron de nombrar solo a la tarea cuando apareció un tercer
+gobierno que tampoco se ordena ni se aprueba.
+
+**La lección, que es la misma de D-79 y D-101 con otra cara:** una verificación que solo sabe
+reconocer el fracaso que esperaba no distingue entre "pasó" y "ni siquiera corrió". El runner quedó en
+`correrTodo.sh`, mira el código de salida, y reporta aparte las que revientan de las que fallan.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

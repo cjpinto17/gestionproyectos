@@ -1148,7 +1148,14 @@ function getRoadmapVersiones() {
 
     // Las actividades de esta version: se relacionan por numero de version y
     // plataforma, que es como la fabrica las asigna.
-    var suyas = datos.solicitudes.filter(function (s) {
+    //
+    // Solo las de FABRICA. Una tarea no recorre el embudo ni sale en una
+    // version: si alguien le deja un numero de version escrito —el formulario
+    // no se lo ofrece, pero la edicion generica si— inflaria el contenido de la
+    // version, el contador por tipo y el tamano con el que se comparan los
+    // incidentes. Las estabilizaciones quedan fuera por lo mismo, y ademas
+    // llevan su version en otro campo (D-101, D-105).
+    var suyas = datos.solicitudesFabrica.filter(function (s) {
       return s.Version_Semantica === v.Numero_Version && s.Plataforma_ID === idPlat;
     });
 
