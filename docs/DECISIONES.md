@@ -1842,6 +1842,44 @@ de su propia columna, la columna se pintaba de rojo —«ya está en esa fase»�
 validación del arrastre solo contemplaba cambios de fase, así que decía que no se podía algo que sí
 se puede. Se corrigió donde estaba el error, en la validación, y no tapándolo en el manejador.
 
+### D-97 · Dos numeraciones que se veían iguales, y una recarga que sobraba
+
+**El encabezado de columna se confundía con las tarjetas.** Tenía el mismo color claro que la
+columna y llevaba el número de la fase en una pastilla azul oscura **idéntica** a la que D-96 acababa
+de poner en cada tarjeta para su orden de atención: dos numeraciones que significan cosas distintas
+—la fase del embudo y el puesto en la fila— y se veían igual.
+
+Ahora el encabezado es una **barra azul oscura con texto blanco**: se distingue de un vistazo y
+separa claramente el título de la columna de su contenido. El número de la fase va calado sobre esa
+barra, en un círculo translúcido, que no se parece a la pastilla sólida de una tarjeta. El conteo
+pasa al mismo tratamiento. Al ser opaco, el encabezado pegado sigue tapando las tarjetas al
+desplazarse, que es lo que tiene que hacer.
+
+**Y reordenar recargaba el tablero entero.** Al soltar una tarjeta en su columna, el éxito disparaba
+`invalidarCacheCliente()` y `cargarGestion(true)`: se borraba la copia local, se pintaba el esqueleto
+—pantalla en blanco— y se pedía todo el tablero otra vez, lo que obliga al servidor a releer todas
+las hojas. Eso cuesta entre uno y tres segundos, como ya estaba medido en `Cache.gs`. Todo para
+volver a dibujar exactamente lo que ya estaba en pantalla: el reordenamiento optimista del navegador
+usa la misma regla de inserción que el servidor, así que el resultado era idéntico.
+
+**En éxito ya no se recarga nada.** Lo único que cambió fue el número de orden de una columna, y el
+navegador ya lo aplicó. El revertir en caso de error se conserva: si el servidor rechaza, la tarjeta
+vuelve sola a su sitio.
+
+**En el servidor, reordenar ya no bota la tabla.** `invalidarTabla_('Solicitudes')` obligaba a releer
+todas las hojas en la siguiente consulta —el precio más alto por el cambio más barato—. Ahora
+`refrescarOrdenEnCache_` parcha en memoria solo las filas que cambiaron. Y **no marca una versión
+nueva de los datos**: el orden de una columna no entra en ningún indicador, matriz ni reporte, así
+que rehacer todos los cálculos porque alguien subió una tarjeta un puesto sería tirar trabajo bueno.
+Aquí sí se copia el valor que se acaba de escribir, al contrario de lo que advierte
+`refrescarFilaEnCache_`: esa advertencia existe porque Sheets convierte fechas y decimales a su
+manera, y un entero pequeño vuelve tal cual.
+
+**De paso, refrescar ya no vacía un tablero que está pintado.** Cuando el tablero se recarga de
+verdad —al cambiar de fase, por ejemplo— se deja a la vista mientras llegan los datos nuevos, en
+lugar de borrarlo para mostrar el esqueleto. El esqueleto solo tiene sentido cuando no hay nada que
+mostrar.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

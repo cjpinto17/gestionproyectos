@@ -1606,18 +1606,23 @@ function escribirOrdenColumna_(ordenada) {
   var rango = hoja.getRange(2, iOrden + 1, ultimaFila - 1, 1);
   var valores = rango.getValues();
   var cambios = 0;
+  var ordenPorFila = {};
 
   ordenada.forEach(function (s, i) {
     var fila = s._fila - 2;                      // _fila es 1-based e incluye el encabezado
     if (fila < 0 || fila >= valores.length) return;
     if (Number(valores[fila][0]) === i + 1) return;
     valores[fila][0] = i + 1;
+    ordenPorFila[s._fila] = i + 1;
     cambios++;
   });
 
   if (cambios) {
     rango.setValues(valores);
-    invalidarTabla_('Solicitudes');
+    // Se parchan las filas en memoria en vez de botar la tabla: el orden no
+    // entra en ningun indicador, y releer todas las hojas costaria segundos
+    // justo mientras alguien acomoda su columna.
+    refrescarOrdenEnCache_(ordenPorFila);
   }
   return cambios;
 }

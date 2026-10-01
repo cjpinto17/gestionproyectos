@@ -222,6 +222,46 @@ function refrescarFilaEnCache_(tabla, numeroFila, columnas) {
 }
 
 /**
+ * Actualiza en la memoria compartida el orden de varias filas de una columna.
+ *
+ * Reordenar toca tantas filas como tarjetas tenga la columna. Botar la tabla
+ * —lo que hace invalidarTabla_— obligaria a releer todas las hojas en la
+ * siguiente consulta, que cuesta entre uno y tres segundos: el precio mas alto
+ * por el cambio mas barato, y pagado justo cuando alguien esta trabajando en el
+ * tablero. Releer fila por fila tampoco sirve: serian tantas idas a la hoja
+ * como tarjetas.
+ *
+ * Aqui si se copia el valor que acabamos de escribir en vez de releerlo, al
+ * contrario de refrescarFilaEnCache_. La razon de aquella advertencia es que
+ * Google Sheets convierte fechas y decimales a su manera; un entero pequeno
+ * vuelve tal cual, asi que no hay nada que la hoja pueda devolver distinto.
+ *
+ * Y NO se marca una version nueva de los datos: el orden de una columna no
+ * entra en ningun indicador, matriz ni reporte. Rehacer todos los calculos
+ * porque alguien subio una tarjeta un puesto seria tirar trabajo bueno.
+ *
+ * @param {!Object<number, number>} ordenPorFila Numero de fila -> orden nuevo.
+ * @private
+ */
+function refrescarOrdenEnCache_(ordenPorFila) {
+  var filas = MEMO_TABLAS['Solicitudes'] || leerDeCache_('Solicitudes');
+  if (!filas) return;                     // no habia copia que actualizar
+
+  var copia = filas.map(function (f) {
+    if (ordenPorFila[f._fila] === undefined) return f;
+    var c = {};
+    Object.keys(f).forEach(function (k) { c[k] = f[k]; });
+    c.Orden_Columna = ordenPorFila[f._fila];
+    return c;
+  });
+
+  MEMO_TABLAS['Solicitudes'] = copia;
+  // Si ya no cabe en cache hay que borrar la copia vieja: dejarla seria servir
+  // el orden anterior.
+  if (!guardarEnCache_('Solicitudes', copia)) borrarBloques_(claveCache_('Solicitudes'));
+}
+
+/**
  * Tablas cuyo contenido NO entra en ningun indicador, matriz ni reporte.
  *
  * Importa porque cada escritura sobre una tabla que si entra obliga a rehacer

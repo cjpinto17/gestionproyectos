@@ -179,12 +179,22 @@
      siga el color de la columna cuando es destino de arrastre o esta vetada,
      y los margenes negativos lo estiran sobre el relleno de .col para que las
      tarjetas no se vean pasar por el costado. */
-  .col-cab{display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:2;
-           background:inherit;margin:-10px -10px 0;padding:12px 14px 10px;
+  /* Encabezado de columna: en azul fuerte y texto blanco.
+     Antes era del mismo color claro que la columna y llevaba el numero de la
+     fase en una pastilla navy identica a la que ahora lleva cada tarjeta con su
+     orden de atencion: dos numeraciones distintas que se veian iguales. Ahora
+     el encabezado es una barra oscura —se distingue de un vistazo— y el numero
+     de la fase va calado sobre ella, nunca como la pastilla de una tarjeta. */
+  .col-cab{display:flex;align-items:center;gap:9px;position:sticky;top:0;z-index:2;
+           background:var(--navy);color:#fff;margin:-10px -10px 10px;padding:11px 13px;
            border-radius:var(--radio) var(--radio) 0 0}
-  .col-cab .orden{background:var(--navy);color:#fff;font-family:var(--display);font-weight:700;font-size:11px;width:19px;height:19px;border-radius:5px;display:grid;place-items:center}
-  .col-cab h3{font-size:12.5px;font-weight:700;line-height:1.2}
-  .col-cab .cuenta{margin-left:auto;font-size:12px;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+  .col-cab .orden{background:rgba(255,255,255,.18);color:#fff;font-family:var(--display);
+                  font-weight:700;font-size:11px;min-width:20px;height:20px;border-radius:999px;
+                  display:grid;place-items:center;padding:0 5px}
+  .col-cab h3{font-size:13.5px;font-weight:800;line-height:1.2;letter-spacing:-.01em}
+  .col-cab .cuenta{margin-left:auto;font-size:12px;font-weight:700;color:#fff;
+                   background:rgba(255,255,255,.18);border-radius:999px;padding:1px 8px;
+                   font-variant-numeric:tabular-nums}
   .tarjeta{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--navy);border-radius:8px;padding:10px 11px;margin-bottom:9px;cursor:grab}
   .tarjeta.bloqueada{border-left-color:var(--alerta-line);background:#FFFDF6}
   .tarjeta.arrastrando{opacity:.4}

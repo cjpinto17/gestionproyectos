@@ -1273,7 +1273,11 @@ function cargarGestion(forzar) {
   // Se traen todas las actividades una sola vez y el filtrado ocurre en el
   // navegador: asi la busqueda predictiva responde sin esperar al servidor.
   if (!forzar && DATOS.kanban) { pintarKanban(); return; }
-  cargando('kanban', 'tablero');
+  // Si ya hay un tablero pintado se deja a la vista mientras llegan los datos
+  // nuevos. Vaciarlo para mostrar el esqueleto dejaba la pantalla en blanco
+  // varios segundos justo despues de que alguien movio una tarjeta, que es
+  // cuando mas se nota.
+  if (!$('kanban').children.length) cargando('kanban', 'tablero');
   api('getDatosKanban', {}).then(function (r) {
     DATOS.kanban = r;
     prepararFiltrosKanban(r);
@@ -1733,10 +1737,13 @@ function reordenarEnColumna_(s, col, vecina) {
   nueva.forEach(function (x, i) { x.Orden_Columna = i + 1; });
   pintarKanban();
 
-  api('reordenarSolicitud', s.ID_Solicitud, idEncima).then(function () {
-    invalidarCacheCliente();
-    cargarGestion(true);
-  }).catch(function (err) {
+  // En exito no se recarga nada. La pantalla ya quedo como va a quedar: el
+  // reordenamiento de aqui arriba usa la misma regla de insercion que el
+  // servidor, asi que pedir el tablero completo solo servia para volver a
+  // dibujar lo mismo —y dejaba la pagina en blanco varios segundos, porque
+  // releer todas las hojas cuesta entre uno y tres segundos—. Lo unico que
+  // cambio fue el numero de orden de una columna, y ya esta aplicado.
+  api('reordenarSolicitud', s.ID_Solicitud, idEncima).catch(function (err) {
     enColumna.forEach(function (x, i) { x.Orden_Columna = antes[i]; });
     pintarKanban();
     fallo(err);
