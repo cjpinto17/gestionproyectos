@@ -278,6 +278,11 @@ function alinearEncabezados_(hoja, encabezados) {
       hoja.insertColumnsAfter(hoja.getMaxColumns(), 1);
     }
     hoja.getRange(1, posicion).setValue(campo);
+    // Una columna recien insertada hereda el formato y las REGLAS de su vecina.
+    // Asi nacio el defecto de D-107: una columna de numeros al lado de una de
+    // SI/NO quedaba con la regla de SI/NO, y despues la aplicacion no podia
+    // escribir en ella. Se limpia al nacer.
+    hoja.getRange(1, posicion, hoja.getMaxRows(), 1).clearDataValidations();
     actuales.splice(posicion - 1, 0, campo);
   });
 }

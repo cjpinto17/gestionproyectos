@@ -732,6 +732,95 @@ function normalizarAprobadas(aplicar) {
  * "Aplicar" escribe. Nadie tiene que escribir codigo para usarlas.
  */
 
+/* ================================================================== */
+/* Validaciones de las hojas (D-107)                                   */
+/* ================================================================== */
+
+/**
+ * Pone las reglas de validacion de cada hoja de acuerdo con el esquema.
+ *
+ * EL PROBLEMA QUE RESUELVE
+ * ------------------------
+ * Al agregar una columna, Google Sheets le copia el formato y las reglas de la
+ * columna vecina. Asi, una columna nueva nacida al lado de una de SI/NO heredaba
+ * su regla, y despues la aplicacion no podia escribir en ella: al guardar una
+ * solicitud, Sheets rechazaba el numero o la fecha con un "infringe las reglas de
+ * validacion definidas en esta celda". El dato era correcto; la regla, heredada.
+ *
+ * EL CRITERIO
+ * -----------
+ * Las reglas de la hoja existen para ayudar a quien escribe DIRECTO en el Sheets,
+ * no para gobernar a la aplicacion: quien valida de verdad es validarRegistro_().
+ * Por eso todas se ponen con "permitir invalido": avisan, pero nunca bloquean un
+ * guardado. Una regla de hoja que puede detener la aplicacion es una regla que
+ * algun dia la va a detener.
+ *
+ * Columna de SI/NO -> lista SI,NO. Columna con lista fija en el esquema -> esa
+ * lista. Cualquier otra -> sin regla. No se le ponen reglas a las columnas que
+ * apuntan a otra tabla: su contenido es un identificador que cambia cuando
+ * alguien agrega un catalogo, y una lista congelada envejeceria mal.
+ *
+ * @param {boolean=} aplicar false (por omision) solo informa.
+ * @return {!Object}
+ */
+function normalizarValidaciones(aplicar) {
+  exigirOperador_();
+  var resumen = { aplicado: !!aplicar, puestas: [], limpiadas: [], hojas: 0 };
+
+  [[getIdLibroParametrizacion_(), ESQUEMA_PARAMETRIZACION],
+   [getIdLibroTransaccional_(), ESQUEMA_TRANSACCIONAL]].forEach(function (par) {
+    var libro = SpreadsheetApp.openById(par[0]);
+    Object.keys(par[1]).forEach(function (nombreHoja) {
+      var hoja = libro.getSheetByName(nombreHoja);
+      if (!hoja) return;
+      resumen.hojas++;
+
+      var columnas = par[1][nombreHoja].columnas;
+      var porCampo = {};
+      columnas.forEach(function (c) { porCampo[c.campo] = c; });
+
+      var ancho = Math.max(hoja.getLastColumn(), 1);
+      var encabezados = hoja.getRange(1, 1, 1, ancho).getValues()[0];
+      var filas = Math.max(hoja.getMaxRows() - 1, 1);
+
+      encabezados.forEach(function (nombre, i) {
+        var col = porCampo[String(nombre || '')];
+        var rango = hoja.getRange(2, i + 1, filas, 1);
+        var lista = null;
+        if (col && col.tipo === 'boolSN') lista = ['SI', 'NO'];
+        else if (col && col.opciones && col.opciones.length) lista = col.opciones.slice();
+
+        var actual = rango.getDataValidation();
+        if (lista) {
+          // Se vuelve a poner siempre: una regla heredada puede tener la lista
+          // correcta y seguir rechazando lo que no esta en ella.
+          resumen.puestas.push(nombreHoja + '.' + nombre + ' -> ' + lista.join('/'));
+          if (aplicar) {
+            rango.setDataValidation(SpreadsheetApp.newDataValidation()
+                .requireValueInList(lista, true).setAllowInvalid(true).build());
+          }
+          return;
+        }
+        if (!actual) return;                    // ya esta limpia: nada que hacer
+        resumen.limpiadas.push(nombreHoja + '.' + (nombre || '(sin nombre)'));
+        if (aplicar) rango.clearDataValidations();
+      });
+    });
+  });
+
+  resumen.mensaje = aplicar
+      ? 'Reglas corregidas. Vuelva a guardar la solicitud que fallaba.'
+      : 'Esto es lo que se CORREGIRIA. Para hacerlo de verdad ejecute ' +
+        'normalizarValidacionesAplicar.';
+  Logger.log(JSON.stringify(resumen, null, 2));
+  return resumen;
+}
+
+/** Aplica de verdad lo que simula normalizarValidaciones. */
+function normalizarValidacionesAplicar() {
+  return normalizarValidaciones(true);
+}
+
 /** Aplica de verdad lo que simula normalizarAprobadas. */
 function normalizarAprobadasAplicar() {
   return normalizarAprobadas(true);

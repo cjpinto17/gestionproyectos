@@ -2279,6 +2279,32 @@ Es el mismo error que ya había cometido con el analista (D-102) y que ahí sí 
 que nadie puede abrir no protege un dato, detiene el trabajo**. La diferencia es que allí la lista
 vacía era previsible y aquí no la volví a pensar.
 
+### D-107 · Una regla de la hoja no puede bloquear a la aplicación
+
+Al guardar una solicitud de fábrica, Google Sheets rechazaba la escritura: *«Los datos introducidos
+en la celda S7 infringen las reglas de validación de datos definidas en esta celda. Introduce uno de
+los valores siguientes: SI, NO»*. El dato era correcto; la regla, heredada.
+
+**De dónde salió la regla.** Al insertar una columna, Google Sheets le copia el formato **y las reglas
+de validación** de su vecina. Cada vez que el esquema ganó una columna —y ganó once entre D-96 y
+D-102— la nueva nacía al lado de otra, y si la vecina era de SI/NO, heredaba su regla. Después la
+aplicación intentaba escribir ahí un número, una fecha o un enlace, y la hoja lo rechazaba. Una
+prueba lo reproduce: con el código anterior, la columna insertada nace con `["SI","NO"]` encima.
+
+**Se corta en el origen:** toda columna que el sistema inserta se queda sin reglas al nacer.
+
+**Y el criterio de fondo, que faltaba escribir.** Las reglas de la hoja existen para ayudar a quien
+escribe directo en el Sheets; quien valida de verdad es `validarRegistro_()`. Por eso todas se ponen
+ahora con *permitir inválido*: avisan, pero nunca detienen un guardado. **Una regla de hoja capaz de
+detener la aplicación es una regla que algún día la va a detener** — y lo hará por un dato correcto,
+que es la peor forma de fallar.
+
+**Para lo que ya está roto** está `normalizarValidaciones` (`Mantenimiento.gs`), con su gemela
+`normalizarValidacionesAplicar` (D-95): recorre las hojas y deja cada columna como el esquema dice —
+lista SI/NO en las de sí o no, la lista fija en las que la tienen, y sin regla en todas las demás—.
+A las columnas que apuntan a otra tabla no les pone lista: su contenido es un identificador que
+cambia cuando alguien agrega un catálogo, y una lista congelada envejecería mal.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
