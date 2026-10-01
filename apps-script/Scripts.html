@@ -2906,10 +2906,20 @@ function pintarReportes(r) {
 }
 
 /* ================= Administracion ================= */
+/**
+ * Las tablas que se pueden ver y editar desde Administracion.
+ *
+ * REGLA: todo catalogo que la aplicacion lea de la hoja (los de
+ * CATALOGOS_AMPLIABLES, en Esquema.gs) TIENE que estar aqui. Si no esta, el
+ * catalogo manda sobre lo que ve la gente y nadie puede cambiarlo desde la
+ * aplicacion: es configurable en teoria y fijo en la practica. Fue justo lo que
+ * paso con las causas raiz al crearlas (D-101), y hay una prueba que lo vigila.
+ */
 var TABLAS_ADMIN = [
   'Usuarios', 'Proyectos', 'Plataforma_Digital', 'Roles', 'Lineas_Estrategicas',
   'Verticales', 'Tipos_Iniciativa', 'Tipos_Solicitud', 'Estados_Iniciativa',
-  'Estados', 'Fases', 'SLA_Fases', 'Causales_Bloqueo', 'Festivos', 'Roadmap_Versiones'
+  'Estados', 'Fases', 'SLA_Fases', 'Causales_Bloqueo', 'Causas_Raiz', 'Festivos',
+  'Roadmap_Versiones'
 ];
 
 function cargarAdmin() {

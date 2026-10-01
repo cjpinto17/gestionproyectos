@@ -2082,6 +2082,15 @@ manda— y no borra nada. La contrapartida, que conviene saber: una fila de cat�
 propósito vuelve a aparecer, porque desde el código no hay forma de distinguir "la borré" de "nunca
 llegó". Cada fila agregada se reporta para que se vea.
 
+**La lista de causas raíz no aparecía donde dije que aparecía.** Se declaró la hoja, se sembró con
+sus diez causas y se dejó como catálogo ampliable —todo lo que hace falta para que la aplicación la
+lea de la hoja—, pero la pantalla de Administración arma sus botones con una lista propia, escrita a
+mano en el cliente, y ahí no quedó. El catálogo era configurable en teoría y fijo en la práctica. Es
+la misma familia de D-100: una lista escrita dos veces de la que solo se actualizó una. La regla que
+faltaba está ahora escrita donde se incumple —*todo catálogo que la aplicación lea de la hoja tiene
+que estar en los botones de Administración*— y una prueba la vigila: se comprobó contra el código
+anterior, donde falla señalando exactamente la tabla que faltaba.
+
 **Lo que esta decisión no incluye:** un SLA de atención por prioridad para las estabilizaciones (hoy
 se mide el tiempo, pero no hay objetivo contra el cual compararlo) ni el porcentaje de disponibilidad
 por plataforma, que exige acordar antes la ventana de servicio: 24×7 o jornada hábil. Ninguna de las
