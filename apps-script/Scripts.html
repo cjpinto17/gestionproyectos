@@ -3332,11 +3332,25 @@ function cargarCostos() {
     if (!$('fCostoDesde').value && r.desde) $('fCostoDesde').value = r.desde;
     if (!$('fCostoHasta').value && r.hasta) $('fCostoHasta').value = r.hasta;
     pintarCostos(r);
-  }).catch(fallo);
+  }).catch(function (e) {
+    // Un aviso que se desvanece deja la pagina con el esqueleto puesto y a quien
+    // la mira sin saber si esta cargando o si fallo. El motivo se queda escrito.
+    fallo(e);
+    $('kpisCostos').innerHTML = '';
+    $('notaCostos').innerHTML = '<b style="color:var(--rojo)">No se pudo calcular:</b> ' +
+        esc(e && e.message ? e.message : String(e));
+  });
 }
 $('btnCostos').addEventListener('click', function () {
   DATOS.costos = null;
   cargarCostos();
+});
+// Cambiar el mes recalcula, sin tener que acordarse del boton.
+['fCostoDesde', 'fCostoHasta'].forEach(function (id) {
+  $(id).addEventListener('change', function () {
+    DATOS.costos = null;
+    cargarCostos();
+  });
 });
 
 /** Pesos colombianos, sin decimales: $1.234.567 */

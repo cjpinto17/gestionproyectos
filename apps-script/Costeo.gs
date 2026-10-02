@@ -160,7 +160,19 @@ function getCostos(desde, hasta) {
  * @private
  */
 function calcularCostos_(desde, hasta) {
-  var tarifas = leerTabla_('Costos_Fabrica').filter(function (t) {
+  // La hoja puede no existir todavia: la pagina llega con el despliegue, pero la
+  // hoja solo aparece cuando alguien corre actualizarEstructura. Eso no es un
+  // error del programa y no debe salir como tal —una excepcion deja la pantalla
+  // a medio pintar y quien la ve no sabe que hacer—, sino una instruccion.
+  var tarifas;
+  try {
+    tarifas = leerTabla_('Costos_Fabrica');
+  } catch (e) {
+    return { sinTarifas: true, desde: desde, hasta: hasta,
+             mensaje: 'Falta crear la hoja Costos_Fabrica. En el editor de Apps ' +
+                      'Script ejecute la función actualizarEstructura y vuelva a entrar.' };
+  }
+  tarifas = tarifas.filter(function (t) {
     return t.ID_Costo && Number(t.Valor_Mensual) > 0;
   });
   var etapas = mapaEtapasCosto_();
