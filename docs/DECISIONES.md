@@ -2618,6 +2618,28 @@ prueba. Esta funcionaba perfecto con cinco columnas y moría con cuarenta y ocho
 y el usuario se enteró primero —esperando cinco minutos frente a una pantalla cargando— mientras yo la
 recomendaba como la solución.
 
+### D-119 · Una marca habla de su fase, no de la etapa entera
+
+Marcar **Pruebas UAT** como «no aplica» hacía que dejaran de pedirse, en silencio, las fechas de
+**Pruebas QA**. Las dos son fases de la misma etapa, y la marca de una se estaba tomando como que la
+etapa ya estaba contestada.
+
+El error estaba en mezclar dos cosas distintas bajo una sola bandera: *«algún rango trae fechas»* y
+*«algún rango fue marcado»*. La primera sí responde por la etapa —quien hizo QA y no pasa por UAT no
+tiene nada pendiente—; la segunda habla de su rango y de ningún otro.
+
+Ahora se cuentan aparte: la etapa se da por contestada solo si **algún rango trae fechas**, y cuando
+no las hay se reclama rango por rango, saltando los que ya están marcados. Si todos lo están, no
+queda nada que pedir.
+
+**Por qué importa más de lo que parece.** El síntoma era un dato que faltaba y que nadie iba a
+reclamar: la plata de esa fase quedaba sin atribuir y el aviso —que existe justamente para que eso no
+pase— decía que no había nada pendiente. Un aviso que calla es peor que no tenerlo, porque se le cree.
+
+**Lo que queda pendiente de decidir:** en la tabla de detalle, una etapa marcada «no aplica» se ve
+igual que una sin fechas —un guión—. Distinguirlas ayudaría a leerla, pero exige que el servidor
+mande también las marcas.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

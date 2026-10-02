@@ -108,18 +108,25 @@ function estadiasPorColumnas_(s, hasta) {
 
   ETAPAS_COSTO.forEach(function (etapa) {
     var esperada = etapaEsperadaDeSolicitud_(s, etapa);
-    var algunRango = false;
+
+    /* Si ALGUN rango de la etapa trae fechas, la etapa esta contestada y no se
+       reclama el otro: Pruebas son dos fases y una solicitud que hizo QA sin UAT
+       no tiene nada pendiente. Marcar un rango "no aplica" NO cuenta como
+       contestar la etapa —esa marca habla de ese rango y de ningun otro—: antes
+       si contaba, y marcar UAT dejaba de pedir en silencio las fechas de QA
+       (D-119). */
+    var conFechas = false;
 
     etapa.rangos.forEach(function (r) {
       var campoIni = r[0], campoFin = r[1], nombre = r[2], campoNo = r[3];
 
       // Marcada como "no aplica": ni cuesta ni se reclama. Es una respuesta,
       // no un vacio.
-      if (esSi_(s[campoNo])) { algunRango = true; return; }
+      if (esSi_(s[campoNo])) return;
 
       var desde = aFecha_(s[campoIni]), fin = aFecha_(s[campoFin]);
       if (!desde && !fin) return;
-      algunRango = true;
+      conFechas = true;
 
       if (!desde) {
         faltantes.push(faltante_(s, etapa, r, 'Falta la fecha de inicio', campoIni));
@@ -146,8 +153,10 @@ function estadiasPorColumnas_(s, hasta) {
                       abierta: false, campoIni: campoIni, campoFin: campoFin });
     });
 
-    // Una etapa por la que la solicitud ya paso y que no tiene ni una fecha.
-    if (!algunRango && esperada) {
+    // Una etapa por la que la solicitud ya paso y de la que no hay ni una fecha.
+    // Se reclama rango por rango, saltando los que ya fueron contestados con un
+    // "no aplica": si todos lo estan, no queda nada que pedir.
+    if (!conFechas && esperada) {
       etapa.rangos.forEach(function (r) {
         if (esSi_(s[r[3]])) return;
         faltantes.push(faltante_(s, etapa, r,
