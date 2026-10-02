@@ -66,6 +66,8 @@ var CATALOGO_PERMISOS = [
   { grupo: 'Estabilizacion', campo: 'Gestionar_Estabilizacion',
     nombre: 'Mover y cerrar estabilizaciones' },
 
+  { grupo: 'Menú principal', campo: 'Ver_Costos', nombre: 'Costos' },
+
   { grupo: 'Roadmap', campo: 'Gestionar_Versiones', nombre: 'Crear y editar versiones' }
 ];
 
@@ -89,14 +91,14 @@ var PERMISO_ADMINISTRAR = 'Administrar';
 var PERMISOS_DE_FABRICA = {
   'RO-01': { menu: true },                                        // Solicitante
   'RO-02': { menu: true, iniciativa: true, embudo: true,          // Product Owner
-             aprueba: true },
+             aprueba: true, costos: true },
   'RO-03': { menu: true },                                        // Analista Fabrica
   'RO-04': { menu: true },                                        // Desarrollador
   'RO-05': { menu: true },                                        // Analista QA
   'RO-06': { menu: true },                                        // Equipo UAT
   'RO-07': { menu: true },                                        // Comite CAB
   'RO-08': { menu: true, iniciativa: true, embudo: true,          // Administrador
-             admin: true, versiones: true, aprueba: true },
+             admin: true, versiones: true, aprueba: true, costos: true },
   'RO-09': { menu: true },                                        // Business Owner
   'RO-10': { menu: true, editaSolicitud: true },                  // PM Fabrica SW
   'RO-11': { menu: true, editaSolicitud: true, versiones: true }  // Lider proyecto FS
@@ -145,6 +147,9 @@ function permisosDeFabrica_(rolId) {
     Ver_Roadmap: !!f.menu,
     Ver_Reportes: !!f.menu,
     Administrar: !!f.admin,
+    // Los costos de la fabrica no los ve todo el mundo: es informacion de
+    // contrato. De fabrica, Product Owner y Administrador (D-110).
+    Ver_Costos: !!f.costos,
     Editar_Iniciativa: !!f.iniciativa,
     // Comentar y crear solicitudes no estaban restringidos: cualquiera con
     // sesion podia hacerlo. Se conserva tal cual para no quitarle a nadie algo
@@ -348,6 +353,7 @@ var PERMISO_DE_PAGINA = {
   gestion: 'Ver_Gestion',
   roadmap: 'Ver_Roadmap',
   reportes: 'Ver_Reportes',
+  costos: 'Ver_Costos',
   admin: PERMISO_ADMINISTRAR
 };
 

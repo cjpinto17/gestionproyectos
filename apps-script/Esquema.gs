@@ -182,6 +182,47 @@ function exigePostmortem(prioridadId) {
 /** Que tanto del servicio se cayo. */
 var TIPOS_INDISPONIBILIDAD = ['Total', 'Parcial'];
 
+/* ================================================================== */
+/* Costos de la fabrica (D-110)                                        */
+/* ================================================================== */
+
+/**
+ * Las tres etapas que cuestan, y las fases que ocupan cada una.
+ *
+ * La fabrica no se cobra por actividad: se paga una capacidad fija al mes y esa
+ * capacidad la ocupan las solicitudes mientras estan en sus fases. Gestion de la
+ * demanda, Backlog, Aceptacion TI y Produccion no consumen fabrica: son gestion
+ * y despliegue, no construccion.
+ */
+var ETAPAS_COSTO = [
+  { id: 'ETA-ANA', nombre: 'Análisis y diseño', fases: ['FAS-03'] },
+  { id: 'ETA-DEV', nombre: 'Desarrollo', fases: ['FAS-04'] },
+  { id: 'ETA-QA', nombre: 'Pruebas QA y UAT', fases: ['FAS-05', 'FAS-06'] }
+];
+
+/**
+ * Que etapas ocupa una estabilizacion mientras esta En progreso.
+ *
+ * Las DOS a la vez, no mitad y mitad: un incidente jala al equipo de desarrollo
+ * y al de pruebas al mismo tiempo. La consecuencia es que una estabilizacion
+ * pesa mas por dia que una actividad que solo esta en una etapa, y eso es
+ * exactamente lo que hay que ver.
+ */
+var ETAPAS_DE_ESTABILIZACION = ['ETA-DEV', 'ETA-QA'];
+
+/** @return {?Object} La etapa que ocupa una fase, o null si no consume. */
+function etapaDeFase(faseId) {
+  for (var i = 0; i < ETAPAS_COSTO.length; i++) {
+    if (ETAPAS_COSTO[i].fases.indexOf(String(faseId || '')) !== -1) return ETAPAS_COSTO[i];
+  }
+  return null;
+}
+
+/** @return {boolean} True si ese tipo entra en el costeo (D-110). */
+function entraEnCosteo(tipoSolicitud) {
+  return saleEnVersion(tipoSolicitud);
+}
+
 /**
  * Los tres momentos de las historias de usuario dentro de Analisis y diseno.
  *
@@ -559,6 +600,33 @@ var ESQUEMA_PARAMETRIZACION = {
     columnas: [
       { campo: 'ID_Causal', etiqueta: 'ID Causal', tipo: 'text', requerido: true },
       { campo: 'Nombre_Causal', etiqueta: 'Nombre de la causal', tipo: 'text', requerido: true }
+    ]
+  },
+  /**
+   * Las bolsas de costo de la fabrica (D-110).
+   *
+   * Una fila por bolsa: cuanto cuesta al mes, entre que meses rige, y —si es
+   * capacidad dedicada— a que iniciativa se carga. Con la iniciativa vacia la
+   * bolsa se reparte entre todo lo que ocupo esa etapa.
+   *
+   * Vive como dato y no en el codigo porque un contrato cambia: el mes que
+   * cambie la tarifa se edita aqui, sin desplegar nada.
+   */
+  Costos_Fabrica: {
+    etiqueta: 'Costos de la fábrica',
+    pk: 'ID_Costo',
+    columnas: [
+      { campo: 'ID_Costo', etiqueta: 'ID', tipo: 'text', requerido: true },
+      { campo: 'Etapa', etiqueta: 'Etapa', tipo: 'enum', requerido: true,
+        opciones: ETAPAS_COSTO.map(function (e) { return e.id; }),
+        ayuda: 'ETA-ANA análisis y diseño · ETA-DEV desarrollo · ETA-QA pruebas QA y UAT.' },
+      { campo: 'Concepto', etiqueta: 'Concepto', tipo: 'text', requerido: true },
+      { campo: 'Valor_Mensual', etiqueta: 'Valor mensual', tipo: 'number', requerido: true,
+        ayuda: 'Sin IVA. Es lo que se paga cada mes completo, haya muchas actividades o pocas.' },
+      { campo: 'Vigencia_Desde', etiqueta: 'Vigente desde', tipo: 'date', requerido: true },
+      { campo: 'Vigencia_Hasta', etiqueta: 'Vigente hasta', tipo: 'date', requerido: true },
+      { campo: 'ID_Proyecto', etiqueta: 'Iniciativa dedicada', tipo: 'enum', fk: 'Proyectos',
+        ayuda: 'Solo para capacidad dedicada a una iniciativa. Vacío = se reparte entre todas.' }
     ]
   },
   Analistas: {

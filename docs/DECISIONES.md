@@ -2365,6 +2365,55 @@ cuyas actividades entraron ya marcadas en Producción durante la carga inicial a
 fábrica no haya desplegado nada suyo desde entonces. Si eso estorba, el siguiente paso es darle
 ventana a la mezcla, no quitarle filas.
 
+### D-110 · Cuánto cuesta la fábrica y a dónde se fue la plata
+
+La fábrica se paga por **capacidad mensual**, no por entregable: cada mes se factura lo mismo esté
+ocupada o no. La pregunta del negocio es otra —*¿cuánto de eso se fue en cada iniciativa?*— y para
+responderla hay que repartir una bolsa fija entre el trabajo que la ocupó.
+
+**El reparto.** Cada etapa es una bolsa mensual. Lo que decide el reparto son los **días hábiles** que
+cada solicitud pasó dentro de esa etapa, dentro de ese mes:
+
+| Etapa | Fases que la consumen | Mensual declarado |
+| --- | --- | --- |
+| Análisis y diseño | Análisis y diseño | $51.297.629 |
+| Desarrollo | Desarrollo | $105.914.086 + dedicadas |
+| Pruebas QA y UAT | Pruebas QA + Pruebas UAT | $34.633.651 + dedicadas |
+
+Los días salen de la **bitácora**, no del estado actual: si una solicitud fue devuelta de QA a
+Desarrollo, vuelve a ocupar Desarrollo y vuelve a cargar. Una estancia que empieza y termina el mismo
+día cuenta como un día: ocupó capacidad.
+
+**Las bolsas dedicadas se restan, no se suman.** El desarrollador de fábrica dedicado a DevOps
+($5.179.412) y las dos capacidades de calidad dedicadas a automatización ($9.115.764) ya están dentro
+de las bolsas base: se descuentan de la bolsa general y se vuelven a sumar como bolsa exclusiva de
+`INI-018` e `INI-019`. La capacidad extendida de SETI sí es plata nueva, y solo rige en su vigencia
+(desarrollo, julio–diciembre 2026; QA, septiembre–noviembre 2026). La reconciliación contra la tabla
+de capacidad por rol cuadró al peso, que es lo que permitió descubrir que eran internas y no
+adicionales.
+
+**Lo que no se reparte se dice.** Si en un mes nadie ocupó Análisis y diseño, esa plata **no** se
+reparte entre las demás: aparece como *Sin atribuir*. Repartirla haría que las actividades que sí
+trabajaron cargaran un costo que no causaron, y el indicador dejaría de servir para negociar
+capacidad. Que haya mucho sin atribuir es justamente el hallazgo: se está pagando capacidad que no se
+está usando.
+
+**Qué entra.** Solo nuevo, mejora, ajuste y estabilización. La tarea no: no pasa por el embudo de la
+fábrica y no consume sus etapas. La estabilización sí, y consume **desarrollo y pruebas** a la vez,
+porque se corrige y se verifica en el mismo esfuerzo.
+
+**El número comparable no es el total.** El total de un mes depende de cuántas actividades hubo; lo
+que se compara entre meses es el **costo por día de capacidad**, que va al lado de cada etapa.
+
+**Quién lo ve.** Es información de contrato: de fábrica solo el Product Owner y el Administrador, con
+el permiso `Ver_Costos`, configurable como cualquier otro desde Administración → Permisos.
+
+**Las tarifas se editan, no se programan.** Viven en la hoja `Costos_Fabrica` (Administración →
+Costos de la fábrica), con etapa, concepto, valor mensual, vigencia y la iniciativa a la que están
+dedicadas. Cuando vuelva a negociarse el contrato se cambia una fila, no el código. Una bolsa dedicada
+a una iniciativa que no existe sale marcada en rojo arriba de la página: ese reparto no está llegando
+a ningún lado y callarlo sería esconder plata.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

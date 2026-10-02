@@ -321,6 +321,28 @@ function sembrarCatalogos_(libro) {
     return [p.id, p.nombre];
   }));
 
+  // Las bolsas de costo de la fabrica (D-110). Las dos dedicadas salen por resta
+  // de la capacidad base: el "Desarrollador Junior - Devops" ya estaba dentro de
+  // los 111 millones de desarrollo, y los dos "Analista de Pruebas Middle -
+  // Automatizacion" dentro de los 43,7 de pruebas. Cobrarlas aparte sin restarlas
+  // habria contado esa gente dos veces.
+  sembrarSiVacio_(libro, 'Costos_Fabrica', [
+    ['CF-ANA', 'ETA-ANA', 'Capacidad base de análisis y diseño',
+     51297629, '2026-09-01', '2026-12-31', ''],
+    ['CF-DEV', 'ETA-DEV', 'Capacidad base de desarrollo (sin el dev dedicado a Devops)',
+     105914086, '2026-09-01', '2026-12-31', ''],
+    ['CF-DEV-DEVOPS', 'ETA-DEV', 'Desarrollador Junior dedicado a Devops',
+     5179412, '2026-09-01', '2026-12-31', 'INI-018'],
+    ['CF-DEV-SETI', 'ETA-DEV', 'Capacidad extendida SETI · Devops',
+     14530000, '2026-07-01', '2026-12-31', 'INI-018'],
+    ['CF-QA', 'ETA-QA', 'Capacidad base de pruebas QA y UAT (sin los QA de automatización)',
+     34633651, '2026-09-01', '2026-12-31', ''],
+    ['CF-QA-AUTO', 'ETA-QA', '2 Analistas de Pruebas Middle dedicados a Automatización',
+     9115764, '2026-09-01', '2026-12-31', 'INI-019'],
+    ['CF-QA-SETI', 'ETA-QA', 'Capacidad extendida SETI · Automatización de pruebas',
+     15200000, '2026-09-01', '2026-11-30', 'INI-019']
+  ]);
+
   sembrarSiVacio_(libro, 'Analistas', ANALISTAS.map(function (a) {
     return [a.id, a.nombre];
   }));

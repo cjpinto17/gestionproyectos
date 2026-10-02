@@ -100,6 +100,17 @@ movimientos antiguos.
 ### `SLA_Fases` *(tabla nueva)*
 `ID_Fase` (PK, FK → `Fases`), `Nombre_Fase`, `SLA_Dias`.
 
+### `Causas_Raiz` *(D-101)*
+`ID_Causa` (PK), `Nombre_Causa`: por qué se rompió lo que salió a producción. Configurable.
+
+### `Analistas` *(D-102)*
+`ID_Analista` (PK), `Nombre_Analista`, `Activo`: quién analiza y diseña. Configurable; llega vacía.
+
+### `Costos_Fabrica` *(D-110)*
+`ID_Costo` (PK), `Etapa` (`ETA-ANA` | `ETA-DEV` | `ETA-QA`), `Concepto`, `Valor_Mensual`,
+`Vigencia_Desde`, `Vigencia_Hasta`, `ID_Proyecto` (FK → `Proyectos`, vacío = bolsa general).
+Cada fila es una bolsa mensual de capacidad; con `ID_Proyecto` queda dedicada a esa iniciativa.
+
 ---
 
 ## Libro 2 — `Gestion_Proyectos_Plataformas`

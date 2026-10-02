@@ -1,0 +1,63 @@
+<!-- Costos.html | Pagina 6: cuanto cuesta la fabrica, repartido entre lo que la
+     ocupo. Solo la ve quien tenga el permiso "Costos" (D-110). -->
+<section class="pagina" id="pg-costos" hidden>
+    <div class="fila encabezado">
+      <div>
+        <h1>Costos de la f&aacute;brica</h1>
+        <p id="subCostos">La capacidad se paga por mes; aqu&iacute; se reparte entre las actividades que la ocuparon.</p>
+      </div>
+      <div class="fila ml-auto">
+        <div class="combo"><label for="fCostoDesde">Desde</label>
+          <input type="month" id="fCostoDesde"></div>
+        <div class="combo"><label for="fCostoHasta">Hasta</label>
+          <input type="month" id="fCostoHasta"></div>
+        <div class="combo"><label>&nbsp;</label>
+          <button class="btn-primario" id="btnCostos">Calcular</button></div>
+      </div>
+    </div>
+
+    <div class="kpis k4" id="kpisCostos"></div>
+    <p class="nota" id="notaCostos"></p>
+
+    <div class="seccion">A d&oacute;nde se fue la plata</div>
+    <div class="paneles">
+      <div class="panel">
+        <h3>Costo por iniciativa</h3>
+        <div class="sub">Lo que ocup&oacute; cada iniciativa en las tres etapas. El porcentaje es sobre todo lo facturado en el per&iacute;odo: lo que falta para el 100% es capacidad que nadie ocup&oacute;</div>
+        <div id="tablaCostoIni"></div>
+      </div>
+      <div class="panel">
+        <h3>Costo por tipo de solicitud</h3>
+        <div class="sub">Cu&aacute;nto cost&oacute; construir y cu&aacute;nto corregir</div>
+        <div id="graficoCostoTipo"></div>
+      </div>
+    </div>
+
+    <div class="seccion">La capacidad</div>
+    <div class="paneles">
+      <div class="panel">
+        <h3>Costo por etapa y por d&iacute;a de capacidad</h3>
+        <div class="sub">El costo por d&iacute;a es el n&uacute;mero estable: comparable entre meses</div>
+        <div id="tablaCostoEtapa"></div>
+      </div>
+      <div class="panel">
+        <h3>Mes a mes</h3>
+        <div class="sub">Lo facturado contra lo que alcanz&oacute; a cargarse a una solicitud</div>
+        <div id="graficoCostoMes"></div>
+      </div>
+    </div>
+
+    <div class="seccion">Las bolsas</div>
+    <div class="panel">
+      <h3>De d&oacute;nde sale cada peso</h3>
+      <div class="sub">Las tarifas se editan en Administraci&oacute;n &rarr; Costos de la f&aacute;brica</div>
+      <div id="tablaBolsas"></div>
+    </div>
+
+    <div class="seccion">Detalle por actividad</div>
+    <div class="panel">
+      <h3>Las actividades m&aacute;s costosas</h3>
+      <div class="sub">Lo que carg&oacute; cada una seg&uacute;n los d&iacute;as h&aacute;biles que ocup&oacute; cada etapa</div>
+      <div id="tablaCostoActividades"></div>
+    </div>
+</section>

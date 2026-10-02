@@ -14,7 +14,7 @@ var arrastrada = null;
 var accionModal = null;
 
 var TODAS = '*';
-var PAGINAS = ['home', 'iniciativas', 'gestion', 'roadmap', 'reportes', 'admin'];
+var PAGINAS = ['home', 'iniciativas', 'gestion', 'roadmap', 'reportes', 'costos', 'admin'];
 // Mismo codigo de color que los estados de iniciativa, para que el tablero y
 // la matriz se lean igual: gris lo que no arranca, amarillo lo que avanza,
 // verde lo terminado, rojo lo detenido.
@@ -361,7 +361,8 @@ function permiso(nombre) {
 /** Permiso de menu que corresponde a cada pagina. Gemelo de PERMISO_DE_PAGINA. */
 var PERMISO_DE_PAGINA = {
   home: 'Ver_Home', iniciativas: 'Ver_Iniciativas', gestion: 'Ver_Gestion',
-  roadmap: 'Ver_Roadmap', reportes: 'Ver_Reportes', admin: 'Administrar'
+  roadmap: 'Ver_Roadmap', reportes: 'Ver_Reportes', costos: 'Ver_Costos',
+  admin: 'Administrar'
 };
 
 /** Esconde del menu las pestanas que el rol no puede abrir. */
@@ -437,7 +438,8 @@ function navegar(pagina) {
   });
   var cargadores = {
     home: cargarHome, iniciativas: cargarIniciativas, gestion: cargarGestion,
-    roadmap: cargarRoadmap, reportes: cargarReportes, admin: cargarAdmin
+    roadmap: cargarRoadmap, reportes: cargarReportes, costos: cargarCostos,
+    admin: cargarAdmin
   };
   if (cargadores[pagina]) cargadores[pagina]();
 }
@@ -3310,6 +3312,180 @@ function pintarReportes(r) {
     }).join('') + '</tbody>';
 }
 
+/* ================= Costos ================= */
+/**
+ * Cuanto costo la fabrica y a donde se fue (D-110).
+ *
+ * La plata se presenta en pesos redondos y sin decimales: un reparto
+ * proporcional da centavos que nadie puede verificar y que solo ensucian la
+ * lectura. Lo que se compara entre meses no es el total —depende de cuantas
+ * actividades hubo— sino el COSTO POR DIA de capacidad, que va al lado.
+ */
+function cargarCostos() {
+  var desde = $('fCostoDesde').value, hasta = $('fCostoHasta').value;
+  var clave = desde + '|' + hasta;
+  if (DATOS.costos && DATOS.costosClave === clave) { pintarCostos(DATOS.costos); return; }
+  cargando('kpisCostos', 'kpis');
+  api('getCostos', desde, hasta).then(function (r) {
+    DATOS.costos = r;
+    DATOS.costosClave = clave;
+    if (!$('fCostoDesde').value && r.desde) $('fCostoDesde').value = r.desde;
+    if (!$('fCostoHasta').value && r.hasta) $('fCostoHasta').value = r.hasta;
+    pintarCostos(r);
+  }).catch(fallo);
+}
+$('btnCostos').addEventListener('click', function () {
+  DATOS.costos = null;
+  cargarCostos();
+});
+
+/** Pesos colombianos, sin decimales: $1.234.567 */
+function pesos(n) {
+  if (n === null || n === undefined) return '—';
+  var entero = Math.round(Number(n) || 0);
+  var signo = entero < 0 ? '-' : '';
+  return signo + '$' + String(Math.abs(entero)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+/** Lo mismo, en millones, para las cifras grandes de las tarjetas. */
+function millones(n) {
+  var m = (Number(n) || 0) / 1000000;
+  return (Math.round(m * 10) / 10).toString().replace('.', ',');
+}
+
+function pintarCostos(r) {
+  if (r.sinTarifas) {
+    $('kpisCostos').innerHTML = '';
+    $('notaCostos').innerHTML = '<b>' + esc(r.mensaje) + '</b>';
+    ['tablaCostoIni', 'graficoCostoTipo', 'tablaCostoEtapa', 'graficoCostoMes',
+     'tablaBolsas', 'tablaCostoActividades'].forEach(function (id) { $(id).innerHTML = ''; });
+    return;
+  }
+
+  var t = r.total;
+  $('subCostos').textContent = 'De ' + etiquetaMes(r.desde) + ' a ' + etiquetaMes(r.hasta) +
+      ' · valores en pesos, sin IVA';
+
+  $('kpisCostos').innerHTML = [
+    kpi('Costo del período', millones(t.contrato), ' M',
+        pesos(t.contrato) + ' facturados por la fábrica'),
+    kpi('Repartido', millones(t.atribuido), ' M',
+        formatoPorcentaje(t.pctAtribuido) + ' del total, entre ' + t.actividades + ' actividades'),
+    kpi('Sin atribuir', millones(t.noAtribuido), ' M',
+        'Se gastó, pero ninguna actividad de las que costeamos ocupó esa etapa',
+        t.noAtribuido > t.contrato * 0.25 ? 'mal' : ''),
+    kpi('Costo promedio', t.actividades ? millones(t.atribuido / t.actividades) : null, ' M',
+        'Por actividad que ocupó la fábrica')
+  ].join('');
+
+  // Las bolsas dedicadas a una iniciativa que no existe: el reparto de esa plata
+  // no esta llegando a ningun lado y hay que decirlo arriba, no esconderlo.
+  var huerfanas = r.bolsas.filter(function (b) { return b.sinIniciativa; });
+  $('notaCostos').innerHTML = huerfanas.length
+      ? '<b style="color:var(--rojo)">' + huerfanas.length + ' bolsa' +
+        (huerfanas.length === 1 ? '' : 's') + ' dedicada' + (huerfanas.length === 1 ? '' : 's') +
+        ' apunta' + (huerfanas.length === 1 ? '' : 'n') + ' a una iniciativa que no existe:</b> ' +
+        huerfanas.map(function (b) { return esc(b.concepto); }).join(', ') +
+        '. Corríjalo en Administración → Costos de la fábrica.'
+      : '';
+
+  /* --- por iniciativa --- */
+  $('tablaCostoIni').innerHTML = r.porIniciativa.length
+      ? '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr>' +
+        '<th>Iniciativa</th><th class="num">Análisis</th><th class="num">Desarrollo</th>' +
+        // El porcentaje es sobre TODO lo facturado en el periodo, no sobre lo
+        // repartido: la columna no suma 100% y eso es a proposito —lo que falta
+        // es la capacidad que nadie ocupo, y esconderlo seria perder el dato.
+        '<th class="num">Pruebas</th><th class="num">Total</th>' +
+        '<th class="num">% del período</th>' +
+        '</tr></thead><tbody>' +
+        r.porIniciativa.map(function (i) {
+          return '<tr><td>' + esc(i.nombre) +
+            '<div style="color:var(--ink-faint);font-size:11px">' + i.actividades +
+            (i.actividades === 1 ? ' actividad' : ' actividades') + '</div></td>' +
+            '<td class="num">' + pesos(i.porEtapa['ETA-ANA'] || 0) + '</td>' +
+            '<td class="num">' + pesos(i.porEtapa['ETA-DEV'] || 0) + '</td>' +
+            '<td class="num">' + pesos(i.porEtapa['ETA-QA'] || 0) + '</td>' +
+            '<td class="num" style="font-weight:700">' + pesos(i.costo) + '</td>' +
+            '<td class="num">' + (i.pct === null ? '—' : formatoPorcentaje(i.pct)) + '</td></tr>';
+        }).join('') + '</tbody></table></div>'
+      : '<p style="color:var(--ink-muted);font-size:13px">Ninguna actividad ocupó la fábrica ' +
+        'en este período.</p>';
+
+  /* --- por tipo: construir contra corregir --- */
+  var maxTipo = r.porTipo.length ? r.porTipo[0].costo : 0;
+  $('graficoCostoTipo').innerHTML = r.porTipo.length
+      ? r.porTipo.map(function (x) {
+          return barra(x.nombre, x.costo, maxTipo, millones(x.costo) + ' M',
+                       CLASE_TIPO[x.tipo] === 'tipo-estab' ? 'rojo' : '');
+        }).join('') +
+        '<p class="nota" style="margin-top:10px">Lo que aparece como <b>Ajuste</b> y ' +
+        '<b>Estabilización</b> es lo que costó sostener y corregir, no construir.</p>'
+      : '<p style="color:var(--ink-muted);font-size:13px">Sin datos en el período.</p>';
+
+  /* --- por etapa --- */
+  $('tablaCostoEtapa').innerHTML =
+    '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr><th>Etapa</th>' +
+    '<th class="num">Costo</th>' +
+    '<th class="num">Días de capacidad</th><th class="num">Costo por día</th>' +
+    '</tr></thead><tbody>' +
+    r.porEtapa.map(function (e) {
+      return '<tr><td>' + esc(e.nombre) + '</td>' +
+        '<td class="num">' + pesos(e.costo) + '</td>' +
+        '<td class="num">' + e.dias + '</td>' +
+        '<td class="num">' + pesos(e.costoPorDia) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+
+  /* --- mes a mes --- */
+  $('graficoCostoMes').innerHTML = r.porMes.length
+      ? columnas(r.porMes.map(function (m) {
+          return { etq: etiquetaMes(m.mes), v1: m.atribuido, v2: m.contrato,
+                   txt: millones(m.atribuido) + ' M' };
+        })) + '<div class="leyenda">' +
+        '<span><span class="punto" style="background:var(--navy)"></span>Repartido</span>' +
+        '<span><span class="punto" style="background:var(--esmeralda)"></span>Facturado</span></div>'
+      : '';
+
+  /* --- las bolsas --- */
+  $('tablaBolsas').innerHTML =
+    '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr><th>Concepto</th>' +
+    '<th>Etapa</th><th>Dedicada a</th><th class="num">Mensual</th><th class="num">Meses</th>' +
+    '<th class="num">Facturado</th><th class="num">Sin atribuir</th></tr></thead><tbody>' +
+    r.bolsas.map(function (b) {
+      return '<tr><td>' + esc(b.concepto) + '</td>' +
+        '<td>' + esc(b.etapaNombre) + '</td>' +
+        '<td>' + (b.dedicada
+          ? (b.sinIniciativa
+              ? '<span style="color:var(--rojo)">' + esc(b.dedicada) + ' (no existe)</span>'
+              : esc(b.dedicadaNombre))
+          : '<span style="color:var(--ink-faint)">todas</span>') + '</td>' +
+        '<td class="num">' + pesos(b.mensual) + '</td>' +
+        '<td class="num">' + b.meses + '</td>' +
+        '<td class="num">' + pesos(b.total) + '</td>' +
+        '<td class="num"' + (b.noAtribuido ? ' style="color:var(--alerta);font-weight:700"' : '') +
+        '>' + pesos(b.noAtribuido) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+
+  /* --- actividades --- */
+  var top = r.actividades.slice(0, 30);
+  $('tablaCostoActividades').innerHTML = top.length
+      ? '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr><th>Actividad</th>' +
+        '<th>Iniciativa</th><th>Tipo</th><th class="num">Días</th><th class="num">Costo</th>' +
+        '</tr></thead><tbody>' +
+        top.map(function (a) {
+          return '<tr><td><b>' + esc(a.id) + '</b> · ' + esc(a.nombre) + '</td>' +
+            '<td>' + esc(a.iniciativa) + '</td>' +
+            '<td><span class="rm-tipo ' + (CLASE_TIPO[a.tipo] || '') + '">' +
+              esc(a.tipoNombre) + '</span></td>' +
+            '<td class="num">' + a.dias + '</td>' +
+            '<td class="num" style="font-weight:700">' + pesos(a.costo) + '</td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        (r.actividades.length > 30
+          ? '<p class="nota">Se muestran las 30 más costosas de ' + r.actividades.length + '.</p>'
+          : '')
+      : '<p style="color:var(--ink-muted);font-size:13px">Sin actividades con costo en el período.</p>';
+}
+
 /* ================= Administracion ================= */
 /**
  * Las tablas que se pueden ver y editar desde Administracion.
@@ -3323,7 +3499,7 @@ function pintarReportes(r) {
 var TABLAS_ADMIN = [
   'Usuarios', 'Proyectos', 'Plataforma_Digital', 'Roles', 'Lineas_Estrategicas',
   'Verticales', 'Tipos_Iniciativa', 'Tipos_Solicitud', 'Estados_Iniciativa',
-  'Estados', 'Fases', 'SLA_Fases', 'Causales_Bloqueo', 'Causas_Raiz', 'Analistas', 'Festivos',
+  'Estados', 'Fases', 'SLA_Fases', 'Causales_Bloqueo', 'Causas_Raiz', 'Analistas', 'Costos_Fabrica', 'Festivos',
   'Roadmap_Versiones'
 ];
 
