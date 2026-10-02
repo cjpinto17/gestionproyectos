@@ -2640,6 +2640,28 @@ pase— decía que no había nada pendiente. Un aviso que calla es peor que no t
 igual que una sin fechas —un guión—. Distinguirlas ayudaría a leerla, pero exige que el servidor
 mande también las marcas.
 
+### D-120 · Lo que se corrige a mano en la hoja también tiene que verse
+
+Marcar fases como «no aplica» y seguir viéndolas como pendientes tiene una causa que no está en el
+costeo: **los sellos de caché solo se mueven cuando escribe la aplicación**. Quien corrige una fila
+directamente en el Sheets —algo que pasa todo el tiempo, y más en estas semanas de carga— vuelve a
+Costos, ve el resultado anterior y concluye, con toda razón, que el programa ignora su corrección.
+
+El botón **Calcular** ahora relee de verdad: bota la caché de las hojas del costeo y recalcula sin
+servir el resultado guardado. Navegar entre páginas sigue usando la caché, que es lo que la hace
+rápida; releer es una acción explícita, con su botón.
+
+**Y una señal para no volver a adivinar.** El aviso dice cuántas fases están marcadas como «no
+aplica» en los datos que acaba de leer. Si alguien marca cinco y el aviso dice cero, el problema no
+está en el cálculo: la marca no quedó en la hoja. Sin ese número, distinguir «el programa no me hace
+caso» de «el dato no se guardó» exigía mirar el código, que es justo lo que quien usa la herramienta
+no puede hacer.
+
+**Lo que esto enseña, y van varias:** un sistema que lee de una hoja que la gente también edita a mano
+no puede suponer que todos los cambios pasan por él. Y cuando algo no se ve, la pregunta útil para
+quien lo reporta no es «¿funciona el cálculo?» sino «¿qué está leyendo el programa?» —y eso hay que
+mostrarlo, no explicarlo.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

@@ -244,9 +244,23 @@ function diasPorMesDeEstadia_(estadia, meses) {
  * @param {string=} hasta 'aaaa-mm'. Por omision, el mes de hoy.
  * @return {!Object}
  */
-function getCostos(desde, hasta) {
+function getCostos(desde, hasta, forzar) {
   exigirPermiso_('Ver_Costos', 'Su rol no puede ver los costos de la fabrica.');
   var d = String(desde || ''), h = String(hasta || '');
+
+  /* Lo que alguien edita A MANO en el Sheets no invalida nada: los sellos solo
+     se mueven cuando escribe la aplicacion. Con las fechas y las marcas de "no
+     aplica" eso se nota de inmediato —se corrige una fila en la hoja, se vuelve
+     a Costos y sale igual que antes—, y uno concluye que el programa las ignora.
+     Por eso el boton Calcular relee de verdad: relee las hojas del costeo y
+     recalcula sin tocar la cache de resultados (D-120). */
+  if (forzar) {
+    ['Solicitudes', 'Costos_Fabrica', 'Proyectos'].forEach(function (t) {
+      try { invalidarTabla_(t); } catch (e) { /* una hoja que no esta no estorba */ }
+    });
+    return calcularCostos_(d, h);
+  }
+
   return conResultadoEnCache_('costos_' + d + '_' + h, function () {
     return calcularCostos_(d, h);
   });
@@ -342,7 +356,12 @@ function calcularCostos_(desde, hasta, conDetalle) {
   var estancias = [];            // la bitacora del costeo, para poder auditarla
   var incompletas = [];          // lo que al equipo le falta por diligenciar
 
+  var marcadas = 0;
   costeables.forEach(function (s) {
+    ETAPAS_COSTO.forEach(function (e) {
+      e.rangos.forEach(function (ra) { if (esSi_(s[ra[3]])) marcadas++; });
+    });
+
     var r = estadiasPorColumnas_(s, fin);
 
     r.faltantes.forEach(function (f) {
@@ -558,6 +577,10 @@ function calcularCostos_(desde, hasta, conDetalle) {
     // la explicacion de por que hay plata sin atribuir, y mientras no se vea
     // nadie la llena.
     incompletas: incompletas,
+    // Cuantas fases estan marcadas "no aplica" en los datos que se acaban de
+    // leer. Si alguien marca cinco y aqui llega cero, el problema no es el
+    // calculo: es que la marca no esta en la hoja.
+    fasesNoAplican: marcadas,
     detalle: conDetalle ? { estancias: estancias, reparto: reparto } : null
   };
 }

@@ -3321,13 +3321,15 @@ function pintarReportes(r) {
  * lectura. Lo que se compara entre meses no es el total —depende de cuantas
  * actividades hubo— sino el COSTO POR DIA de capacidad, que va al lado.
  */
-function cargarCostos() {
+function cargarCostos(forzar) {
   // Un mes a la vez: el costo de la fabrica es una cuenta mensual, y mezclar
   // meses en un total escondia que cada mes se paga completo.
   var mes = $('fCostoMes').value;
-  if (DATOS.costos && DATOS.costosClave === mes) { pintarCostos(DATOS.costos); return; }
+  if (!forzar && DATOS.costos && DATOS.costosClave === mes) {
+    pintarCostos(DATOS.costos); return;
+  }
   cargando('kpisCostos', 'kpis');
-  api('getCostos', mes, mes).then(function (r) {
+  api('getCostos', mes, mes, !!forzar).then(function (r) {
     DATOS.costos = r;
     DATOS.costosClave = mes;
     if (!$('fCostoMes').value && r.desde) $('fCostoMes').value = r.desde;
@@ -3341,9 +3343,11 @@ function cargarCostos() {
         esc(e && e.message ? e.message : String(e));
   });
 }
+// Calcular relee las hojas: es el boton al que acude quien acaba de corregir
+// algo a mano en el Sheets y no ve el cambio.
 $('btnCostos').addEventListener('click', function () {
   DATOS.costos = null;
-  cargarCostos();
+  cargarCostos(true);
 });
 // Cambiar el mes recalcula, sin tener que acordarse del boton.
 $('fCostoMes').addEventListener('change', function () {
@@ -3627,7 +3631,21 @@ $('tablaCostoActividades').addEventListener('click', function (e) {
 function pintarFaltaInfoCostos(r) {
   var f = r.incompletas || [];
   FALTA_COSTOS = {};
-  if (!f.length) { $('faltaInfoCostos').innerHTML = ''; return; }
+  var marcadas = r.fasesNoAplican || 0;
+  var notaMarcadas = marcadas
+      ? ' Hay <b>' + marcadas + '</b> fase' + (marcadas === 1 ? '' : 's') +
+        ' marcada' + (marcadas === 1 ? '' : 's') + ' como <i>no aplica</i>, que no se piden.'
+      : '';
+
+  if (!f.length) {
+    // Sin pendientes, pero si hay marcas conviene decirlo: es la confirmacion
+    // de que quedaron guardadas.
+    $('faltaInfoCostos').innerHTML = marcadas
+        ? '<p class="nota" style="margin-top:0">Ninguna actividad tiene fechas pendientes.' +
+          notaMarcadas + '</p>'
+        : '';
+    return;
+  }
 
   f.forEach(function (x) {
     (FALTA_COSTOS[x.id] = FALTA_COSTOS[x.id] || { nombre: x.nombre, faltan: [] })
@@ -3643,6 +3661,8 @@ function pintarFaltaInfoCostos(r) {
       '<div class="sub">El costo se reparte entre las que tienen fechas. Mientras estas ' +
       'estén vacías no cargan nada, y su parte de la capacidad queda <b>sin atribuir</b>.' +
       (puedeEditar ? ' Se llenan aquí mismo.' : ' Se llenan editando la solicitud.') +
+      notaMarcadas +
+      ' Si corrigió algo directamente en la hoja, oprima <b>Calcular</b>: ese botón relee.' +
       '</div></div>' +
       '<button class="btn-sec ml-auto" id="btnVerFalta">Ver cuáles</button>' +
     '</div><div id="listaFalta" hidden><div class="tabla-scroll">' +
