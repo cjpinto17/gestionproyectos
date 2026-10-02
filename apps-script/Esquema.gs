@@ -194,14 +194,23 @@ var TIPOS_INDISPONIBILIDAD = ['Total', 'Parcial'];
  * demanda, Backlog, Aceptacion TI y Produccion no consumen fabrica: son gestion
  * y despliegue, no construccion.
  */
+/*
+ * Cada rango es [columna de inicio, columna de fin, nombre, columna "no aplica"].
+ *
+ * El "no aplica" existe porque no toda solicitud pasa por todas las fases —un
+ * ajuste pequeno puede no ir a UAT— y sin una forma de decirlo, esas etapas
+ * quedaban reclamadas como informacion faltante para siempre. Un pendiente que
+ * nunca se puede cerrar acaba enseñando a ignorar la lista entera (D-116).
+ */
 var ETAPAS_COSTO = [
   { id: 'ETA-ANA', nombre: 'Análisis y diseño', fases: ['FAS-03'],
-    rangos: [['Fecha_Inicio_Analisis', 'Fecha_Fin_Analisis', 'Análisis y diseño']] },
+    rangos: [['Fecha_Inicio_Analisis', 'Fecha_Fin_Analisis', 'Análisis y diseño',
+              'No_Aplica_Analisis']] },
   { id: 'ETA-DEV', nombre: 'Desarrollo', fases: ['FAS-04'],
-    rangos: [['Fecha_Inicio_Dev', 'Fecha_Fin_Dev', 'Desarrollo']] },
+    rangos: [['Fecha_Inicio_Dev', 'Fecha_Fin_Dev', 'Desarrollo', 'No_Aplica_Dev']] },
   { id: 'ETA-QA', nombre: 'Pruebas QA y UAT', fases: ['FAS-05', 'FAS-06'],
-    rangos: [['Fecha_Inicio_QA', 'Fecha_Fin_QA', 'Pruebas QA'],
-             ['Fecha_Inicio_UAT', 'Fecha_Fin_UAT', 'Pruebas UAT']] }
+    rangos: [['Fecha_Inicio_QA', 'Fecha_Fin_QA', 'Pruebas QA', 'No_Aplica_QA'],
+             ['Fecha_Inicio_UAT', 'Fecha_Fin_UAT', 'Pruebas UAT', 'No_Aplica_UAT']] }
 ];
 
 /**
@@ -794,6 +803,16 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Fecha_Fin_QA', etiqueta: 'Fin QA', tipo: 'datetime' },
       { campo: 'Fecha_Inicio_UAT', etiqueta: 'Inicio UAT', tipo: 'datetime' },
       { campo: 'Fecha_Fin_UAT', etiqueta: 'Fin UAT', tipo: 'datetime' },
+      // No toda solicitud pasa por todas las fases. Marcar la que no aplica la
+      // saca del costeo y deja de reclamarse como informacion faltante (D-116).
+      { campo: 'No_Aplica_Analisis', etiqueta: 'Análisis no aplica', tipo: 'boolSN',
+        ayuda: 'Marque SI si esta solicitud no pasa por análisis y diseño.' },
+      { campo: 'No_Aplica_Dev', etiqueta: 'Desarrollo no aplica', tipo: 'boolSN',
+        ayuda: 'Marque SI si esta solicitud no pasa por desarrollo.' },
+      { campo: 'No_Aplica_QA', etiqueta: 'Pruebas QA no aplican', tipo: 'boolSN',
+        ayuda: 'Marque SI si esta solicitud no pasa por pruebas QA.' },
+      { campo: 'No_Aplica_UAT', etiqueta: 'Pruebas UAT no aplican', tipo: 'boolSN',
+        ayuda: 'Marque SI si esta solicitud no pasa por pruebas UAT.' },
       { campo: 'Fecha_Socializacion', etiqueta: 'Socializacion planeada', tipo: 'datetime' },
       { campo: 'Fecha_Despliegue', etiqueta: 'Despliegue a produccion', tipo: 'datetime' },
       { campo: 'Fecha_Ultimo_Cambio', etiqueta: 'Ultimo cambio de fase', tipo: 'datetime' }

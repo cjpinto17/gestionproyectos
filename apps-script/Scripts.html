@@ -3420,7 +3420,18 @@ function pintarCostos(r) {
             '<td class="num">' + pesos(i.porEtapa['ETA-QA'] || 0) + '</td>' +
             '<td class="num" style="font-weight:700">' + pesos(i.costo) + '</td>' +
             '<td class="num">' + (i.pct === null ? '—' : formatoPorcentaje(i.pct)) + '</td></tr>';
-        }).join('') + '</tbody></table></div>'
+        }).join('') +
+        // El total: sin el, cada quien suma la columna a mano para saber si
+        // cuadra con lo repartido de arriba.
+        '<tr class="cst-total"><td>Total</td>' +
+        r.porEtapa.map(function (e) {
+          return '<td class="num">' + pesos(r.porIniciativa.reduce(function (a, i) {
+            return a + (i.porEtapa[e.etapa] || 0);
+          }, 0)) + '</td>';
+        }).join('') +
+        '<td class="num">' + pesos(r.total.atribuido) + '</td>' +
+        '<td class="num">' + formatoPorcentaje(r.total.pctAtribuido) + '</td></tr>' +
+        '</tbody></table></div>'
       : '<p style="color:var(--ink-muted);font-size:13px">Ninguna actividad ocupó la fábrica ' +
         'en este período.</p>';
 
@@ -3446,7 +3457,17 @@ function pintarCostos(r) {
         '<td class="num">' + pesos(e.costo) + '</td>' +
         '<td class="num">' + e.dias + '</td>' +
         '<td class="num">' + pesos(e.costoPorDia) + '</td></tr>';
-    }).join('') + '</tbody></table></div>';
+    }).join('') +
+    (function () {
+      var dias = r.porEtapa.reduce(function (a, e) { return a + e.dias; }, 0);
+      // El costo por dia del total es la division de los totales, NO el promedio
+      // de los tres: promediar tres etapas con volumenes distintos da un numero
+      // que no corresponde a ninguna plata real.
+      return '<tr class="cst-total"><td>Total</td>' +
+        '<td class="num">' + pesos(r.total.atribuido) + '</td>' +
+        '<td class="num">' + (Math.round(dias * 10) / 10).toString().replace('.', ',') + '</td>' +
+        '<td class="num">' + (dias ? pesos(r.total.atribuido / dias) : '—') + '</td></tr>';
+    })() + '</tbody></table></div>';
 
   /* --- las bolsas --- */
   // Resumida: con un solo mes sobran la vigencia y el conteo de meses, y lo que
@@ -3466,7 +3487,11 @@ function pintarCostos(r) {
         '<td class="num">' + pesos(b.total) + '</td>' +
         '<td class="num"' + (b.noAtribuido ? ' style="color:var(--alerta);font-weight:700"' : '') +
         '>' + pesos(b.noAtribuido) + '</td></tr>';
-    }).join('') + '</tbody></table></div>';
+    }).join('') +
+    '<tr class="cst-total"><td colspan="2">Total</td>' +
+    '<td class="num">' + pesos(r.total.contrato) + '</td>' +
+    '<td class="num">' + pesos(r.total.noAtribuido) + '</td></tr>' +
+    '</tbody></table></div>';
 
   /* --- actividades: el detalle que alguien va a sumar con la calculadora --- */
   pintarDetalleCostos(r);
@@ -3673,22 +3698,25 @@ function formularioFechasEtapa(idSolicitud) {
     rangos.push(x);
   });
 
-  var columnas = [];
+  var columnas = [], valores = {};
   rangos.forEach(function (x) {
     columnas.push({ campo: x.campoIni, etiqueta: x.rango + ' · inicio', tipo: 'date' });
     columnas.push({ campo: x.campoFin, etiqueta: x.rango + ' · fin', tipo: 'date' });
-  });
-  var valores = {};
-  rangos.forEach(function (x) {
+    // La salida para la etapa por la que esta solicitud no pasa.
+    columnas.push({ campo: x.campoNo, etiqueta: x.rango + ' · ¿no aplica?', tipo: 'boolSN',
+                    ayuda: 'SI si esta solicitud no pasa por esa fase. Deja de pedirse ' +
+                           'y no entra en el costo.' });
     valores[x.campoIni] = x.valorIni;
     valores[x.campoFin] = x.valorFin;
+    valores[x.campoNo] = 'NO';
   });
 
   abrirModal('Fechas de la etapa', idSolicitud + ' · ' + g.nombre,
     '<div class="formulario">' +
       '<p class="nota" style="margin:0">Estas son las fechas con las que se reparte el costo: ' +
       'los días hábiles entre el inicio y el fin de cada etapa. Si la actividad ' +
-      '<b>sigue en curso</b>, deje el fin vacío y se contará hasta hoy.</p>' +
+      '<b>sigue en curso</b>, deje el fin vacío y se contará hasta hoy. Si no pasa por esa ' +
+      'fase, marque <b>no aplica</b> y deja de pedirse.</p>' +
       construirCampos(columnas, {}, valores, null) + '</div>',
     function () {
       return api('registrarFechasEtapa', idSolicitud, leerCampos(columnas))

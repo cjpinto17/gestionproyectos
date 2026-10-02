@@ -111,7 +111,12 @@ function estadiasPorColumnas_(s, hasta) {
     var algunRango = false;
 
     etapa.rangos.forEach(function (r) {
-      var campoIni = r[0], campoFin = r[1], nombre = r[2];
+      var campoIni = r[0], campoFin = r[1], nombre = r[2], campoNo = r[3];
+
+      // Marcada como "no aplica": ni cuesta ni se reclama. Es una respuesta,
+      // no un vacio.
+      if (esSi_(s[campoNo])) { algunRango = true; return; }
+
       var desde = aFecha_(s[campoIni]), fin = aFecha_(s[campoFin]);
       if (!desde && !fin) return;
       algunRango = true;
@@ -144,6 +149,7 @@ function estadiasPorColumnas_(s, hasta) {
     // Una etapa por la que la solicitud ya paso y que no tiene ni una fecha.
     if (!algunRango && esperada) {
       etapa.rangos.forEach(function (r) {
+        if (esSi_(s[r[3]])) return;
         faltantes.push(faltante_(s, etapa, r,
                                  'Sin información: no tiene fechas registradas', r[0]));
       });
@@ -161,7 +167,7 @@ function estadiasPorColumnas_(s, hasta) {
 function faltante_(s, etapa, rango, falta, campo) {
   return { id: s.ID_Solicitud, etapa: etapa.id, etapaNombre: etapa.nombre,
            rango: rango[2], falta: falta, campo: campo,
-           campoIni: rango[0], campoFin: rango[1],
+           campoIni: rango[0], campoFin: rango[1], campoNo: rango[3],
            valorIni: s[rango[0]] || '', valorFin: s[rango[1]] || '' };
 }
 
@@ -710,7 +716,9 @@ function escribirHoja_(libro, nombre, filas, posicion) {
 function columnasDeFechaDelCosteo_() {
   var permitidas = {};
   ETAPAS_COSTO.forEach(function (e) {
-    e.rangos.forEach(function (r) { permitidas[r[0]] = true; permitidas[r[1]] = true; });
+    e.rangos.forEach(function (r) {
+      permitidas[r[0]] = true; permitidas[r[1]] = true; permitidas[r[3]] = true;
+    });
   });
   return permitidas;
 }
@@ -745,6 +753,15 @@ function registrarFechasEtapa(idSolicitud, fechas) {
     var nuevo = {};
     Object.keys(actual).forEach(function (k) { if (k !== '_fila') nuevo[k] = actual[k]; });
     pedidas.forEach(function (c) { nuevo[c] = fechas[c]; });
+
+    // "No aplica" y unas fechas son contradictorios. Gana la marca y las fechas
+    // se borran, para que nadie las vea despues y crea que algo se perdio.
+    ETAPAS_COSTO.forEach(function (e) {
+      e.rangos.forEach(function (r) {
+        nuevo[r[3]] = esSi_(nuevo[r[3]]) ? 'SI' : 'NO';
+        if (nuevo[r[3]] === 'SI') { nuevo[r[0]] = ''; nuevo[r[1]] = ''; }
+      });
+    });
 
     normalizarFechas_('Solicitudes', nuevo);
 

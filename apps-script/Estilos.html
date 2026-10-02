@@ -594,8 +594,10 @@
     color:var(--ink-faint);font-size:11px}
   .cst-detalle .cst-grupo.abierta .cst-flecha{transform:rotate(90deg)}
   .cst-detalle .cst-cuenta{font-weight:400;color:var(--ink-faint);font-size:11px}
-  .cst-detalle .cst-total td{font-weight:800;border-top:2px solid var(--navy);
-    background:var(--ground);position:sticky;bottom:0}
+  /* La fila de total la usan varias tablas de la pagina, no solo el detalle. */
+  .tabla-compacta .cst-total td{font-weight:800;border-top:2px solid var(--navy);
+    background:var(--ground)}
+  .cst-detalle .cst-total td{position:sticky;bottom:0}
   .cst-detalle .cst-etapa{text-align:right;vertical-align:top;white-space:nowrap}
   .cst-detalle .cst-etapa.cst-nada{color:var(--ink-faint)}
   .cst-detalle .cst-dias{color:var(--ink-muted);font-size:10.5px;font-weight:400}

@@ -2552,6 +2552,27 @@ sus columnas y nadie tiene que acordarse de nada. Exige el mismo permiso que edi
 completa, porque es editarla, y rechaza un rango invertido antes de guardarlo —entraría al costeo como
 un dato válido y daría días en cero sin que nadie se entere—.
 
+### D-116 · «No aplica» es una respuesta, y las tablas se totalizan
+
+**No toda solicitud pasa por todas las fases.** Un ajuste pequeño puede no ir a UAT, y hasta ahora esa
+fase quedaba reclamada como información faltante para siempre. Un pendiente que nunca se puede cerrar
+acaba enseñando a ignorar la lista entera, que era justo lo contrario de lo que el aviso busca.
+
+Cada rango tiene ahora su marca —`No_Aplica_Analisis`, `No_Aplica_Dev`, `No_Aplica_QA`,
+`No_Aplica_UAT`—, que se pone desde el mismo formulario del aviso. Marcada: la fase no cuesta y deja
+de pedirse. Es una respuesta, no un vacío.
+
+**Marcar «no aplica» borra las fechas de esa fase.** Las dos cosas se contradicen, y dejar las fechas
+guardadas invita a que alguien las encuentre después y crea que algo se perdió. Gana la marca.
+
+**Se marca por rango y no por etapa** porque Pruebas son dos fases: una solicitud puede pasar por QA y
+no por UAT, y obligarla a elegir entre las dos o ninguna habría hecho el dato inútil.
+
+**Las tablas totalizan.** Costo por iniciativa, costo por etapa y las bolsas traen su fila de total;
+sin ella cada quien suma la columna a mano para ver si cuadra con lo repartido de arriba. El costo por
+día del total es la división de los totales, **no** el promedio de las tres etapas: promediar etapas
+con volúmenes distintos da un número que no corresponde a ninguna plata real.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
