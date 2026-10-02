@@ -2532,6 +2532,26 @@ un total escondía que cada mes se paga completo—. El detalle se pliega por in
 subtotal en el mismo renglón del grupo para que se lea también cerrado, encabezado fijo al bajar, y
 cada celda de etapa muestra el costo, los días y **las fechas de las que salen**.
 
+### D-115 · El aviso que reclama un dato también sirve para llenarlo
+
+El panel de información faltante decía qué solicitud y qué columna, y ahí paraba: había que anotar el
+dato, irse a Gestión, buscar la solicitud, abrir el formulario completo y volver. Para una lista de
+treinta pendientes eso no se hace.
+
+Ahora cada actividad trae un botón que abre **solo las fechas de su etapa**, ya con lo que tenga
+registrado, y al guardar recalcula el costo. Se piden las **dos** fechas del rango y no únicamente la
+que falta: quien tiene el dato de una suele tener el de la otra, y abrir el formulario dos veces no
+ahorra nada. Dejar el fin vacío es una respuesta válida —significa que sigue en curso— y el
+formulario lo dice.
+
+**La guarda importa más que la comodidad.** `registrarFechasEtapa` recibe nombres de columna desde el
+navegador, así que sin una lista blanca sería un método público capaz de escribir *cualquier* campo de
+*cualquier* solicitud: la fase, el estado, la iniciativa a la que se le carga el costo. La lista se
+**deriva de `ETAPAS_COSTO`**, no se escribe aparte, para que no puedan separarse: una etapa nueva trae
+sus columnas y nadie tiene que acordarse de nada. Exige el mismo permiso que editar la solicitud
+completa, porque es editarla, y rechaza un rango invertido antes de guardarlo —entraría al costeo como
+un dato válido y daría días en cero sin que nadie se entere—.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

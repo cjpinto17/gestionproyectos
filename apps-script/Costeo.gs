@@ -117,8 +117,7 @@ function estadiasPorColumnas_(s, hasta) {
       algunRango = true;
 
       if (!desde) {
-        faltantes.push({ id: s.ID_Solicitud, etapa: etapa.id, rango: nombre,
-                         falta: 'Falta la fecha de inicio', campo: campoIni });
+        faltantes.push(faltante_(s, etapa, r, 'Falta la fecha de inicio', campoIni));
         return;
       }
       if (!fin) {
@@ -129,14 +128,13 @@ function estadiasPorColumnas_(s, hasta) {
           estadias.push({ etapa: etapa.id, rango: nombre, desde: desde, hasta: hasta,
                           abierta: true, campoIni: campoIni, campoFin: campoFin });
         } else {
-          faltantes.push({ id: s.ID_Solicitud, etapa: etapa.id, rango: nombre,
-                           falta: 'Falta la fecha de fin', campo: campoFin });
+          faltantes.push(faltante_(s, etapa, r, 'Falta la fecha de fin', campoFin));
         }
         return;
       }
       if (fin < desde) {
-        faltantes.push({ id: s.ID_Solicitud, etapa: etapa.id, rango: nombre,
-                         falta: 'La fecha de fin es anterior a la de inicio', campo: campoFin });
+        faltantes.push(faltante_(s, etapa, r,
+                                 'La fecha de fin es anterior a la de inicio', campoFin));
         return;
       }
       estadias.push({ etapa: etapa.id, rango: nombre, desde: desde, hasta: finDelDia(fin),
@@ -145,13 +143,26 @@ function estadiasPorColumnas_(s, hasta) {
 
     // Una etapa por la que la solicitud ya paso y que no tiene ni una fecha.
     if (!algunRango && esperada) {
-      faltantes.push({ id: s.ID_Solicitud, etapa: etapa.id, rango: etapa.nombre,
-                       falta: 'Sin información: no tiene fechas registradas',
-                       campo: etapa.rangos[0][0] });
+      etapa.rangos.forEach(function (r) {
+        faltantes.push(faltante_(s, etapa, r,
+                                 'Sin información: no tiene fechas registradas', r[0]));
+      });
     }
   });
 
   return { estadias: estadias, faltantes: faltantes };
+}
+
+/**
+ * Un pendiente de diligenciar, con todo lo que hace falta para llenarlo sin
+ * salir de la pagina: las dos columnas del rango y lo que hoy tienen.
+ * @private
+ */
+function faltante_(s, etapa, rango, falta, campo) {
+  return { id: s.ID_Solicitud, etapa: etapa.id, etapaNombre: etapa.nombre,
+           rango: rango[2], falta: falta, campo: campo,
+           campoIni: rango[0], campoFin: rango[1],
+           valorIni: s[rango[0]] || '', valorFin: s[rango[1]] || '' };
 }
 
 /**
@@ -678,4 +689,80 @@ function escribirHoja_(libro, nombre, filas, posicion) {
   hoja.setFrozenRows(1);
   hoja.autoResizeColumns(1, Math.min(ancho, 20));
   return hoja;
+}
+
+/* ================================================================== */
+/* Llenar las fechas que faltan, sin salir de la pagina                */
+/* ================================================================== */
+
+/**
+ * Las columnas de fecha que el costeo lee, y solo esas (D-115).
+ *
+ * Es una LISTA BLANCA, no una comodidad: registrarFechasEtapa recibe nombres de
+ * columna del navegador, y sin esto seria un metodo publico capaz de escribir
+ * cualquier campo de cualquier solicitud. Se deriva de ETAPAS_COSTO para que no
+ * puedan separarse: una etapa nueva trae sus columnas y nadie tiene que
+ * acordarse de agregarlas aqui.
+ *
+ * @return {!Object<string,boolean>}
+ * @private
+ */
+function columnasDeFechaDelCosteo_() {
+  var permitidas = {};
+  ETAPAS_COSTO.forEach(function (e) {
+    e.rangos.forEach(function (r) { permitidas[r[0]] = true; permitidas[r[1]] = true; });
+  });
+  return permitidas;
+}
+
+/**
+ * Registra las fechas de una etapa desde el aviso de informacion faltante.
+ *
+ * Existe para que llenar un dato que la propia pagina esta reclamando no cueste
+ * ir a buscar la solicitud a otra pantalla: el aviso dice que falta y ahi mismo
+ * se llena. Escribe UNICAMENTE columnas de fecha del costeo, y exige el mismo
+ * permiso que editar la solicitud completa, porque es editarla.
+ *
+ * @param {string} idSolicitud
+ * @param {!Object<string,string>} fechas Columna -> valor ('' para borrar).
+ * @return {!Object} Lo que quedo guardado.
+ */
+function registrarFechasEtapa(idSolicitud, fechas) {
+  exigirPermiso_('Editar_Solicitud', 'Su rol no puede editar solicitudes.');
+
+  var permitidas = columnasDeFechaDelCosteo_();
+  var pedidas = Object.keys(fechas || {});
+  if (!pedidas.length) throw new Error('No se recibió ninguna fecha.');
+
+  pedidas.forEach(function (c) {
+    if (!permitidas[c]) throw new Error('La columna "' + c + '" no es una fecha del costeo.');
+  });
+
+  return conBloqueo_(function () {
+    var actual = buscarPorPk_('Solicitudes', idSolicitud);
+    if (!actual) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+
+    var nuevo = {};
+    Object.keys(actual).forEach(function (k) { if (k !== '_fila') nuevo[k] = actual[k]; });
+    pedidas.forEach(function (c) { nuevo[c] = fechas[c]; });
+
+    normalizarFechas_('Solicitudes', nuevo);
+
+    // Un rango al reves no se guarda: entraria al costeo como un dato valido y
+    // produciria dias negativos o cero sin que nadie se entere.
+    ETAPAS_COSTO.forEach(function (e) {
+      e.rangos.forEach(function (r) {
+        var ini = aFecha_(nuevo[r[0]]), fin = aFecha_(nuevo[r[1]]);
+        if (ini && fin && fin < ini) {
+          throw new Error('En "' + r[2] + '" la fecha de fin es anterior a la de inicio.');
+        }
+      });
+    });
+
+    escribirFila_('Solicitudes', actual._fila, nuevo);
+
+    var guardadas = {};
+    pedidas.forEach(function (c) { guardadas[c] = nuevo[c]; });
+    return { id: idSolicitud, fechas: guardadas };
+  });
 }

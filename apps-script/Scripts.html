@@ -3482,6 +3482,8 @@ function pintarCostos(r) {
  * las fechas de las que salio, que es lo que permite verificarlo.
  */
 var COSTO_ABIERTAS = {};
+/** Lo que falta por diligenciar, por solicitud, para el formulario rapido. */
+var FALTA_COSTOS = {};
 
 function pintarDetalleCostos(r) {
   if (!r.actividades.length) {
@@ -3599,31 +3601,43 @@ $('tablaCostoActividades').addEventListener('click', function (e) {
  */
 function pintarFaltaInfoCostos(r) {
   var f = r.incompletas || [];
+  FALTA_COSTOS = {};
   if (!f.length) { $('faltaInfoCostos').innerHTML = ''; return; }
 
-  var porSolicitud = {};
   f.forEach(function (x) {
-    (porSolicitud[x.id] = porSolicitud[x.id] || { nombre: x.nombre, faltan: [] })
+    (FALTA_COSTOS[x.id] = FALTA_COSTOS[x.id] || { nombre: x.nombre, faltan: [] })
       .faltan.push(x);
   });
-  var ids = Object.keys(porSolicitud);
+  var ids = Object.keys(FALTA_COSTOS);
+  var puedeEditar = permiso('Editar_Solicitud');
 
   $('faltaInfoCostos').innerHTML =
     '<div class="panel cst-falta"><div class="fila">' +
       '<div><h3>' + ids.length + (ids.length === 1
         ? ' actividad sin fechas registradas' : ' actividades sin fechas registradas') + '</h3>' +
       '<div class="sub">El costo se reparte entre las que tienen fechas. Mientras estas ' +
-      'estén vacías no cargan nada, y su parte de la capacidad queda <b>sin atribuir</b>. ' +
-      'Se llenan editando la solicitud.</div></div>' +
+      'estén vacías no cargan nada, y su parte de la capacidad queda <b>sin atribuir</b>.' +
+      (puedeEditar ? ' Se llenan aquí mismo.' : ' Se llenan editando la solicitud.') +
+      '</div></div>' +
       '<button class="btn-sec ml-auto" id="btnVerFalta">Ver cuáles</button>' +
     '</div><div id="listaFalta" hidden><div class="tabla-scroll">' +
       '<table class="tabla-compacta"><thead><tr><th>Actividad</th><th>Etapa</th>' +
-      '<th>Qué falta</th><th>Columna</th></tr></thead><tbody>' +
-      f.map(function (x) {
-        return '<tr><td><b>' + esc(x.id) + '</b> · ' + esc(x.nombre) + '</td>' +
-          '<td>' + esc(x.rango) + '</td>' +
-          '<td>' + esc(x.falta) + '</td>' +
-          '<td><code>' + esc(x.campo) + '</code></td></tr>';
+      '<th>Qué falta</th>' + (puedeEditar ? '<th></th>' : '<th>Columna</th>') +
+      '</tr></thead><tbody>' +
+      ids.map(function (id) {
+        var g = FALTA_COSTOS[id];
+        return g.faltan.map(function (x, i) {
+          return '<tr><td>' + (i === 0
+              ? '<b>' + esc(id) + '</b> · ' + esc(g.nombre) : '') + '</td>' +
+            '<td>' + esc(x.rango) + '</td>' +
+            '<td>' + esc(x.falta) + '</td>' +
+            '<td>' + (i === 0
+              ? (puedeEditar
+                  ? '<button class="btn-sec cst-llenar" data-id="' + esc(id) +
+                    '" style="padding:4px 10px;font-size:11.5px">Llenar fechas</button>'
+                  : '<code>' + esc(x.campo) + '</code>')
+              : (puedeEditar ? '' : '<code>' + esc(x.campo) + '</code>')) + '</td></tr>';
+        }).join('');
       }).join('') + '</tbody></table></div></div></div>';
 
   $('btnVerFalta').addEventListener('click', function () {
@@ -3631,6 +3645,60 @@ function pintarFaltaInfoCostos(r) {
     l.hidden = !l.hidden;
     this.textContent = l.hidden ? 'Ver cuáles' : 'Ocultar';
   });
+
+  Array.prototype.forEach.call($('faltaInfoCostos').querySelectorAll('.cst-llenar'),
+    function (b) {
+      b.addEventListener('click', function () { formularioFechasEtapa(b.dataset.id); });
+    });
+}
+
+/**
+ * Llenar las fechas que faltan sin salir de la pagina (D-115).
+ *
+ * Se piden las DOS fechas del rango, no solo la que falta: quien tiene el dato
+ * de una suele tener el de la otra, y abrir el formulario para escribir un solo
+ * campo y volver a abrirlo para el otro no ahorra nada. Las que ya estaban
+ * vienen llenas y se pueden corregir.
+ */
+function formularioFechasEtapa(idSolicitud) {
+  var g = FALTA_COSTOS[idSolicitud];
+  if (!g) return;
+
+  // Un rango puede aparecer dos veces (le falta inicio Y fin): se muestra uno.
+  var rangos = [], vistos = {};
+  g.faltan.forEach(function (x) {
+    var clave = x.campoIni + '|' + x.campoFin;
+    if (vistos[clave]) return;
+    vistos[clave] = true;
+    rangos.push(x);
+  });
+
+  var columnas = [];
+  rangos.forEach(function (x) {
+    columnas.push({ campo: x.campoIni, etiqueta: x.rango + ' · inicio', tipo: 'date' });
+    columnas.push({ campo: x.campoFin, etiqueta: x.rango + ' · fin', tipo: 'date' });
+  });
+  var valores = {};
+  rangos.forEach(function (x) {
+    valores[x.campoIni] = x.valorIni;
+    valores[x.campoFin] = x.valorFin;
+  });
+
+  abrirModal('Fechas de la etapa', idSolicitud + ' · ' + g.nombre,
+    '<div class="formulario">' +
+      '<p class="nota" style="margin:0">Estas son las fechas con las que se reparte el costo: ' +
+      'los días hábiles entre el inicio y el fin de cada etapa. Si la actividad ' +
+      '<b>sigue en curso</b>, deje el fin vacío y se contará hasta hoy.</p>' +
+      construirCampos(columnas, {}, valores, null) + '</div>',
+    function () {
+      return api('registrarFechasEtapa', idSolicitud, leerCampos(columnas))
+        .then(function () {
+          toast('Fechas de ' + idSolicitud + ' registradas.');
+          invalidarCacheCliente();
+          DATOS.costos = null;
+          cargarCostos();
+        });
+    });
 }
 
 /** Arma el archivo de auditoria y entrega el enlace. */

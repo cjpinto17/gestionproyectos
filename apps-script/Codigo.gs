@@ -3173,6 +3173,7 @@ var METODOS_PUBLICOS = {
   cambiarEstadoHistorias: true,
   getCostos: true,
   getCostosDetalle: true,
+  registrarFechasEtapa: true,
   cambiarEstadoTarea: true,
   marcarBloqueo: true,
   refrescarDatos: true,
