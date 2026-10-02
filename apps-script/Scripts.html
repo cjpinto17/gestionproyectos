@@ -3570,7 +3570,11 @@ function pintarDetalleCostos(r) {
   var cuerpo = orden.map(function (k) {
     var g = grupos[k];
     var filas = g.filas.sort(function (a, b) { return b.costo - a.costo; });
-    var abierta = COSTO_ABIERTAS[k] !== false;     // abiertas por omision
+    // Cerradas por omision: la tabla abre mostrando los subtotales por
+    // iniciativa, que es la lectura de arriba, y quien quiera el detalle de una
+    // la despliega. Con todo abierto habia que recorrer cientos de filas para
+    // llegar al siguiente grupo.
+    var abierta = COSTO_ABIERTAS[k] === true;
     var subDias = {}, subCosto = {};
     filas.forEach(function (a) {
       etapas.forEach(function (e) {

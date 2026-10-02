@@ -2750,6 +2750,31 @@ pertenecen a iniciativas con bolsa propia, la bolsa general de esa etapa no tien
 sale entera como *sin atribuir*. Es correcto —esa capacidad se pagó y no la ocupó nadie de los que
 costeamos— y es justamente el hallazgo que la página existe para mostrar.
 
+### D-124 · Una iniciativa con capacidad dedicada se paga sola
+
+Precisión del usuario sobre D-123: la exclusión de la bolsa general es **total**, no por etapa. Una
+iniciativa con capacidad dedicada **no toca la bolsa general en ninguna etapa**. Su costo del mes es,
+exactamente, la suma de sus bolsas.
+
+Yo había implementado la exclusión solo en la etapa donde la bolsa está declarada, razonando que
+DevOps tiene desarrollo dedicado pero sus pruebas las hace el equipo general. El usuario corrigió:
+la capacidad dedicada se contrató para cubrir esa iniciativa completa.
+
+**La consecuencia, aceptada explícitamente:** los días que esa iniciativa ocupe en una etapa donde no
+tiene bolsa propia **no cuestan nada**, y la bolsa general de esa etapa se reparte entre las demás.
+
+**Y un ajuste que se desprende:** los días de capacidad de una etapa ahora cuentan solo los de las
+solicitudes que de verdad cobraron ahí. Meter días que no pagaron en el denominador bajaría el costo
+por día de una capacidad que esos días no consumieron.
+
+**Lo que ya estaba bien y quedó con prueba:** una estadía que viene de otro mes aporta únicamente los
+días del mes consultado —una fase que arrancó el 15 de agosto y terminó el 10 de septiembre suma ocho
+días hábiles en septiembre, no los de agosto—, y lo mismo una estadía abierta que empezó antes.
+
+**En la pantalla:** el detalle carga con las iniciativas **plegadas**. Se ven los subtotales, que es la
+lectura de arriba, y quien quiera el detalle de una la despliega. Con todo abierto había que recorrer
+cientos de filas para llegar al siguiente grupo.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

@@ -479,28 +479,28 @@ function calcularCostos_(desde, hasta, conDetalle) {
   var costoDeSolicitud = {};     // id -> { total, porEtapa }
   var porMes = {};               // mes -> { contrato, atribuido }
   var porEtapa = {};             // etapa -> { costo, dias }
-  var cargado = {};              // mes -> etapa -> true si alguna bolsa pago ahi
+  var pagados = {};              // mes -> etapa -> id -> true si alguna bolsa le pago
   var bolsas = [];
   var reparto = [];              // cada peso, con la bolsa y el mes de donde salio
 
-  /* Que iniciativas tienen bolsa PROPIA en cada mes y etapa. Una solicitud
-     cubierta por su propia bolsa no participa ademas del reparto de la general:
-     se pagaria dos veces la misma gente. La exclusion es por ETAPA, no por
-     iniciativa entera —Devops tiene desarrollo dedicado pero sus pruebas las
-     hace el equipo general de calidad, y esas si salen de la bolsa comun. */
-  var conBolsaPropia = {};      // mes -> etapa -> idProyecto -> true
+  /* Que iniciativas tienen bolsa PROPIA en cada mes.
+     Una iniciativa con capacidad dedicada se paga UNICAMENTE con sus bolsas y no
+     toca la general en NINGUNA etapa: lo contrario seria pagar dos veces la
+     misma gente. Su costo del mes es, exactamente, la suma de sus bolsas.
+     Consecuencia conocida y aceptada: los dias que esa iniciativa ocupe en una
+     etapa donde no tiene bolsa propia no cuestan nada, y la bolsa general de esa
+     etapa se reparte entre las demas (D-124). */
+  var conBolsaPropia = {};      // mes -> idProyecto -> true
   tarifas.forEach(function (t) {
     var ded = String(t.ID_Proyecto || '').trim();
     if (!ded) return;
-    var et = String(t.Etapa || '');
     var vD = aFecha_(t.Vigencia_Desde), vH = aFecha_(t.Vigencia_Hasta);
     meses.forEach(function (mes) {
       var lim = limitesDelMes_(mes);
       if (vD && lim.fin < vD) return;
       if (vH && lim.inicio > vH) return;
       conBolsaPropia[mes] = conBolsaPropia[mes] || {};
-      conBolsaPropia[mes][et] = conBolsaPropia[mes][et] || {};
-      conBolsaPropia[mes][et][ded] = true;
+      conBolsaPropia[mes][ded] = true;
     });
   });
 
@@ -525,12 +525,12 @@ function calcularCostos_(desde, hasta, conDetalle) {
       porMes[mes].contrato += valor;
 
       var enEtapa = (dias[mes] && dias[mes][etapa]) || {};
-      var propias = (conBolsaPropia[mes] && conBolsaPropia[mes][etapa]) || {};
+      var propias = conBolsaPropia[mes] || {};
       var candidatos = Object.keys(enEtapa).filter(function (id) {
         var proy = porId[id].ID_Proyecto;
         // Una bolsa dedicada solo alcanza a las actividades de su iniciativa.
         if (dedicada) return proy === dedicada;
-        // Y la general no alcanza a quien ya tiene bolsa propia en esta etapa.
+        // Y la general no alcanza a ninguna iniciativa que tenga bolsa propia.
         return !propias[proy];
       });
       var totalDias = candidatos.reduce(function (a, id) { return a + enEtapa[id]; }, 0);
@@ -548,9 +548,11 @@ function calcularCostos_(desde, hasta, conDetalle) {
       porEtapa[etapa].costo += valor;
       // Los dias NO se suman aqui: desarrollo tiene tres bolsas y cada una
       // recorreria los mismos dias, de modo que el costo por dia saldria
-      // dividido entre tres. Se cuentan una sola vez despues del reparto.
-      cargado[mes] = cargado[mes] || {};
-      cargado[mes][etapa] = true;
+      // dividido entre tres. Se anota QUIEN cobro, y los dias se cuentan una
+      // sola vez despues del reparto.
+      pagados[mes] = pagados[mes] || {};
+      pagados[mes][etapa] = pagados[mes][etapa] || {};
+      candidatos.forEach(function (id) { pagados[mes][etapa][id] = true; });
 
       // El reparto se redondea a pesos enteros AQUI, no al final, y el sobrante
       // se entrega a los residuos mas grandes. Redondear cada total por separado
@@ -576,16 +578,15 @@ function calcularCostos_(desde, hasta, conDetalle) {
     bolsas.push(resumen);
   });
 
-  /* Los dias de capacidad de cada etapa, contados UNA vez: son los dias habiles
-     que las solicitudes ocuparon la etapa, no la suma por bolsa. Solo cuentan
-     los meses en que esa etapa tuvo costo: si ninguna bolsa estaba vigente, esos
-     dias no se pagaron y meterlos bajaria el costo por dia sin razon. */
-  Object.keys(dias).forEach(function (mes) {
-    Object.keys(dias[mes]).forEach(function (etapa) {
-      if (!cargado[mes] || !cargado[mes][etapa]) return;
+  /* Los dias de capacidad de cada etapa, contados UNA vez y solo los que de
+     verdad cobraron. Los dias de una iniciativa con bolsa propia en una etapa
+     donde no la tiene no cuestan nada (D-124): meterlos en el denominador
+     bajaria el costo por dia de una capacidad que esos dias no consumieron. */
+  Object.keys(pagados).forEach(function (mes) {
+    Object.keys(pagados[mes]).forEach(function (etapa) {
       porEtapa[etapa] = porEtapa[etapa] || { costo: 0, dias: 0 };
-      porEtapa[etapa].dias += Object.keys(dias[mes][etapa]).reduce(function (a, id) {
-        return a + dias[mes][etapa][id];
+      porEtapa[etapa].dias += Object.keys(pagados[mes][etapa]).reduce(function (a, id) {
+        return a + ((dias[mes] && dias[mes][etapa] && dias[mes][etapa][id]) || 0);
       }, 0);
     });
   });
