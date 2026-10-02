@@ -3181,6 +3181,7 @@ var METODOS_PUBLICOS = {
   getCostos: true,
   getCostosDetalle: true,
   registrarFechasEtapa: true,
+  getPortafolio: true,
   getInforme: true,
   getInformeDetalle: true,
   cambiarEstadoTarea: true,

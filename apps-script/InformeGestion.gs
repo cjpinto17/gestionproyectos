@@ -128,49 +128,11 @@ function informePct_(parte, total) {
  * @return {!Object}
  * @private
  */
-/**
- * De que plataforma es cada iniciativa, y de donde salio ese dato.
- *
- * Esta en una funcion aparte porque DOS bloques del informe la necesitan —la
- * tabla por plataforma y las tarjetas— y con la deduccion escrita dos veces las
- * dos secciones de la MISMA pagina podrian decir plataformas distintas de la
- * misma iniciativa. Ya tuvimos dos cifras distintas para lo mismo en esta
- * pagina y fue el peor defecto de D-127.
- *
- * @param {!Object} datos
- * @return {!Object} { de: idProyecto -> {plat, como, tocadas}, origen: conteos }
- * @private
- */
-function informePlataformaDeIniciativas_(datos) {
-  // iniciativa -> { plataformas que tocan sus solicitudes }
-  var platDeSolicitudes = {};
-  datos.solicitudes.forEach(function (s) {
-    var p = String(s.Plataforma_ID || '').trim();
-    if (!s.ID_Proyecto || !p) return;
-    platDeSolicitudes[s.ID_Proyecto] = platDeSolicitudes[s.ID_Proyecto] || {};
-    platDeSolicitudes[s.ID_Proyecto][p] = true;
-  });
-
-  var de = {}, origen = { declarada: 0, deducida: 0, varias: 0, ninguna: 0 };
-  datos.proyectos.forEach(function (p) {
-    var declarada = String(p.Plataforma_ID || '').trim();
-    var tocadas = Object.keys(platDeSolicitudes[p.ID_Proyecto] || {});
-    var plat = '', como = '';
-
-    if (declarada) { plat = declarada; como = 'declarada'; origen.declarada++; }
-    else if (tocadas.length === 1) { plat = tocadas[0]; como = 'deducida'; origen.deducida++; }
-    else if (tocadas.length > 1) { como = 'varias'; origen.varias++; }
-    else { como = 'ninguna'; origen.ninguna++; }
-
-    de[p.ID_Proyecto] = { plat: plat, como: como, tocadas: tocadas };
-  });
-  return { de: de, origen: origen };
-}
 
 function informeIniciativasPorPlataforma_(datos) {
   var nombrePlataforma = mapaPlataformas();
   var nombreEstado = mapaEstadosIniciativa();
-  var plataformaDe = informePlataformaDeIniciativas_(datos);
+  var plataformaDe = plataformaDeIniciativas_(datos);
   var origen = plataformaDe.origen;
 
   var porPlataforma = {}, sinPlataforma = [], enVarias = [];
@@ -222,142 +184,6 @@ function informeIniciativasPorPlataforma_(datos) {
   };
 }
 
-/* ================================================================== */
-/* 1.b Tarjetas de iniciativa                                          */
-/* ================================================================== */
-
-/**
- * Una tarjeta por iniciativa, con lo que un comite necesita de un vistazo.
- *
- * Es la vista de PORTAFOLIO: la tabla por plataforma dice cuantas hay y en que
- * estado; esta dice como va cada una. Son el mismo universo de iniciativas y la
- * plataforma sale de la misma funcion (informePlataformaDeIniciativas_), para
- * que las dos secciones de la misma pagina no puedan contradecirse.
- *
- * Tres decisiones que merecen explicacion:
- *
- *  - El AVANCE REAL es el promedio del avance de las solicitudes de la
- *    iniciativa, y es null —no cero— cuando no tiene ninguna: no es que no haya
- *    avanzado, es que todavia no hay con que medirlo. Se reusa el calculo que ya
- *    existe (avanceRealIniciativa_), no se inventa otro.
- *  - El AVANCE ESPERADO necesita las dos fechas. Sin fecha de inicio o sin fecha
- *    fin planeada no hay plan contra el cual comparar, y la tarjeta lo dice en
- *    vez de mostrar un 0 % que se leeria como "va atrasadisima".
- *  - El BLOQUEO de la iniciativa es el de sus solicitudes: una iniciativa no
- *    tiene campo de bloqueo propio. Basta UNA solicitud bloqueada para marcarla,
- *    porque para el comite la pregunta es si hay algo detenido ahi, y la tarjeta
- *    dice cuantas y cuales para que la pregunta siguiente tenga respuesta.
- *
- * @param {!Object} datos
- * @return {!Object}
- * @private
- */
-function informeTarjetasIniciativas_(datos) {
-  var nombrePlataforma = mapaPlataformas();
-  var nombreEstado = mapaEstadosIniciativa();
-  var nombrePrioridad = mapaCatalogo_(PRIORIDADES);
-  var nombreTipoIni = mapaCatalogo_(getTiposIniciativa_());
-  var plataformaDe = informePlataformaDeIniciativas_(datos);
-
-  /* Las solicitudes de cada iniciativa, separando las estabilizaciones: un
-     incidente no es alcance planeado, y contarlo bajaria el avance de la
-     iniciativa por algo que no estaba en el plan (D-101). Es el mismo criterio
-     de la matriz de iniciativas, para que los dos avances coincidan. */
-  var suyas = {}, bloqueadas = {}, estabilizaciones = {};
-  datos.solicitudes.forEach(function (s) {
-    var k = s.ID_Proyecto;
-    if (!k) return;
-    if (esTipoEstabilizacion(s.Tipo_Solicitud)) {
-      estabilizaciones[k] = (estabilizaciones[k] || 0) + 1;
-      return;
-    }
-    (suyas[k] = suyas[k] || []).push(s);
-    if (String(s.Estado_Actual) === INFORME_ESTADO_BLOQUEADA) {
-      (bloqueadas[k] = bloqueadas[k] || []).push({
-        id: s.ID_Solicitud, nombre: s.Nombre_Solicitud || s.ID_Solicitud,
-        fase: s.Fase_Actual || ''
-      });
-    }
-  });
-
-  /* Un solo instante para todas: el avance esperado se compara siempre contra
-     el mismo "hoy". Con dos instantes distintos, dos iniciativas con el mismo
-     plan podrian mostrar esperados distintos. */
-  var ahora = new Date();
-
-  var tarjetas = datos.proyectos.map(function (p) {
-    var d = plataformaDe.de[p.ID_Proyecto] || { plat: '', como: 'ninguna', tocadas: [] };
-    var real = avanceRealIniciativa_(suyas[p.ID_Proyecto] || []);
-    var esperado = avanceEsperadoIniciativa_(p.Fecha_Inicio, p.Fecha_Fin_Estimada, ahora);
-    var trabadas = bloqueadas[p.ID_Proyecto] || [];
-    var prioridad = normalizarPrioridad_(p.Prioridad);
-
-    return {
-      id: p.ID_Proyecto,
-      nombre: p.Nombre_Proyecto || p.ID_Proyecto,
-      estado: p.Estado_Iniciativa || '',
-      estadoNombre: nombreEstado[p.Estado_Iniciativa] || 'Sin estado',
-      prioridad: prioridad,
-      prioridadNombre: nombrePrioridad[prioridad] || (p.Prioridad || 'Sin prioridad'),
-      tipo: p.Tipo_Iniciativa || '',
-      tipoNombre: nombreTipoIni[p.Tipo_Iniciativa] || 'Sin tipo',
-      plataformaId: d.plat,
-      plataforma: d.como === 'varias'
-        ? d.tocadas.map(function (k) { return nombrePlataforma[k] || k; }).join(' · ')
-        : (nombrePlataforma[d.plat] || 'Sin plataforma'),
-      origenPlataforma: d.como,
-      fechaInicio: p.Fecha_Inicio || null,
-      fechaFinPlaneada: p.Fecha_Fin_Estimada || null,
-      fechaFinReal: p.Fecha_Fin_Real || null,
-      avanceReal: real,
-      avanceEsperado: esperado,
-      // La desviacion es la lectura, no los dos porcentajes por separado: lo que
-      // decide un comite es si va adelante o atras de su plan, y cuanto.
-      desviacion: (real === null || esperado === null) ? null : red_(real - esperado, 1),
-      actividades: (suyas[p.ID_Proyecto] || []).length,
-      estabilizaciones: estabilizaciones[p.ID_Proyecto] || 0,
-      tieneBloqueo: trabadas.length > 0,
-      bloqueadas: trabadas.length,
-      detalleBloqueo: trabadas,
-      // Por que no se puede calcular el esperado, dicho en la tarjeta: "sin
-      // fechas" es accionable, un 0 % silencioso no.
-      faltaFechaInicio: !aFecha_(p.Fecha_Inicio),
-      faltaFechaFin: !aFecha_(p.Fecha_Fin_Estimada)
-    };
-  });
-
-  /* Orden: por FECHA FIN PLANEADA ascendente, que es lo que un comite quiere
-     ver primero —lo que vence antes—, y a igualdad por fecha de inicio. Las que
-     no tienen fecha van al final, no al principio: una iniciativa sin plan no es
-     la mas urgente, es la que le falta el plan, y va con su propio aviso. */
-  tarjetas.sort(function (a, b) {
-    var fa = aFecha_(a.fechaFinPlaneada), fb = aFecha_(b.fechaFinPlaneada);
-    if (fa && fb && fa.getTime() !== fb.getTime()) return fa - fb;
-    if (fa && !fb) return -1;
-    if (!fa && fb) return 1;
-    var ia = aFecha_(a.fechaInicio), ib = aFecha_(b.fechaInicio);
-    if (ia && ib && ia.getTime() !== ib.getTime()) return ia - ib;
-    if (ia && !ib) return -1;
-    if (!ia && ib) return 1;
-    return String(a.nombre).localeCompare(String(b.nombre));
-  });
-
-  return {
-    tarjetas: tarjetas,
-    total: tarjetas.length,
-    conBloqueo: tarjetas.filter(function (t) { return t.tieneBloqueo; }).length,
-    atrasadas: tarjetas.filter(function (t) {
-      return t.desviacion !== null && t.desviacion < 0;
-    }).length,
-    sinPlan: tarjetas.filter(function (t) {
-      return t.faltaFechaInicio || t.faltaFechaFin;
-    }).length,
-    sinActividades: tarjetas.filter(function (t) { return t.avanceReal === null; }).length,
-    estados: ESTADOS_INICIATIVA,
-    prioridades: PRIORIDADES,
-    tipos: getTiposIniciativa_()
-  };
-}
 
 /* ================================================================== */
 /* 2 y 3. Versiones entregadas y planeadas                             */
@@ -1031,7 +857,7 @@ function calcularInforme_(mes) {
   var datos = cargarDatos_();
 
   var iniciativas = informeIniciativasPorPlataforma_(datos);
-  var portafolio = informeTarjetasIniciativas_(datos);
+  var portafolio = tarjetasDeIniciativas_(datos);
   var versiones = informeVersiones_(datos, lim);
   var embudo = informeEmbudo_(datos, lim);
   var bloqueos = informeBloqueos_(datos, lim);

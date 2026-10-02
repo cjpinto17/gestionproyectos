@@ -42,6 +42,7 @@
 var CATALOGO_PERMISOS = [
   { grupo: 'Menú principal', campo: 'Ver_Home', nombre: 'Home' },
   { grupo: 'Menú principal', campo: 'Ver_Iniciativas', nombre: 'Iniciativas' },
+  { grupo: 'Menú principal', campo: 'Ver_Portafolio', nombre: 'Portafolio' },
   { grupo: 'Menú principal', campo: 'Ver_Gestion', nombre: 'Gestión' },
   { grupo: 'Menú principal', campo: 'Ver_Roadmap', nombre: 'Roadmap' },
   { grupo: 'Menú principal', campo: 'Ver_Reportes', nombre: 'Reportes' },
@@ -144,6 +145,10 @@ function permisosDeFabrica_(rolId) {
   return {
     Ver_Home: !!f.menu,
     Ver_Iniciativas: !!f.menu,
+    // El portafolio muestra la misma informacion de las iniciativas, en tarjetas
+    // y sin un solo dato de costo: lo ve quien ve el menu, igual que Iniciativas
+    // (D-129).
+    Ver_Portafolio: !!f.menu,
     Ver_Gestion: !!f.menu,
     Ver_Roadmap: !!f.menu,
     Ver_Reportes: !!f.menu,
@@ -358,6 +363,7 @@ function puedeMigrar(rolId) {
 var PERMISO_DE_PAGINA = {
   home: 'Ver_Home',
   iniciativas: 'Ver_Iniciativas',
+  portafolio: 'Ver_Portafolio',
   gestion: 'Ver_Gestion',
   roadmap: 'Ver_Roadmap',
   reportes: 'Ver_Reportes',

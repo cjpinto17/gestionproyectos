@@ -788,6 +788,24 @@
     padding-top:7px;border-top:1px solid var(--line-soft);
     font-size:11px;color:var(--ink-faint)}
   .ti-falta{color:var(--alerta);font-style:italic}
+  /* El desglose por estado de las solicitudes de la iniciativa. Solo aparecen
+     los estados que tienen alguna: cinco ceros no informan nada. */
+  .ti-estados{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+  .ti-est{font-size:11px;padding:1px 6px;border-radius:4px;
+    background:var(--line-soft);color:var(--ink-muted)}
+  .ti-est b{margin-right:2px;color:var(--ink)}
+  .ti-est-EST-02{background:#E8EFFB;color:var(--navy)}
+  .ti-est-EST-06{background:#E7F8EF;color:var(--verde)}
+  .ti-est-EST-04{background:var(--alerta-bg);color:var(--alerta)}
+  .ti-est-EST-05{text-decoration:line-through}
+  .ti-est-vacio{font-style:italic}
+  /* La alerta de iniciativa en pausa. Va antes del nombre para que se vea al
+     recorrer la rejilla sin tener que leer cada tarjeta. */
+  .ti-pausa{color:var(--alerta);font-size:15px;line-height:1.2;flex:none;cursor:help}
+  .ti-enpausa{background:#FFFDF5}
+  .pf-check{display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;
+    white-space:nowrap}
+  #filtrosPortafolio{gap:10px;align-items:flex-end}
   .presentando .tarjetas-ini{grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
   .presentando .ti-nombre{font-size:16px}
 

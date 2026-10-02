@@ -2982,6 +2982,70 @@ que verifica que filtrar no llama al servidor.
 dice de dónde salió. En el soporte descargable hay una pestaña *Portafolio* con la misma información y en
 el mismo orden, más una columna que dice si la plataforma era declarada o deducida.
 
+### D-129 · El Portafolio como pestaña propia
+
+Pedido del usuario: llevar las tarjetas de iniciativa a una **pestaña nueva del menú, después de
+Home**; agregar a la tarjeta el estado de sus solicitudes (por iniciar, en progreso, terminada), un
+**icono de alerta** si la iniciativa está en pausa, dejar la barra de **% real** con color según el
+avance y la de **% esperado en verde**, conservar los filtros **solo en esta vista**, permitir ordenar
+**por prioridad y por fecha**, y añadir las mejoras que considerara relevantes.
+
+**Un archivo nuevo, `PortafolioIniciativas.gs`**, y el constructor de tarjetas se mudó allí. Lo
+consumen dos páginas —el Portafolio y el Informe— y con el cálculo escrito dos veces la misma
+iniciativa podría mostrar avances distintos en dos pantallas de la misma aplicación. Hay una prueba
+que verifica que `tarjetasDeIniciativas_` existe **una sola vez** y que `InformeGestion.gs` la llama
+en vez de tener su propia copia. (No puede llamarse `Portafolio.gs`: colisionaría con
+`Portafolio.html`, que es lo que rompió un despliegue en silencio en D-111.)
+
+**Un riesgo que se evitó al cambiar de alcance.** La petición original era una vista dentro de
+Iniciativas, y eso habría exigido añadir un campo al payload de `getMatrizIniciativas`, que está en
+caché bajo un nombre fijo. Un despliegue no mueve los sellos, así que después de publicar se habría
+podido servir un payload viejo **sin el campo nuevo** y el navegador habría reventado — la misma
+familia de D-120 y D-122. Una página nueva con su propia clave de caché no tiene ese problema.
+
+**El desglose por estado cuenta TODOS los estados presentes, no los tres que se pidieron.** Mostrar
+tres de cinco deja un total que no cuadra, y quien suma con la calculadora concluye que la tarjeta
+está mal. Se listan solo los estados que tienen alguna solicitud —una tarjeta con cinco ceros no
+informa nada— en el orden del catálogo, y hay una prueba que verifica que la suma del desglose es
+igual al total de solicitudes de la tarjeta.
+
+**Las barras:** la de **% esperado** va siempre en verde porque es la **referencia**, no un resultado;
+la de **% real** toma su color de la comparación contra ella. Dos barras del mismo color obligan a leer
+los números para saber cuál es cuál; con la referencia fija, la comparación se ve sin leer. **Sin plan
+la barra real no se pinta de verde**, porque verde se leería como «va bien» y lo cierto es que no hay
+con qué saberlo.
+
+**La pausa se señala, no se castiga.** Una iniciativa en pausa no es un error: el negocio puede
+pausarla a propósito. Pero una pausa que nadie recuerda es un compromiso que sigue contando en el
+portafolio y no avanza, así que lleva ⚠ antes del nombre —antes, para verlo al recorrer la rejilla sin
+leer cada tarjeta— con el significado en el título y en `aria-label`, porque un símbolo solo no se lee
+en un lector de pantalla.
+
+**Los filtros salieron del Informe.** Esa página se proyecta en un comité, y una vista filtrada
+proyectada es una vista que alguien va a leer como el total. El Informe muestra todas y dice dónde se
+filtra; el Portafolio, que es la vista de trabajo, se queda con los filtros y gana cuatro más
+(prioridad, tipo, búsqueda por nombre, y «en pausa») más un botón de limpiar.
+
+**El orden** se puede cambiar por fecha fin planeada, fecha de inicio, prioridad, atraso contra el plan
+y nombre, con un botón para invertirlo. Dos reglas:
+
+- **Cada criterio trae su orden natural puesto**, para no obligar a oprimir «invertir» cada vez que se
+  cambia de criterio.
+- **Lo que no tiene el dato por el cual se ordena va al final en cualquier dirección.** Una iniciativa
+  sin fecha no es la más urgente y una sin plan no es la más atrasada: «lo que falta» no es un extremo
+  de la escala, y al invertir el orden no debe subir al primer lugar.
+
+**El defecto que encontró la prueba —y la prueba que lo dejó pasar primero.** «Más atrasadas primero»
+ordenaba al revés: ponía arriba la de **+8,2 %** en lugar de la de **−85,7 %**. Lo que hace esto digno
+de anotar no es el error de signo, es que **mi primera aserción lo dejó pasar**: decía «el primero
+empieza por menos, o no dice "sin"», y un `+8,2 %` cumple la segunda condición. Una aserción laxa es
+peor que ninguna, porque da por verificado lo que no se miró. La nueva lee los números y comprueba que
+la serie sea monótona.
+
+**Permiso `Ver_Portafolio`**, de fábrica para quien ve el menú —igual que Iniciativas— porque muestra
+la misma información del portafolio y **ni un solo dato de costo**. Hay una prueba de pantalla que
+falla si en la página aparece cualquier valor en pesos.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

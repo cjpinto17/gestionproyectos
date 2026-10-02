@@ -14,8 +14,8 @@ var arrastrada = null;
 var accionModal = null;
 
 var TODAS = '*';
-var PAGINAS = ['home', 'iniciativas', 'gestion', 'roadmap', 'reportes', 'costos',
-               'informe', 'admin'];
+var PAGINAS = ['home', 'portafolio', 'iniciativas', 'gestion', 'roadmap', 'reportes',
+               'costos', 'informe', 'admin'];
 // Mismo codigo de color que los estados de iniciativa, para que el tablero y
 // la matriz se lean igual: gris lo que no arranca, amarillo lo que avanza,
 // verde lo terminado, rojo lo detenido.
@@ -361,7 +361,8 @@ function permiso(nombre) {
 
 /** Permiso de menu que corresponde a cada pagina. Gemelo de PERMISO_DE_PAGINA. */
 var PERMISO_DE_PAGINA = {
-  home: 'Ver_Home', iniciativas: 'Ver_Iniciativas', gestion: 'Ver_Gestion',
+  home: 'Ver_Home', portafolio: 'Ver_Portafolio', iniciativas: 'Ver_Iniciativas',
+  gestion: 'Ver_Gestion',
   roadmap: 'Ver_Roadmap', reportes: 'Ver_Reportes', costos: 'Ver_Costos',
   informe: 'Ver_Informe', admin: 'Administrar'
 };
@@ -438,7 +439,8 @@ function navegar(pagina) {
     else t.removeAttribute('aria-current');
   });
   var cargadores = {
-    home: cargarHome, iniciativas: cargarIniciativas, gestion: cargarGestion,
+    home: cargarHome, portafolio: cargarPortafolio,
+    iniciativas: cargarIniciativas, gestion: cargarGestion,
     roadmap: cargarRoadmap, reportes: cargarReportes, costos: cargarCostos,
     informe: cargarInforme, admin: cargarAdmin
   };
@@ -4498,14 +4500,10 @@ $('btnInformeDetalle').addEventListener('click', descargarInformeDetalle);
  * iniciativas, y pedirlas de nuevo por cada filtro haria esperar para esconder
  * filas que ya estan en la pagina.
  */
-var INFORME_FILTRO_INI = { estado: '', plataforma: '', soloBloqueo: false };
-/* Lo ultimo que se pinto. Los filtros repintan con esto y no con DATOS.informe:
-   el filtro es de la pantalla y no debe dejar de responder porque alguien haya
-   limpiado la cache del cliente. */
-var INFORME_ULTIMO = null;
-
+/* Esta pagina muestra TODAS las iniciativas, sin filtros. Los filtros viven en
+   el menu Portafolio: el Informe se proyecta en un comite, y una vista filtrada
+   proyectada es una vista que alguien va a leer como el total (D-129). */
 function pintarInformeIniciativasTarjetas(r) {
-  INFORME_ULTIMO = r;
   var pf = r.portafolio;
   if (!pf || !pf.tarjetas.length) {
     $('tarjetasInformeIniciativas').innerHTML = '<p class="nota">No hay iniciativas ' +
@@ -4514,46 +4512,18 @@ function pintarInformeIniciativasTarjetas(r) {
     return;
   }
 
-  // Los dos selectores se llenan una sola vez, con lo que de verdad hay.
-  if (!$('fInformeIniEstado').options.length) {
-    $('fInformeIniEstado').innerHTML = '<option value="">Todos</option>' +
-      pf.estados.map(function (e) {
-        return '<option value="' + esc(e.id) + '">' + esc(e.nombre) + '</option>';
-      }).join('');
-    var plats = {};
-    pf.tarjetas.forEach(function (t) { plats[t.plataforma] = true; });
-    $('fInformeIniPlataforma').innerHTML = '<option value="">Todas</option>' +
-      Object.keys(plats).sort().map(function (k) {
-        return '<option value="' + esc(k) + '">' + esc(k) + '</option>';
-      }).join('');
-  }
-
-  var f = INFORME_FILTRO_INI;
-  var visibles = pf.tarjetas.filter(function (t) {
-    if (f.estado && t.estado !== f.estado) return false;
-    if (f.plataforma && t.plataforma !== f.plataforma) return false;
-    if (f.soloBloqueo && !t.tieneBloqueo) return false;
-    return true;
-  });
-
   $('notaInformePortafolio').innerHTML =
     '<b>' + pf.total + ' iniciativas</b>' +
-    (visibles.length !== pf.total ? ' · se muestran ' + visibles.length : '') +
     ' · <b>' + pf.atrasadas + '</b> por debajo de su plan' +
     ' · <b>' + pf.conBloqueo + '</b> con alguna solicitud bloqueada' +
+    (pf.enPausa ? ' · <b>' + pf.enPausa + '</b> en pausa' : '') +
     (pf.sinPlan ? ' · <b>' + pf.sinPlan + '</b> sin fechas de plan, así que no se les puede ' +
       'calcular el avance esperado' : '') +
     (pf.sinActividades ? ' · <b>' + pf.sinActividades + '</b> sin solicitudes, así que no hay ' +
       'con qué medir su avance real' : '');
 
-  if (!visibles.length) {
-    $('tarjetasInformeIniciativas').innerHTML = '<p class="nota">Ninguna iniciativa cumple el ' +
-      'filtro.</p>';
-    return;
-  }
-
   $('tarjetasInformeIniciativas').innerHTML = '<div class="tarjetas-ini">' +
-    visibles.map(tarjetaDeIniciativa).join('') + '</div>';
+    pf.tarjetas.map(tarjetaDeIniciativa).join('') + '</div>';
 }
 
 /** Una tarjeta. Se separa para poder leerla y para poder probarla sola. */
@@ -4582,6 +4552,16 @@ function tarjetaDeIniciativa(t) {
       '<span class="ti-av-val num">' + formatoPorcentaje(valor) + '</span></div>';
   };
 
+  /* El color de la barra de avance REAL dice como va contra su plan; la de
+     ESPERADO va siempre en verde, porque es la referencia y no un resultado. Dos
+     barras del mismo color obligan a leer los numeros para saber cual es cual;
+     con la referencia fija en verde, la comparacion se ve sin leer. */
+  var colorReal = '';
+  if (t.desviacion === null) colorReal = '';          // sin plan contra el cual medir
+  else if (t.desviacion < -15) colorReal = 'rojo';
+  else if (t.desviacion < 0) colorReal = 'ambar';
+  else colorReal = 'verde';
+
   /* Sin desviacion hay DOS razones distintas y exigen acciones distintas: le
      faltan las fechas del plan, o le faltan solicitudes. Decir "sin plan" a una
      iniciativa que tiene sus dos fechas y ninguna solicitud manda a corregir lo
@@ -4600,8 +4580,18 @@ function tarjetaDeIniciativa(t) {
       'solicitud de la cual medir el avance real">sin solicitudes</span>';
   }
 
-  return '<article class="' + clase + '">' +
+  /* La iniciativa en pausa, senalada. No es un error —el negocio puede pausarla
+     a proposito— pero una pausa que nadie recuerda es un compromiso detenido que
+     sigue contando en el portafolio. El icono lleva texto en el titulo porque un
+     simbolo solo no se lee en un lector de pantalla. */
+  var pausa = t.enPausa
+    ? '<span class="ti-pausa" title="Iniciativa en pausa: sigue en el portafolio y no avanza" ' +
+      'role="img" aria-label="En pausa">&#9888;</span>'
+    : '';
+
+  return '<article class="' + clase + (t.enPausa ? ' ti-enpausa' : '') + '">' +
     '<header class="ti-cab">' +
+      pausa +
       '<div class="ti-nombre" title="' + esc(t.id) + '">' + esc(t.nombre) + '</div>' +
       desv +
     '</header>' +
@@ -4626,8 +4616,16 @@ function tarjetaDeIniciativa(t) {
           '">Bloqueo: ' + t.bloqueadas + '</span>'
         : '') +
     '</div>' +
-    barraAvance('Real', t.avanceReal) +
-    barraAvance('Esperado', t.avanceEsperado, 'ambar') +
+    barraAvance('Real', t.avanceReal, colorReal) +
+    barraAvance('Esperado', t.avanceEsperado, 'verde') +
+    /* El estado de sus solicitudes. Se muestran solo los estados que tienen
+       alguna: una tarjeta con cinco ceros no informa nada. */
+    ((t.porEstado && t.porEstado.length)
+      ? '<div class="ti-estados">' + t.porEstado.map(function (e) {
+          return '<span class="ti-est ti-est-' + esc(e.estado) + '">' +
+            '<b class="num">' + e.cuenta + '</b> ' + esc(e.nombre) + '</span>';
+        }).join('') + '</div>'
+      : '<div class="ti-estados"><span class="ti-est ti-est-vacio">Sin solicitudes</span></div>') +
     '<footer class="ti-pie">' +
       '<span>Inicio ' + fecha(t.fechaInicio) + '</span>' +
       '<span>Fin plan. ' + fecha(t.fechaFinPlaneada) + '</span>' +
@@ -4637,16 +4635,232 @@ function tarjetaDeIniciativa(t) {
     '</article>';
 }
 
-['fInformeIniEstado', 'fInformeIniPlataforma'].forEach(function (id) {
-  $(id).addEventListener('change', function () {
-    INFORME_FILTRO_INI[id === 'fInformeIniEstado' ? 'estado' : 'plataforma'] = this.value;
-    if (INFORME_ULTIMO) pintarInformeIniciativasTarjetas(INFORME_ULTIMO);
+/* ================= Portafolio de iniciativas ================= */
+/**
+ * El portafolio en tarjetas: como va cada iniciativa frente a su plan.
+ *
+ * Filtrar y ordenar se hacen EN EL NAVEGADOR. El servidor manda todas las
+ * iniciativas una vez —son decenas, no miles— y volver a pedirlas por cada
+ * cambio de filtro haria esperar para esconder tarjetas que ya estan en la
+ * pagina. Esta pantalla es la unica con filtros: el Informe de gestion muestra
+ * el portafolio completo porque se proyecta en un comite, y una vista filtrada
+ * proyectada es una vista que alguien va a leer como el total.
+ */
+var PF_FILTRO = { estado: '', plataforma: '', prioridad: '', tipo: '',
+                  texto: '', bloqueo: false, atraso: false, pausa: false };
+var PF_ORDEN = { campo: 'finPlaneada', invertido: false };
+/* Lo ultimo que llego. Los filtros repintan con esto y no con DATOS, para que no
+   dejen de responder en silencio si alguien limpia la cache del cliente. */
+var PF_DATOS = null;
+
+function cargarPortafolio(forzar) {
+  if (!forzar && PF_DATOS) { pintarPortafolio(PF_DATOS); return; }
+  cargando('kpisPortafolio', 'kpis');
+  api('getPortafolio', !!forzar).then(function (r) {
+    PF_DATOS = r;
+    pintarPortafolio(r);
+  }).catch(function (e) {
+    fallo(e);
+    $('kpisPortafolio').innerHTML = '';
+    $('notaPortafolio').innerHTML = '<b style="color:var(--rojo)">No se pudo cargar:</b> ' +
+        esc(e && e.message ? e.message : String(e));
+  });
+}
+// Actualizar relee las hojas: es el boton al que acude quien acaba de corregir
+// algo a mano en el Sheets y no ve el cambio.
+$('btnPortafolio').addEventListener('click', function () { cargarPortafolio(true); });
+
+/** Llena los cuatro selectores con lo que de verdad hay. Una sola vez. */
+function llenarFiltrosPortafolio(r) {
+  if ($('fPfEstado').options.length) return;
+  var opciones = function (lista, etiquetaTodos) {
+    return '<option value="">' + etiquetaTodos + '</option>' +
+      lista.map(function (x) {
+        return '<option value="' + esc(x.id) + '">' + esc(x.nombre) + '</option>';
+      }).join('');
+  };
+  $('fPfEstado').innerHTML = opciones(r.estados || [], 'Todos');
+  $('fPfPrioridad').innerHTML = opciones(r.prioridades || [], 'Todas');
+  $('fPfTipo').innerHTML = opciones(r.tipos || [], 'Todos');
+  // Las plataformas salen de las tarjetas y no del catalogo: lo que importa es
+  // poder filtrar por lo que hay, incluidas las deducidas y "Sin plataforma".
+  var vistas = {};
+  r.tarjetas.forEach(function (t) { vistas[t.plataforma] = true; });
+  $('fPfPlataforma').innerHTML = '<option value="">Todas</option>' +
+    Object.keys(vistas).sort().map(function (k) {
+      return '<option value="' + esc(k) + '">' + esc(k) + '</option>';
+    }).join('');
+}
+
+/** Las tarjetas que pasan el filtro, en el orden pedido. */
+function tarjetasVisiblesPortafolio(r) {
+  var f = PF_FILTRO;
+  var texto = f.texto.trim().toLowerCase();
+  var lista = r.tarjetas.filter(function (t) {
+    if (f.estado && t.estado !== f.estado) return false;
+    if (f.plataforma && t.plataforma !== f.plataforma) return false;
+    if (f.prioridad && t.prioridad !== f.prioridad) return false;
+    if (f.tipo && t.tipo !== f.tipo) return false;
+    if (f.bloqueo && !t.tieneBloqueo) return false;
+    if (f.pausa && !t.enPausa) return false;
+    // "Por debajo del plan" es desviacion negativa. Una iniciativa sin plan no
+    // esta atrasada: no se puede saber, y colarla aqui seria inventar.
+    if (f.atraso && !(t.desviacion !== null && t.desviacion < 0)) return false;
+    if (texto && String(t.nombre).toLowerCase().indexOf(texto) === -1 &&
+        String(t.id).toLowerCase().indexOf(texto) === -1) return false;
+    return true;
+  });
+
+  /* En CUALQUIER orden, lo que no tiene el dato por el cual se ordena va al
+     final, nunca al principio: una iniciativa sin fecha no es la mas urgente, y
+     una sin plan no es la mas atrasada. Invertir el orden no las sube: siguen al
+     final, porque "lo que falta" no es un extremo de la escala. */
+  var sinDato = function (t) {
+    if (PF_ORDEN.campo === 'finPlaneada') return !t.fechaFinPlaneada;
+    if (PF_ORDEN.campo === 'inicio') return !t.fechaInicio;
+    if (PF_ORDEN.campo === 'prioridad') return !t.prioridad;
+    if (PF_ORDEN.campo === 'desviacion') return t.desviacion === null;
+    return false;
+  };
+  var clave = function (t) {
+    if (PF_ORDEN.campo === 'finPlaneada') return String(t.fechaFinPlaneada || '').slice(0, 10);
+    if (PF_ORDEN.campo === 'inicio') return String(t.fechaInicio || '').slice(0, 10);
+    // La prioridad se ordena por su codigo, que ya viene de critica a baja.
+    if (PF_ORDEN.campo === 'prioridad') return String(t.prioridad || '');
+    if (PF_ORDEN.campo === 'desviacion') return t.desviacion;
+    return String(t.nombre || '').toLowerCase();
+  };
+  var signo = PF_ORDEN.invertido ? -1 : 1;
+  lista.sort(function (a, b) {
+    var fa = sinDato(a), fb = sinDato(b);
+    if (fa !== fb) return fa ? 1 : -1;
+    if (fa && fb) return String(a.nombre).localeCompare(String(b.nombre));
+    var ka = clave(a), kb = clave(b);
+    if (ka === kb) return String(a.nombre).localeCompare(String(b.nombre));
+    if (typeof ka === 'number') return (ka - kb) * signo;
+    return ka.localeCompare(kb) * signo;
+  });
+  return lista;
+}
+
+function pintarPortafolio(r) {
+  if (!r) {
+    $('kpisPortafolio').innerHTML = '';
+    $('notaPortafolio').innerHTML = '<b style="color:var(--rojo)">El servidor no devolvió ' +
+        'el portafolio.</b> Vuelva a oprimir <b>Actualizar</b>.';
+    return;
+  }
+  PF_DATOS = r;
+  if (!r.tarjetas || !r.tarjetas.length) {
+    $('kpisPortafolio').innerHTML = '';
+    $('tarjetasPortafolio').innerHTML = '';
+    $('notaPortafolio').innerHTML = 'No hay iniciativas registradas. Se administran en ' +
+        '<b>Administración → Iniciativas</b>.';
+    return;
+  }
+  llenarFiltrosPortafolio(r);
+
+  $('kpisPortafolio').innerHTML = [
+    kpi('Iniciativas', numeroInforme(r.total), '',
+        r.enPausa ? r.enPausa + ' en pausa' : 'Ninguna en pausa', r.enPausa ? 'mal' : ''),
+    kpi('Por debajo del plan', numeroInforme(r.atrasadas), '',
+        'Su avance real va detrás del esperado', r.atrasadas ? 'mal' : ''),
+    kpi('Con bloqueo', numeroInforme(r.conBloqueo), '',
+        'Tienen al menos una solicitud detenida', r.conBloqueo ? 'mal' : ''),
+    // Las dos razones por las que una iniciativa no se puede evaluar, juntas:
+    // es la lista de lo que hay que diligenciar.
+    kpi('Sin poder medir', numeroInforme(r.sinPlan + r.sinActividades), '',
+        r.sinPlan + ' sin fechas de plan, ' + r.sinActividades + ' sin solicitudes')
+  ].join('');
+
+  var visibles = tarjetasVisiblesPortafolio(r);
+  $('notaPortafolio').innerHTML = visibles.length === r.total
+    ? '<b>' + r.total + ' iniciativas</b>, ordenadas por ' + etiquetaOrdenPortafolio() + '.'
+    : '<b>' + visibles.length + ' de ' + r.total + ' iniciativas</b>, ordenadas por ' +
+      etiquetaOrdenPortafolio() + '. <a href="#" id="pfQuitarFiltros">Quitar los filtros</a>';
+  if ($('pfQuitarFiltros')) {
+    $('pfQuitarFiltros').addEventListener('click', function (e) {
+      e.preventDefault(); limpiarFiltrosPortafolio();
+    });
+  }
+
+  $('tarjetasPortafolio').innerHTML = visibles.length
+    ? '<div class="tarjetas-ini">' + visibles.map(tarjetaDeIniciativa).join('') + '</div>'
+    : '<p class="nota">Ninguna iniciativa cumple el filtro. ' +
+      '<a href="#" id="pfQuitarFiltros2">Quitar los filtros</a></p>';
+  if ($('pfQuitarFiltros2')) {
+    $('pfQuitarFiltros2').addEventListener('click', function (e) {
+      e.preventDefault(); limpiarFiltrosPortafolio();
+    });
+  }
+
+  $('leyendaPortafolio').innerHTML =
+    'El <b>% real</b> es el promedio de avance de sus solicitudes, sin contar las canceladas; ' +
+    'las de fábrica se miden por el embudo de ocho fases y las tareas por su estado. El ' +
+    '<b>% esperado</b> es lo que debería llevar hoy según sus fechas, en días hábiles, y va ' +
+    'siempre en <b>verde</b> porque es la referencia. La barra de <b>% real</b> toma su color de ' +
+    'la comparación: verde si va igual o mejor que el plan, ámbar hasta 15 puntos por debajo, ' +
+    'rojo más abajo. El número de arriba a la derecha es esa diferencia. ' +
+    '<b>Sin plan</b> significa que falta la fecha de inicio o la fecha fin estimada; ' +
+    '<b>sin solicitudes</b>, que tiene fechas pero no hay con qué medir el avance real. ' +
+    'El icono &#9888; marca las iniciativas <b>en pausa</b>. Una plataforma en cursiva con ' +
+    'asterisco está <b>deducida</b> de las solicitudes: la iniciativa no la tiene declarada. ' +
+    'Datos al ' + esc(r.generado || '') + '.';
+}
+
+/** Como se llama el orden que esta puesto, para decirlo en la nota. */
+function etiquetaOrdenPortafolio() {
+  var nombres = { finPlaneada: 'fecha fin planeada', inicio: 'fecha de inicio',
+                  prioridad: 'prioridad', desviacion: 'atraso contra el plan',
+                  nombre: 'nombre' };
+  return (nombres[PF_ORDEN.campo] || PF_ORDEN.campo) +
+         (PF_ORDEN.invertido ? ', al revés' : '');
+}
+
+function limpiarFiltrosPortafolio() {
+  PF_FILTRO = { estado: '', plataforma: '', prioridad: '', tipo: '',
+                texto: '', bloqueo: false, atraso: false, pausa: false };
+  ['fPfEstado', 'fPfPlataforma', 'fPfPrioridad', 'fPfTipo'].forEach(function (id) {
+    $(id).value = '';
+  });
+  $('fPfBuscar').value = '';
+  ['fPfBloqueo', 'fPfAtraso', 'fPfPausa'].forEach(function (id) { $(id).checked = false; });
+  if (PF_DATOS) pintarPortafolio(PF_DATOS);
+}
+$('btnPfLimpiar').addEventListener('click', limpiarFiltrosPortafolio);
+
+var PF_CAMPO_DE_CONTROL = {
+  fPfEstado: 'estado', fPfPlataforma: 'plataforma', fPfPrioridad: 'prioridad',
+  fPfTipo: 'tipo', fPfBuscar: 'texto'
+};
+Object.keys(PF_CAMPO_DE_CONTROL).forEach(function (id) {
+  $(id).addEventListener('input', function () {
+    PF_FILTRO[PF_CAMPO_DE_CONTROL[id]] = this.value;
+    if (PF_DATOS) pintarPortafolio(PF_DATOS);
   });
 });
-$('fInformeIniBloqueo').addEventListener('change', function () {
-  INFORME_FILTRO_INI.soloBloqueo = this.checked;
-  if (INFORME_ULTIMO) pintarInformeIniciativasTarjetas(INFORME_ULTIMO);
+[['fPfBloqueo', 'bloqueo'], ['fPfAtraso', 'atraso'], ['fPfPausa', 'pausa']]
+  .forEach(function (par) {
+    $(par[0]).addEventListener('change', function () {
+      PF_FILTRO[par[1]] = this.checked;
+      if (PF_DATOS) pintarPortafolio(PF_DATOS);
+    });
+  });
+$('fPfOrden').addEventListener('change', function () {
+  PF_ORDEN.campo = this.value;
+  /* Cada criterio tiene un orden natural y se pone solo, para no obligar a
+     oprimir el boton de invertir cada vez que se cambia de criterio: las fechas
+     de la mas proxima a la mas lejana, la prioridad de critica a baja, el nombre
+     de la A a la Z, y la desviacion de la MAS NEGATIVA a la menos —la mas
+     atrasada arriba—, que es ascendente y no descendente. */
+  PF_ORDEN.invertido = false;
+  if (PF_DATOS) pintarPortafolio(PF_DATOS);
 });
+$('btnPfOrdenInv').addEventListener('click', function () {
+  PF_ORDEN.invertido = !PF_ORDEN.invertido;
+  if (PF_DATOS) pintarPortafolio(PF_DATOS);
+});
+
 
 
 

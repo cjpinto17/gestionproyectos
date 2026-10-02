@@ -1,0 +1,56 @@
+<!-- Portafolio.html | Pagina 2: el portafolio de iniciativas en tarjetas. Una
+     tarjeta por iniciativa, con su avance real contra el esperado, el estado de
+     sus solicitudes y sus obstaculos.
+
+     El archivo de servidor se llama PortafolioIniciativas.gs y NO Portafolio.gs:
+     Apps Script ignora la extension y los colisionaria (D-111). -->
+<section class="pagina" id="pg-portafolio" hidden>
+    <div class="fila encabezado">
+      <div>
+        <h1>Portafolio de iniciativas</h1>
+        <p id="subPortafolio">Una tarjeta por iniciativa: c&oacute;mo va cada una frente a su plan,
+        en qu&eacute; estado est&aacute;n sus solicitudes y qu&eacute; la tiene detenida.</p>
+      </div>
+      <div class="fila ml-auto">
+        <div class="combo"><label for="fPfOrden">Ordenar por</label>
+          <select id="fPfOrden">
+            <option value="finPlaneada">Fecha fin planeada</option>
+            <option value="inicio">Fecha de inicio</option>
+            <option value="prioridad">Prioridad</option>
+            <option value="desviacion">M&aacute;s atrasadas primero</option>
+            <option value="nombre">Nombre</option>
+          </select></div>
+        <div class="combo"><label>&nbsp;</label>
+          <button class="btn-sec" id="btnPfOrdenInv" title="Invertir el orden">&uarr;&darr;</button></div>
+        <div class="combo"><label>&nbsp;</label>
+          <button class="btn-primario" id="btnPortafolio">Actualizar</button></div>
+      </div>
+    </div>
+
+    <div class="kpis k4" id="kpisPortafolio"></div>
+
+    <div class="fila" id="filtrosPortafolio" style="flex-wrap:wrap;margin:14px 0 0">
+      <div class="combo"><label for="fPfEstado">Estado</label>
+        <select id="fPfEstado"></select></div>
+      <div class="combo"><label for="fPfPlataforma">Plataforma</label>
+        <select id="fPfPlataforma"></select></div>
+      <div class="combo"><label for="fPfPrioridad">Prioridad</label>
+        <select id="fPfPrioridad"></select></div>
+      <div class="combo"><label for="fPfTipo">Tipo de iniciativa</label>
+        <select id="fPfTipo"></select></div>
+      <div class="combo"><label for="fPfBuscar">Buscar</label>
+        <input type="search" id="fPfBuscar" placeholder="Nombre de la iniciativa&hellip;"></div>
+      <div class="combo"><label>&nbsp;</label>
+        <div class="fila" style="gap:12px">
+          <label class="pf-check"><input type="checkbox" id="fPfBloqueo"> Con bloqueo</label>
+          <label class="pf-check"><input type="checkbox" id="fPfAtraso"> Por debajo del plan</label>
+          <label class="pf-check"><input type="checkbox" id="fPfPausa"> En pausa</label>
+        </div></div>
+      <div class="combo"><label>&nbsp;</label>
+        <button class="btn-sec" id="btnPfLimpiar">Limpiar filtros</button></div>
+    </div>
+
+    <p class="nota" id="notaPortafolio"></p>
+    <div id="tarjetasPortafolio" style="margin-top:4px"></div>
+    <p class="nota" id="leyendaPortafolio"></p>
+</section>
