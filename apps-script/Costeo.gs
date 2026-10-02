@@ -139,13 +139,16 @@ function estadiasPorColumnas_(s, hasta) {
         return;
       }
       if (!fin) {
-        // Sin fecha de fin hay dos casos distintos y no se pueden confundir: la
-        // solicitud sigue AHI —y entonces sigue ocupando, legitimamente— o ya
-        // paso de largo y nadie cerro la fecha, que es un dato por llenar.
-        if (siguenEnLaEtapa_(s, etapa)) {
-          estadias.push({ etapa: etapa.id, rango: nombre, desde: desde, hasta: hasta,
-                          abierta: true, campoIni: campoIni, campoFin: campoFin });
-        } else {
+        // Sin fecha de fin, la estadia se corta en el ULTIMO DIA DEL MES que se
+        // esta costeando: lo que siga ocupando en los meses siguientes se cobra
+        // contra la bolsa de esos meses. Cuenta siempre, este la solicitud
+        // todavia en la fase o haya pasado de largo sin que nadie cerrara la
+        // fecha: la capacidad se ocupo igual (D-123).
+        estadias.push({ etapa: etapa.id, rango: nombre, desde: desde, hasta: hasta,
+                        abierta: true, campoIni: campoIni, campoFin: campoFin });
+        // Que cueste no quiere decir que el dato este completo: si la solicitud
+        // ya salio de la fase, la fecha de fin sigue haciendo falta y se pide.
+        if (!siguenEnLaEtapa_(s, etapa)) {
           faltantes.push(faltante_(s, etapa, r, 'Falta la fecha de fin', campoFin));
         }
         return;
@@ -480,6 +483,27 @@ function calcularCostos_(desde, hasta, conDetalle) {
   var bolsas = [];
   var reparto = [];              // cada peso, con la bolsa y el mes de donde salio
 
+  /* Que iniciativas tienen bolsa PROPIA en cada mes y etapa. Una solicitud
+     cubierta por su propia bolsa no participa ademas del reparto de la general:
+     se pagaria dos veces la misma gente. La exclusion es por ETAPA, no por
+     iniciativa entera —Devops tiene desarrollo dedicado pero sus pruebas las
+     hace el equipo general de calidad, y esas si salen de la bolsa comun. */
+  var conBolsaPropia = {};      // mes -> etapa -> idProyecto -> true
+  tarifas.forEach(function (t) {
+    var ded = String(t.ID_Proyecto || '').trim();
+    if (!ded) return;
+    var et = String(t.Etapa || '');
+    var vD = aFecha_(t.Vigencia_Desde), vH = aFecha_(t.Vigencia_Hasta);
+    meses.forEach(function (mes) {
+      var lim = limitesDelMes_(mes);
+      if (vD && lim.fin < vD) return;
+      if (vH && lim.inicio > vH) return;
+      conBolsaPropia[mes] = conBolsaPropia[mes] || {};
+      conBolsaPropia[mes][et] = conBolsaPropia[mes][et] || {};
+      conBolsaPropia[mes][et][ded] = true;
+    });
+  });
+
   tarifas.forEach(function (t) {
     var etapa = String(t.Etapa || '');
     var valor = Number(t.Valor_Mensual) || 0;
@@ -501,9 +525,13 @@ function calcularCostos_(desde, hasta, conDetalle) {
       porMes[mes].contrato += valor;
 
       var enEtapa = (dias[mes] && dias[mes][etapa]) || {};
-      // Una bolsa dedicada solo se reparte entre las actividades de su iniciativa.
+      var propias = (conBolsaPropia[mes] && conBolsaPropia[mes][etapa]) || {};
       var candidatos = Object.keys(enEtapa).filter(function (id) {
-        return !dedicada || porId[id].ID_Proyecto === dedicada;
+        var proy = porId[id].ID_Proyecto;
+        // Una bolsa dedicada solo alcanza a las actividades de su iniciativa.
+        if (dedicada) return proy === dedicada;
+        // Y la general no alcanza a quien ya tiene bolsa propia en esta etapa.
+        return !propias[proy];
       });
       var totalDias = candidatos.reduce(function (a, id) { return a + enEtapa[id]; }, 0);
 

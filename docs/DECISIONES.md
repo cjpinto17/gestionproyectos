@@ -2715,6 +2715,41 @@ un error de javascript que a quien usa la herramienta no le significa nada.
 que probar no es cada camino por separado sino que **entreguen lo mismo**. La prueba nueva compara las
 dos formas; sin eso, el camino menos transitado se rompe en silencio hasta que alguien lo usa.
 
+### D-123 · Las seis reglas del reparto, acordadas con el usuario
+
+Las cifras no cuadraban, y no por un error de programación: el modelo que yo había construido no era
+el que el contrato describe. El usuario lo revisó con un ejemplo y fijó las reglas. Quedan aquí porque
+son la definición del cálculo, no un detalle de implementación.
+
+| # | Regla | Estado |
+| --- | --- | --- |
+| 1 | Una bolsa con iniciativa asignada se reparte **solo** entre las solicitudes de esa iniciativa, y esas solicitudes **no suman de otras bolsas** | **cambiado** |
+| 2 | Una bolsa sin iniciativa se reparte entre todas las demás solicitudes trabajadas en esa etapa | **cambiado** |
+| 3 | Sin fecha de inicio y sin fecha de fin: no se tiene en cuenta, su costo es 0 | ya era así |
+| 4 | Con inicio y con fin: los días hábiles del mes que corresponda | ya era así |
+| 5 | Con inicio y **sin** fin: el límite es el último día del mes | **cambiado** |
+| 6 | La suma de todas las iniciativas en una fase nunca supera la bolsa de esa fase | ya era así |
+
+**Lo que cambió en la regla 1 y 2.** Antes, una iniciativa con capacidad dedicada pagaba **dos veces**:
+su bolsa propia *más* una tajada de la bolsa general. En el ejemplo del usuario, DevOps salía en
+$83.257.864 cuando sus bolsas suman $19.709.412. Ahora una solicitud cubierta por una bolsa propia
+queda **fuera** del reparto de la general.
+
+**La exclusión es por ETAPA, no por iniciativa entera.** DevOps tiene desarrollo dedicado, pero sus
+pruebas las hace el equipo general de calidad: de esa bolsa sí toma. Excluirla por completo habría
+regalado el trabajo de QA.
+
+**Lo que cambió en la regla 5.** Una fase sin fecha de fin ahora cuenta **siempre** hasta el último día
+del mes, esté la solicitud todavía en la fase o haya pasado de largo sin que nadie cerrara la fecha. La
+capacidad se ocupó igual, y lo que siga ocupando en meses siguientes se cobra contra la bolsa de esos
+meses. La fecha de fin se sigue reclamando cuando falta —que cueste no quiere decir que el dato esté
+completo—.
+
+**Una consecuencia que conviene tener presente:** si en un mes todas las solicitudes de una etapa
+pertenecen a iniciativas con bolsa propia, la bolsa general de esa etapa no tiene a quién cargarse y
+sale entera como *sin atribuir*. Es correcto —esa capacidad se pagó y no la ocupó nadie de los que
+costeamos— y es justamente el hallazgo que la página existe para mostrar.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
