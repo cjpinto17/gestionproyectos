@@ -56,8 +56,16 @@
 
     <div class="seccion">Detalle por actividad</div>
     <div class="panel">
-      <h3>Las actividades m&aacute;s costosas</h3>
-      <div class="sub">Lo que carg&oacute; cada una seg&uacute;n los d&iacute;as h&aacute;biles que ocup&oacute; cada etapa</div>
-      <div id="tablaCostoActividades"></div>
+      <div class="fila">
+        <div>
+          <h3>C&aacute;lculos detallados</h3>
+          <div class="sub">Cada actividad con los d&iacute;as h&aacute;biles que ocup&oacute; cada etapa y lo que
+          carg&oacute; por ello. Las filas suman el subtotal de su iniciativa, y los subtotales suman
+          el total repartido: si no cuadra, es un error y hay que reportarlo.</div>
+        </div>
+        <button class="btn-sec ml-auto" id="btnCostoDetalle">Descargar auditor&iacute;a</button>
+      </div>
+      <div class="nota" id="avisoDetalle" style="margin-top:10px"></div>
+      <div id="tablaCostoActividades" style="margin-top:12px"></div>
     </div>
 </section>

@@ -2458,6 +2458,43 @@ contrario y por eso no está ahí: nace vacía a propósito, porque nadie sino e
 dice qué falta —en la página, no en un aviso que se desvanece— tanto si falta la hoja como si falta
 su contenido.
 
+### D-113 · Que el costo se pueda auditar, no solo leer
+
+Un costo que no se puede rastrear hasta la fecha que lo originó no sirve para negociar nada: la
+primera pregunta que recibe es *"¿y esto de dónde sale?"*. El detalle responde ahora en tres niveles.
+
+**En la pantalla.** Cada actividad muestra, etapa por etapa, los días hábiles que ocupó y lo que
+cargó por ellos. Agrupadas por iniciativa —como rótulo de grupo, no como columna: repetida en cada
+fila se comía el ancho que necesitan los días y los pesos, que son el dato—. Las filas suman el
+subtotal de su iniciativa y los subtotales suman el total repartido.
+
+**En un archivo.** El botón *Descargar auditoría* arma una hoja de cálculo en el Drive con cuatro
+pestañas: **Estancias** (dónde estuvo cada solicitud, desde cuándo, hasta cuándo, y cuántos días
+hábiles aportó a cada mes), **Reparto** (cada peso: de qué bolsa, de qué mes, contra cuántos días
+propios sobre cuántos totales), **Resumen por actividad** y **Bolsas**. Sale del **mismo** cálculo
+que alimenta la pantalla, no de uno paralelo: dos caminos para la misma cifra terminan dando cifras
+distintas, y entonces no se sabe cuál creer.
+
+**Dos correcciones que salieron de exponerlo.**
+
+*El reparto se redondea a pesos enteros al repartir, no al final.* Antes cada total se redondeaba por
+separado y la suma de las filas podía diferir del total en unos pesos. En una tabla que alguien va a
+sumar con la calculadora, una diferencia de tres pesos le quita credibilidad al número entero. Ahora
+se usa el método del residuo mayor: cada bolsa se reparte completa, sin sobras.
+
+*El último día de cada mes valía cero.* `diasHabilesEntre` cuenta la jornada que se traslapa con el
+intervalo, y el mes terminaba a la medianoche del último día, así que ese día aportaba nada: una
+tarjeta presente todo septiembre contaba 21 días hábiles en vez de 22. Sobre un reparto proporcional
+el efecto casi se cancela, pero los números no cuadraban contra un calendario, que es exactamente lo
+que alguien hace al auditarlos.
+
+**Por qué algo de septiembre aparece en octubre.** La última estancia de una tarjeta sigue **abierta**
+hasta que alguien la mueva: si el trabajo se hizo en septiembre y la tarjeta no se movió, sigue
+ocupando capacidad en octubre y sigue cargando. No es un error de cálculo —la tarjeta ocupa el cupo
+mientras esté ahí—, pero tampoco puede quedar escondido: la pestaña *Estancias* marca esas filas con
+**«SÍ, sigue abierta»**. Si aparecen muchas, lo que hay que corregir es la disciplina de mover las
+tarjetas, no el costeo.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

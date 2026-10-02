@@ -3172,6 +3172,7 @@ var METODOS_PUBLICOS = {
   asignarAnalista: true,
   cambiarEstadoHistorias: true,
   getCostos: true,
+  getCostosDetalle: true,
   cambiarEstadoTarea: true,
   marcarBloqueo: true,
   refrescarDatos: true,

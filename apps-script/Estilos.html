@@ -579,6 +579,17 @@
   .tabla-compacta{min-width:0;font-size:12.5px}
   .tabla-compacta thead th{padding:6px 8px}
   .tabla-compacta td{padding:6px 8px}
+
+  /* Detalle de costos: la iniciativa es un rotulo de grupo, no una columna, y
+     los subtotales tienen que distinguirse de las filas que suman (D-113). */
+  .cst-detalle .cst-grupo td{background:var(--ground);font-weight:700;
+    font-size:11.5px;letter-spacing:.3px;text-transform:uppercase;padding:9px 8px;
+    border-top:1px solid var(--line-soft)}
+  .cst-detalle .cst-sub td{font-weight:700;border-top:1px solid var(--line-soft);
+    color:var(--ink-muted)}
+  .cst-detalle .cst-total td{font-weight:800;border-top:2px solid var(--navy);
+    background:var(--ground)}
+  .cst-detalle thead th small{font-weight:400;color:var(--ink-faint);font-size:10px}
   /* La raya que muestra donde va a caer la tarjeta al soltarla */
   .tarjeta.sitio-antes{box-shadow:0 -3px 0 -1px var(--esmeralda)}
   .col.sitio-final .tarjeta:last-of-type{box-shadow:0 3px 0 -1px var(--esmeralda)}

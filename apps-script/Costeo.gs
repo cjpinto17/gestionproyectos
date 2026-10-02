@@ -57,10 +57,21 @@ function mesesEntre_(desde, hasta) {
   return meses;
 }
 
-/** El primer y el ultimo dia de un mes 'aaaa-mm'. @private */
+/**
+ * El primer y el ultimo instante de un mes 'aaaa-mm'.
+ *
+ * El fin es el final del ultimo dia, no su medianoche. diasHabilesEntre cuenta
+ * la jornada que se traslapa con el intervalo, de modo que terminar el mes a la
+ * medianoche del dia 30 hacia que ese dia aportara CERO: una tarjeta presente
+ * todo septiembre contaba 21 dias habiles y no 22. Sobre un reparto proporcional
+ * el efecto casi se cancela, pero los numeros no cuadraban contra un calendario,
+ * que es justo lo que alguien hace al auditarlos.
+ *
+ * @private
+ */
 function limitesDelMes_(mes) {
   var a = Number(mes.slice(0, 4)), m = Number(mes.slice(5, 7));
-  return { inicio: new Date(a, m - 1, 1), fin: new Date(a, m, 0) };
+  return { inicio: new Date(a, m - 1, 1), fin: new Date(a, m, 0, 23, 59, 59, 999) };
 }
 
 /**
@@ -94,7 +105,8 @@ function estadiasDeSolicitud_(transiciones, s, hasta) {
         ? (sitio === 'EST-02' ? ETAPAS_DE_ESTABILIZACION : [])
         : (etapaDeFase(sitio) ? [etapaDeFase(sitio).id] : []);
     etapas.forEach(function (idEtapa) {
-      estadias.push({ desde: desde, hasta: hastaFecha, etapa: idEtapa });
+      estadias.push({ desde: desde, hasta: hastaFecha, etapa: idEtapa,
+                      sitio: sitio, abierta: false });
     });
   }
 
@@ -105,7 +117,14 @@ function estadiasDeSolicitud_(transiciones, s, hasta) {
     sitio = estabilizacion ? t.Estado_Destino : t.Fase_Destino;
     desde = cuando;
   });
+
+  // La ultima estadia sigue ABIERTA: la tarjeta no se ha movido, asi que sigue
+  // ocupando capacidad hasta hoy. Es la razon de que un trabajo hecho en
+  // septiembre siga cargando en octubre, y por eso va marcada: quien audite el
+  // numero tiene que poder distinguirla de una estadia cerrada por la bitacora.
+  var cerradas = estadias.length;
   cerrar(hasta);
+  for (var i = cerradas; i < estadias.length; i++) estadias[i].abierta = true;
 
   return estadias;
 }
@@ -153,13 +172,46 @@ function getCostos(desde, hasta) {
 }
 
 /**
+ * Reparte una cantidad entera de pesos en proporcion a unos pesos relativos.
+ *
+ * Metodo del residuo mayor: cada quien recibe su parte redondeada hacia abajo y
+ * los pesos que sobran van, de a uno, a quienes quedaron con el residuo mas
+ * grande. La suma de las partes es SIEMPRE el total: ni un peso se pierde ni se
+ * inventa, que es lo que permite auditar la tabla sumandola.
+ *
+ * @param {number} total Pesos a repartir.
+ * @param {!Array<number>} pesos Lo que pondera a cada quien (dias habiles).
+ * @return {!Array<number>} Enteros que suman exactamente total.
+ * @private
+ */
+function repartirEnteros_(total, pesos) {
+  var suma = pesos.reduce(function (a, p) { return a + p; }, 0);
+  if (!suma) return pesos.map(function () { return 0; });
+
+  var entero = Math.round(total);
+  var partes = [], residuos = [], asignado = 0;
+  for (var i = 0; i < pesos.length; i++) {
+    var exacto = entero * pesos[i] / suma;
+    var piso = Math.floor(exacto);
+    partes.push(piso);
+    residuos.push({ i: i, r: exacto - piso });
+    asignado += piso;
+  }
+
+  residuos.sort(function (a, b) { return b.r - a.r; });
+  for (var k = 0; k < entero - asignado; k++) partes[residuos[k % residuos.length].i]++;
+  return partes;
+}
+
+/**
  * El calculo de verdad. Vive aparte para que getCostos pueda servirlo de cache.
  * @param {string} desde
  * @param {string} hasta
+ * @param {boolean=} conDetalle true para traer ademas la bitacora del calculo.
  * @return {!Object}
  * @private
  */
-function calcularCostos_(desde, hasta) {
+function calcularCostos_(desde, hasta, conDetalle) {
   // La hoja puede no existir todavia: la pagina llega con el despliegue, pero la
   // hoja solo aparece cuando alguien corre actualizarEstructura. Eso no es un
   // error del programa y no debe salir como tal —una excepcion deja la pantalla
@@ -215,6 +267,8 @@ function calcularCostos_(desde, hasta) {
   // dias[mes][etapa][idSolicitud] = dias habiles
   var dias = {};
   var diasDeSolicitud = {};
+  var diasPorEtapa = {};         // id -> etapa -> dias
+  var estancias = [];            // la bitacora del costeo, para poder auditarla
   costeables.forEach(function (s) {
     estadiasDeSolicitud_(transiciones[s.ID_Solicitud] || [], s, fin).forEach(function (e) {
       var porMes = diasPorMesDeEstadia_(e, meses);
@@ -225,6 +279,11 @@ function calcularCostos_(desde, hasta) {
             (dias[mes][e.etapa][s.ID_Solicitud] || 0) + porMes[mes];
         diasDeSolicitud[s.ID_Solicitud] =
             (diasDeSolicitud[s.ID_Solicitud] || 0) + porMes[mes];
+        var pe = diasPorEtapa[s.ID_Solicitud] = diasPorEtapa[s.ID_Solicitud] || {};
+        pe[e.etapa] = (pe[e.etapa] || 0) + porMes[mes];
+        estancias.push({ id: s.ID_Solicitud, etapa: e.etapa, mes: mes,
+                         desde: e.desde, hasta: e.hasta, abierta: !!e.abierta,
+                         sitio: e.sitio, dias: porMes[mes] });
       });
     });
   });
@@ -235,6 +294,7 @@ function calcularCostos_(desde, hasta) {
   var porEtapa = {};             // etapa -> { costo, dias }
   var cargado = {};              // mes -> etapa -> true si alguna bolsa pago ahi
   var bolsas = [];
+  var reparto = [];              // cada peso, con la bolsa y el mes de donde salio
 
   tarifas.forEach(function (t) {
     var etapa = String(t.Etapa || '');
@@ -280,11 +340,24 @@ function calcularCostos_(desde, hasta) {
       cargado[mes] = cargado[mes] || {};
       cargado[mes][etapa] = true;
 
-      candidatos.forEach(function (id) {
-        var parte = valor * enEtapa[id] / totalDias;
+      // El reparto se redondea a pesos enteros AQUI, no al final, y el sobrante
+      // se entrega a los residuos mas grandes. Redondear cada total por separado
+      // deja diferencias de unos pesos entre la suma de las filas y el total, y
+      // en una tabla que alguien va a sumar con la calculadora eso es un error,
+      // por pequeno que sea. Asi cada bolsa se reparte completa, sin sobras.
+      var partes = repartirEnteros_(valor, candidatos.map(function (id) {
+        return enEtapa[id];
+      }));
+
+      candidatos.forEach(function (id, i) {
+        var parte = partes[i];
         var c = costoDeSolicitud[id] = costoDeSolicitud[id] || { total: 0, porEtapa: {} };
         c.total += parte;
         c.porEtapa[etapa] = (c.porEtapa[etapa] || 0) + parte;
+        reparto.push({ mes: mes, etapa: etapa, bolsa: t.ID_Costo,
+                       concepto: resumen.concepto, valorBolsa: valor,
+                       dedicada: dedicada, id: id, dias: enEtapa[id],
+                       diasTotales: totalDias, costo: parte });
       });
     });
 
@@ -336,9 +409,10 @@ function calcularCostos_(desde, hasta) {
       idProyecto: idProy, iniciativa: nombreProyecto[idProy] || 'Sin iniciativa',
       tipo: s.Tipo_Solicitud, tipoNombre: nombreTipo[s.Tipo_Solicitud] || s.Tipo_Solicitud,
       fase: s.Fase_Actual || '', estado: s.Estado_Actual || '',
-      dias: diasDeSolicitud[id] || 0,
-      costo: Math.round(c.total),
-      porEtapa: c.porEtapa
+      dias: red_(diasDeSolicitud[id] || 0, 1),
+      costo: c.total,                      // ya es entero y la suma cuadra
+      porEtapa: c.porEtapa,
+      diasPorEtapa: diasPorEtapa[id] || {}
     });
   });
 
@@ -349,10 +423,7 @@ function calcularCostos_(desde, hasta) {
 
   var listaIniciativas = Object.keys(iniciativas).map(function (k) {
     var i = iniciativas[k];
-    i.costo = Math.round(i.costo);
     i.pct = porcentaje(i.costo);
-    Object.keys(i.porEtapa).forEach(function (e) { i.porEtapa[e] = Math.round(i.porEtapa[e]); });
-    Object.keys(i.porTipo).forEach(function (t) { i.porTipo[t] = Math.round(i.porTipo[t]); });
     return i;
   }).sort(function (a, b) { return b.costo - a.costo; });
 
@@ -360,21 +431,20 @@ function calcularCostos_(desde, hasta) {
     desde: meses[0] || '', hasta: meses[meses.length - 1] || '', meses: meses,
     moneda: 'COP', iva: false,
     total: {
-      contrato: Math.round(contrato),
-      atribuido: Math.round(atribuido),
-      noAtribuido: Math.round(contrato - atribuido),
+      contrato: contrato,
+      atribuido: atribuido,
+      noAtribuido: contrato - atribuido,
       pctAtribuido: porcentaje(atribuido),
       actividades: actividades.length
     },
     porIniciativa: listaIniciativas,
     porTipo: Object.keys(tipos).map(function (k) {
-      tipos[k].costo = Math.round(tipos[k].costo);
       tipos[k].pct = porcentaje(tipos[k].costo);
       return tipos[k];
     }).sort(function (a, b) { return b.costo - a.costo; }),
     porEtapa: ETAPAS_COSTO.map(function (e) {
       var x = porEtapa[e.id] || { costo: 0, dias: 0 };
-      return { etapa: e.id, nombre: e.nombre, costo: Math.round(x.costo), dias: x.dias,
+      return { etapa: e.id, nombre: e.nombre, costo: x.costo, dias: red_(x.dias, 1),
                costoPorDia: x.dias ? Math.round(x.costo / x.dias) : null };
     }),
     porMes: meses.map(function (m) {
@@ -390,6 +460,140 @@ function calcularCostos_(desde, hasta) {
       b.sinIniciativa = !!b.dedicada && !nombreProyecto[b.dedicada];
       return b;
     }),
-    actividades: actividades.sort(function (a, b) { return b.costo - a.costo; })
+    actividades: actividades.sort(function (a, b) { return b.costo - a.costo; }),
+    // La bitacora del calculo. Pesa, asi que solo viaja cuando la piden para
+    // exportarla: la pagina no la necesita para pintar.
+    detalle: conDetalle ? { estancias: estancias, reparto: reparto } : null
   };
+}
+
+/* ================================================================== */
+/* El archivo de auditoria                                             */
+/* ================================================================== */
+
+/**
+ * Genera una hoja de calculo con TODO lo que hay detras de cada peso (D-113).
+ *
+ * Existe porque un costo que no se puede rastrear hasta la fecha que lo origino
+ * no sirve para negociar nada: la primera pregunta que recibe es "y esto de
+ * donde sale". El archivo responde esa pregunta en tres niveles:
+ *
+ *   1. Estancias — donde estuvo cada solicitud, desde cuando y hasta cuando, y
+ *      cuantos dias habiles de cada mes aporto. Es la respuesta a "por que algo
+ *      de septiembre me aparece en octubre".
+ *   2. Reparto — cada peso: de que bolsa salio, de que mes, contra cuantos dias
+ *      propios sobre cuantos dias totales.
+ *   3. Resumen — una fila por solicitud, que es lo que muestra la pagina.
+ *
+ * Sale del MISMO calculo que alimenta la pantalla, no de uno paralelo: dos
+ * caminos para la misma cifra terminan, tarde o temprano, dando cifras
+ * distintas, y entonces no se sabe cual creer.
+ *
+ * @param {string=} desde 'aaaa-mm'.
+ * @param {string=} hasta 'aaaa-mm'.
+ * @return {!Object} { url, nombre, filas }
+ */
+function getCostosDetalle(desde, hasta) {
+  exigirPermiso_('Ver_Costos', 'Su rol no puede ver los costos de la fabrica.');
+
+  var r = calcularCostos_(String(desde || ''), String(hasta || ''), true);
+  if (r.sinTarifas) throw new Error(r.mensaje);
+
+  var etapas = mapaEtapasCosto_();
+  var porId = {};
+  r.actividades.forEach(function (a) { porId[a.id] = a; });
+  var nombreEtapa = function (id) { return etapas[id] ? etapas[id].nombre : id; };
+
+  var libro = SpreadsheetApp.create(
+      'Costos de la fábrica · ' + r.desde + ' a ' + r.hasta + ' · ' +
+      Utilities.formatDate(new Date(), CONFIG.ZONA_HORARIA, 'yyyy-MM-dd HH:mm'));
+
+  /* --- 1. Estancias: de donde salen los dias --- */
+  var fechas = function (d) {
+    return d ? Utilities.formatDate(new Date(d), CONFIG.ZONA_HORARIA, 'yyyy-MM-dd HH:mm') : '';
+  };
+  var estancias = [['ID solicitud', 'Actividad', 'Iniciativa', 'Tipo', 'Etapa',
+                    'Fase o estado', 'Entró', 'Salió', '¿Sigue ahí?', 'Mes',
+                    'Días hábiles del mes']];
+  r.detalle.estancias.forEach(function (e) {
+    var a = porId[e.id] || {};
+    estancias.push([e.id, a.nombre || '', a.iniciativa || '', a.tipoNombre || '',
+                    nombreEtapa(e.etapa), e.sitio, fechas(e.desde), fechas(e.hasta),
+                    e.abierta ? 'SÍ, sigue abierta' : 'no', e.mes,
+                    Math.round(e.dias * 100) / 100]);
+  });
+  escribirHoja_(libro, 'Estancias', estancias, 0);
+
+  /* --- 2. Reparto: de donde sale cada peso --- */
+  var reparto = [['Mes', 'Etapa', 'Bolsa', 'Concepto', 'Valor mensual de la bolsa',
+                  'Dedicada a', 'ID solicitud', 'Actividad', 'Días de la solicitud',
+                  'Días totales en la etapa ese mes', 'Participación', 'Costo asignado']];
+  r.detalle.reparto.forEach(function (x) {
+    var a = porId[x.id] || {};
+    reparto.push([x.mes, nombreEtapa(x.etapa), x.bolsa, x.concepto, x.valorBolsa,
+                  x.dedicada || 'todas', x.id, a.nombre || '',
+                  Math.round(x.dias * 100) / 100,
+                  Math.round(x.diasTotales * 100) / 100,
+                  x.diasTotales ? x.dias / x.diasTotales : 0,
+                  x.costo]);
+  });
+  escribirHoja_(libro, 'Reparto', reparto, 1);
+
+  /* --- 3. Resumen: lo que muestra la pagina --- */
+  var resumen = [['ID', 'Actividad', 'Iniciativa', 'Tipo']];
+  ETAPAS_COSTO.forEach(function (e) {
+    resumen[0].push('Días ' + e.nombre, 'Costo ' + e.nombre);
+  });
+  resumen[0].push('Días totales', 'Costo total');
+  r.actividades.forEach(function (a) {
+    var fila = [a.id, a.nombre, a.iniciativa, a.tipoNombre];
+    ETAPAS_COSTO.forEach(function (e) {
+      fila.push(Math.round((a.diasPorEtapa[e.id] || 0) * 100) / 100,
+                a.porEtapa[e.id] || 0);
+    });
+    fila.push(a.dias, a.costo);
+    resumen.push(fila);
+  });
+  escribirHoja_(libro, 'Resumen por actividad', resumen, 2);
+
+  /* --- 4. Las bolsas, tal como se facturaron --- */
+  var bolsas = [['Bolsa', 'Concepto', 'Etapa', 'Dedicada a', 'Valor mensual',
+                 'Meses vigentes en el período', 'Facturado', 'Repartido', 'Sin atribuir']];
+  r.bolsas.forEach(function (b) {
+    bolsas.push([b.id, b.concepto, b.etapaNombre, b.dedicada || 'todas', b.mensual,
+                 b.meses, b.total, b.atribuido, b.noAtribuido]);
+  });
+  bolsas.push([]);
+  bolsas.push(['', 'TOTAL DEL PERÍODO', '', '', '', '', r.total.contrato,
+               r.total.atribuido, r.total.noAtribuido]);
+  escribirHoja_(libro, 'Bolsas', bolsas, 3);
+
+  var sobra = libro.getSheetByName('Hoja 1') || libro.getSheetByName('Sheet1');
+  if (sobra) libro.deleteSheet(sobra);
+
+  return { url: libro.getUrl(), nombre: libro.getName(),
+           filas: r.detalle.reparto.length, actividades: r.actividades.length };
+}
+
+/**
+ * Escribe una hoja del archivo de auditoria, con su encabezado destacado.
+ * @private
+ */
+function escribirHoja_(libro, nombre, filas, posicion) {
+  var hoja = libro.insertSheet(nombre, posicion);
+  var ancho = filas.reduce(function (a, f) { return Math.max(a, f.length); }, 1);
+  var normalizadas = filas.map(function (f) {
+    var copia = f.slice();
+    while (copia.length < ancho) copia.push('');
+    return copia;
+  });
+
+  hoja.getRange(1, 1, normalizadas.length, ancho).setValues(normalizadas);
+  hoja.getRange(1, 1, 1, ancho)
+      .setFontWeight('bold')
+      .setFontColor(CONFIG.COLORES.BLANCO)
+      .setBackground(CONFIG.COLORES.NAVY);
+  hoja.setFrozenRows(1);
+  hoja.autoResizeColumns(1, Math.min(ancho, 20));
+  return hoja;
 }

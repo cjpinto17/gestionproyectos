@@ -3480,25 +3480,118 @@ function pintarCostos(r) {
         '>' + pesos(b.noAtribuido) + '</td></tr>';
     }).join('') + '</tbody></table></div>';
 
-  /* --- actividades --- */
-  var top = r.actividades.slice(0, 30);
-  $('tablaCostoActividades').innerHTML = top.length
-      ? '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr><th>Actividad</th>' +
-        '<th>Iniciativa</th><th>Tipo</th><th class="num">Días</th><th class="num">Costo</th>' +
-        '</tr></thead><tbody>' +
-        top.map(function (a) {
-          return '<tr><td><b>' + esc(a.id) + '</b> · ' + esc(a.nombre) + '</td>' +
-            '<td>' + esc(a.iniciativa) + '</td>' +
-            '<td><span class="rm-tipo ' + (CLASE_TIPO[a.tipo] || '') + '">' +
-              esc(a.tipoNombre) + '</span></td>' +
-            '<td class="num">' + a.dias + '</td>' +
-            '<td class="num" style="font-weight:700">' + pesos(a.costo) + '</td></tr>';
-        }).join('') + '</tbody></table></div>' +
-        (r.actividades.length > 30
-          ? '<p class="nota">Se muestran las 30 más costosas de ' + r.actividades.length + '.</p>'
-          : '')
-      : '<p style="color:var(--ink-muted);font-size:13px">Sin actividades con costo en el período.</p>';
+  /* --- actividades: el detalle que alguien va a sumar con la calculadora --- */
+  pintarDetalleCostos(r);
 }
+
+/**
+ * El detalle, agrupado por iniciativa (D-113).
+ *
+ * La iniciativa es un rotulo de grupo y no una columna: repetida en cada fila
+ * se comia el ancho que necesitan los dias y los pesos, que son el dato.
+ *
+ * Cada fila muestra, etapa por etapa, los dias habiles que ocupo y lo que cargo
+ * por ellos. Las filas suman el subtotal de la iniciativa y los subtotales suman
+ * el total repartido —exactamente, sin diferencias de redondeo— porque el
+ * reparto se hace en pesos enteros desde el servidor.
+ */
+function pintarDetalleCostos(r) {
+  if (!r.actividades.length) {
+    $('tablaCostoActividades').innerHTML =
+        '<p style="color:var(--ink-muted);font-size:13px">Sin actividades con costo en el período.</p>';
+    return;
+  }
+
+  // Agrupadas por iniciativa, la mas costosa primero, igual que la tabla de arriba.
+  var grupos = {};
+  r.actividades.forEach(function (a) {
+    (grupos[a.idProyecto] = grupos[a.idProyecto] ||
+        { nombre: a.iniciativa, filas: [], costo: 0 });
+    grupos[a.idProyecto].filas.push(a);
+    grupos[a.idProyecto].costo += a.costo;
+  });
+  var orden = Object.keys(grupos).sort(function (a, b) {
+    return grupos[b].costo - grupos[a].costo;
+  });
+
+  var etapas = r.porEtapa;
+  var dia = function (n) { return n ? (Math.round(n * 10) / 10).toString().replace('.', ',') : '—'; };
+  var plata = function (n) { return n ? pesos(n) : '—'; };
+
+  var cab = '<tr><th>Actividad</th><th>Tipo</th>' +
+      etapas.map(function (e) {
+        return '<th class="num" style="text-align:right">Días<br><small>' + esc(e.nombre) +
+               '</small></th><th class="num" style="text-align:right">Costo<br><small>' +
+               esc(e.nombre) + '</small></th>';
+      }).join('') +
+      '<th class="num" style="text-align:right">Total</th></tr>';
+
+  var cuerpo = orden.map(function (k) {
+    var g = grupos[k];
+    var filas = g.filas.sort(function (a, b) { return b.costo - a.costo; });
+    var subDias = {}, subCosto = {};
+    filas.forEach(function (a) {
+      etapas.forEach(function (e) {
+        subDias[e.etapa] = (subDias[e.etapa] || 0) + (a.diasPorEtapa[e.etapa] || 0);
+        subCosto[e.etapa] = (subCosto[e.etapa] || 0) + (a.porEtapa[e.etapa] || 0);
+      });
+    });
+
+    return '<tr class="cst-grupo"><td colspan="' + (3 + etapas.length * 2) + '">' +
+        esc(g.nombre) + ' <span style="font-weight:400;color:var(--ink-faint)">· ' +
+        filas.length + (filas.length === 1 ? ' actividad' : ' actividades') + '</span></td></tr>' +
+      filas.map(function (a) {
+        return '<tr><td><b>' + esc(a.id) + '</b> · ' + esc(a.nombre) + '</td>' +
+          '<td><span class="rm-tipo ' + (CLASE_TIPO[a.tipo] || '') + '">' +
+            esc(a.tipoNombre) + '</span></td>' +
+          etapas.map(function (e) {
+            return '<td class="num">' + dia(a.diasPorEtapa[e.etapa]) + '</td>' +
+                   '<td class="num">' + plata(a.porEtapa[e.etapa]) + '</td>';
+          }).join('') +
+          '<td class="num" style="font-weight:700">' + pesos(a.costo) + '</td></tr>';
+      }).join('') +
+      '<tr class="cst-sub"><td colspan="2">Subtotal ' + esc(g.nombre) + '</td>' +
+        etapas.map(function (e) {
+          return '<td class="num">' + dia(subDias[e.etapa]) + '</td>' +
+                 '<td class="num">' + plata(subCosto[e.etapa]) + '</td>';
+        }).join('') +
+        '<td class="num">' + pesos(g.costo) + '</td></tr>';
+  }).join('');
+
+  var total = '<tr class="cst-total"><td colspan="2">TOTAL REPARTIDO</td>' +
+      etapas.map(function (e) {
+        return '<td class="num">' + dia(e.dias) + '</td>' +
+               '<td class="num">' + pesos(e.costo) + '</td>';
+      }).join('') +
+      '<td class="num">' + pesos(r.total.atribuido) + '</td></tr>';
+
+  $('tablaCostoActividades').innerHTML =
+      '<div class="tabla-scroll"><table class="tabla-compacta cst-detalle"><thead>' + cab +
+      '</thead><tbody>' + cuerpo + total + '</tbody></table></div>';
+}
+
+/** Arma el archivo de auditoria y entrega el enlace. */
+function descargarAuditoriaCostos() {
+  var b = $('btnCostoDetalle');
+  b.disabled = true;
+  $('avisoDetalle').innerHTML = 'Armando el archivo. Puede tardar un momento…';
+  api('getCostosDetalle', $('fCostoDesde').value, $('fCostoHasta').value)
+    .then(function (d) {
+      $('avisoDetalle').innerHTML =
+          '<b>Listo:</b> <a href="' + esc(d.url) + '" target="_blank" rel="noopener">' +
+          esc(d.nombre) + '</a> · ' + d.actividades + ' actividades, ' + d.filas +
+          ' líneas de reparto. Queda en su Drive; desde ahí se descarga como Excel ' +
+          'con <i>Archivo → Descargar → Microsoft Excel</i>.';
+    })
+    .catch(function (e) {
+      fallo(e);
+      $('avisoDetalle').innerHTML = '<b style="color:var(--rojo)">No se pudo generar:</b> ' +
+          esc(e && e.message ? e.message : String(e));
+    })
+    .then(function () { b.disabled = false; });
+}
+$('btnCostoDetalle').addEventListener('click', descargarAuditoriaCostos);
+
 
 /* ================= Administracion ================= */
 /**
