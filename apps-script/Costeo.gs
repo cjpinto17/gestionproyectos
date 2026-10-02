@@ -174,10 +174,56 @@ function estadiasPorColumnas_(s, hasta) {
  * @private
  */
 function faltante_(s, etapa, rango, falta, campo) {
+  // valorMarca es lo que el programa LEYO en la columna de "no aplica". Va en el
+  // aviso porque sin el no habia manera de distinguir "el calculo me ignora" de
+  // "la marca no quedo guardada", y eso dejaba a quien usa la herramienta sin
+  // nada que mirar (D-121).
+  var marca = s[rango[3]];
   return { id: s.ID_Solicitud, etapa: etapa.id, etapaNombre: etapa.nombre,
            rango: rango[2], falta: falta, campo: campo,
            campoIni: rango[0], campoFin: rango[1], campoNo: rango[3],
+           valorMarca: (marca === undefined || marca === null || marca === '')
+               ? '' : String(marca),
            valorIni: s[rango[0]] || '', valorFin: s[rango[1]] || '' };
+}
+
+/**
+ * Revisa que la hoja tenga de verdad las columnas de "no aplica" (D-121).
+ *
+ * Dos cosas invisibles hacen que una marca no sirva, y las dos se ven igual
+ * desde afuera —la actividad sigue saliendo como pendiente—:
+ *
+ *   - La columna NO EXISTE en la hoja, porque nadie corrio actualizarEstructura
+ *     despues del cambio. Entonces el programa lee vacio siempre.
+ *   - La columna esta DOS VECES. leerTabla_ arma cada fila con el encabezado,
+ *     asi que manda la ultima: alguien escribe el SI en la primera y el programa
+ *     lee la segunda, que esta vacia.
+ *
+ * @return {!Object} { sinColumna: [], duplicadas: [] }
+ * @private
+ */
+function revisarColumnasDeMarcas_() {
+  var salida = { sinColumna: [], duplicadas: [] };
+  try {
+    var hoja = getHoja_('Solicitudes');
+    var ancho = Math.max(hoja.getLastColumn(), 1);
+    var enc = hoja.getRange(1, 1, 1, ancho).getValues()[0]
+        .map(function (v) { return String(v || '').trim(); });
+
+    var cuenta = {};
+    enc.forEach(function (c) { if (c) cuenta[c] = (cuenta[c] || 0) + 1; });
+
+    ETAPAS_COSTO.forEach(function (e) {
+      e.rangos.forEach(function (r) {
+        var c = r[3];
+        if (!cuenta[c]) salida.sinColumna.push(c);
+        else if (cuenta[c] > 1) salida.duplicadas.push(c + ' (×' + cuenta[c] + ')');
+      });
+    });
+  } catch (err) {
+    // Si la hoja no se puede leer, el costeo ya fallara con un mensaje mejor.
+  }
+  return salida;
 }
 
 /**
@@ -365,10 +411,18 @@ function calcularCostos_(desde, hasta, conDetalle) {
     var r = estadiasPorColumnas_(s, fin);
 
     r.faltantes.forEach(function (f) {
-      incompletas.push({ id: s.ID_Solicitud, nombre: s.Nombre_Solicitud,
-                         idProyecto: s.ID_Proyecto || '', tipo: s.Tipo_Solicitud,
-                         fase: s.Fase_Actual || '', estado: s.Estado_Actual || '',
-                         etapa: f.etapa, rango: f.rango, falta: f.falta, campo: f.campo });
+      // Se copia el pendiente COMPLETO y se le agrega el contexto de la
+      // solicitud. Antes se volvian a listar los campos uno por uno y se
+      // quedaron por fuera los nombres de columna —campoIni, campoFin,
+      // campoNo—, que son justo los que el formulario de "Llenar fechas"
+      // necesita para saber que escribir: llegaban vacios y no se guardaba
+      // nada. Enumerar a mano lo que ya existe es una lista que envejece sola
+      // (D-121).
+      var item = { id: s.ID_Solicitud, nombre: s.Nombre_Solicitud,
+                   idProyecto: s.ID_Proyecto || '', tipo: s.Tipo_Solicitud,
+                   fase: s.Fase_Actual || '', estado: s.Estado_Actual || '' };
+      Object.keys(f).forEach(function (k) { item[k] = f[k]; });
+      incompletas.push(item);
     });
 
     r.estadias.forEach(function (e) {
@@ -581,6 +635,8 @@ function calcularCostos_(desde, hasta, conDetalle) {
     // leer. Si alguien marca cinco y aqui llega cero, el problema no es el
     // calculo: es que la marca no esta en la hoja.
     fasesNoAplican: marcadas,
+    // Por que una marca podria no estar sirviendo. Vacio = las columnas estan bien.
+    revisionColumnas: revisarColumnasDeMarcas_(),
     detalle: conDetalle ? { estancias: estancias, reparto: reparto } : null
   };
 }

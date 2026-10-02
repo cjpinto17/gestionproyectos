@@ -240,7 +240,9 @@ function filaDePermisos_(tabla, rolId) {
 function esSi_(valor) {
   if (valor === true) return true;
   var v = String(valor || '').trim().toUpperCase();
-  return v === 'SI' || v === 'SÍ' || v === 'TRUE' || v === 'X' || v === '1';
+  // VERDADERO es lo que escribe una casilla de verificacion de Sheets en espanol.
+  return v === 'SI' || v === 'SÍ' || v === 'TRUE' || v === 'VERDADERO' ||
+         v === 'X' || v === '1';
 }
 
 /**

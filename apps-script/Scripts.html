@@ -3637,13 +3637,35 @@ function pintarFaltaInfoCostos(r) {
         ' marcada' + (marcadas === 1 ? '' : 's') + ' como <i>no aplica</i>, que no se piden.'
       : '';
 
+  // Si las columnas de la hoja estan mal, ninguna marca va a servir y hay que
+  // decirlo antes que nada: es la causa, no un detalle.
+  var rev = r.revisionColumnas || { sinColumna: [], duplicadas: [] };
+  var aviso = '';
+  if (rev.sinColumna && rev.sinColumna.length) {
+    aviso = '<div class="panel cst-falta" style="border-color:var(--rojo)">' +
+      '<h3 style="color:var(--rojo)">La hoja no tiene las columnas de «no aplica»</h3>' +
+      '<div class="sub">Faltan en <b>Solicitudes</b>: <code>' +
+      rev.sinColumna.map(esc).join('</code>, <code>') + '</code>. ' +
+      'Mientras no existan, marcar una fase no se guarda en ninguna parte. ' +
+      'Ejecute <b>actualizarEstructura</b> en el editor de Apps Script y vuelva a entrar.' +
+      '</div></div>';
+  } else if (rev.duplicadas && rev.duplicadas.length) {
+    aviso = '<div class="panel cst-falta" style="border-color:var(--rojo)">' +
+      '<h3 style="color:var(--rojo)">Hay columnas repetidas en la hoja</h3>' +
+      '<div class="sub">En <b>Solicitudes</b> aparecen dos veces: <code>' +
+      rev.duplicadas.map(esc).join('</code>, <code>') + '</code>. ' +
+      'El programa lee la última, así que lo que usted escriba en la primera no ' +
+      'se ve. Borre la columna sobrante en la hoja.' +
+      '</div></div>';
+  }
+
   if (!f.length) {
     // Sin pendientes, pero si hay marcas conviene decirlo: es la confirmacion
     // de que quedaron guardadas.
-    $('faltaInfoCostos').innerHTML = marcadas
+    $('faltaInfoCostos').innerHTML = aviso + (marcadas
         ? '<p class="nota" style="margin-top:0">Ninguna actividad tiene fechas pendientes.' +
           notaMarcadas + '</p>'
-        : '';
+        : '');
     return;
   }
 
@@ -3654,7 +3676,7 @@ function pintarFaltaInfoCostos(r) {
   var ids = Object.keys(FALTA_COSTOS);
   var puedeEditar = permiso('Editar_Solicitud');
 
-  $('faltaInfoCostos').innerHTML =
+  $('faltaInfoCostos').innerHTML = aviso +
     '<div class="panel cst-falta"><div class="fila">' +
       '<div><h3>' + ids.length + (ids.length === 1
         ? ' actividad sin fechas registradas' : ' actividades sin fechas registradas') + '</h3>' +
@@ -3675,7 +3697,10 @@ function pintarFaltaInfoCostos(r) {
           return '<tr><td>' + (i === 0
               ? '<b>' + esc(id) + '</b> · ' + esc(g.nombre) : '') + '</td>' +
             '<td>' + esc(x.rango) + '</td>' +
-            '<td>' + esc(x.falta) + '</td>' +
+            '<td>' + esc(x.falta) +
+              '<div style="color:var(--ink-faint);font-size:10.5px">' +
+              esc(x.campoNo) + ' dice: <b>' +
+              (x.valorMarca ? esc(x.valorMarca) : 'vacío') + '</b></div></td>' +
             '<td>' + (i === 0
               ? (puedeEditar
                   ? '<button class="btn-sec cst-llenar" data-id="' + esc(id) +

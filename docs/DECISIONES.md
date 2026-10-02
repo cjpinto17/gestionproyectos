@@ -2662,6 +2662,37 @@ no puede suponer que todos los cambios pasan por él. Y cuando algo no se ve, la
 quien lo reporta no es «¿funciona el cálculo?» sino «¿qué está leyendo el programa?» —y eso hay que
 mostrarlo, no explicarlo.
 
+### D-121 · El formulario pedía datos que nunca iban a llegar
+
+Marcar una fase como «no aplica» y verla seguir en la lista de pendientes tenía una causa simple y
+mía: **el formulario de «Llenar fechas» nunca guardó nada**.
+
+El pendiente que viaja al navegador se armaba enumerando campos a mano:
+
+```js
+incompletas.push({ id: …, nombre: …, etapa: f.etapa, rango: f.rango, falta: f.falta, campo: f.campo });
+```
+
+Faltaban `campoIni`, `campoFin` y `campoNo` —los nombres de las columnas que hay que escribir—. El
+formulario los recibía vacíos, construía casillas llamadas `campo_undefined`, y al guardar el servidor
+rechazaba la escritura. Desde afuera: se marca, se guarda, y todo sigue igual.
+
+**Por qué no lo detectó ninguna prueba.** La revisión en el navegador le entregaba a la pantalla un
+pendiente *inventado*, con esos campos puestos a mano, en vez de uno salido del cálculo. La prueba
+verificaba que el formulario dibujara bien lo que recibía, no que recibiera algo. Es la misma trampa de
+la batería que mentía: un montaje que confirma lo que uno espera en vez de lo que el sistema produce.
+
+**Lo que se hizo.** El pendiente se **copia completo** y se le agrega el contexto de la solicitud, en
+vez de volver a listar sus campos: enumerar a mano lo que ya existe es una lista que envejece sola. Y
+hay una prueba que exige que cada campo que el formulario usa viaje de verdad en el resultado del
+cálculo.
+
+**Además, para que esto deje de ser adivinanza.** Cada pendiente muestra ahora qué leyó el programa en
+su columna de marca —`No_Aplica_Dev dice: vacío`—, y el aviso detecta dos estados de la hoja que
+vuelven inútil cualquier marca: que la columna **no exista** (nadie corrió `actualizarEstructura`) o
+que esté **repetida** (se lee la última, y lo escrito en la primera no se ve). `esSi_` entiende también
+`VERDADERO`, que es lo que escribe una casilla de verificación de Sheets en español.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
