@@ -24,6 +24,12 @@
  * cargarse, se reporta aparte en lugar de repartirse a la fuerza.
  */
 
+/**
+ * Cuantos pendientes viajan al navegador. El resto se cuenta, no se manda.
+ * @private
+ */
+var TOPE_INCOMPLETAS = 200;
+
 /** Las etapas, por su identificador, para no recorrer la lista cada vez. */
 function mapaEtapasCosto_() {
   return ETAPAS_COSTO.reduce(function (acc, e) { acc[e.id] = e; return acc; }, {});
@@ -304,12 +310,27 @@ function getCostos(desde, hasta, forzar) {
     ['Solicitudes', 'Costos_Fabrica', 'Proyectos'].forEach(function (t) {
       try { invalidarTabla_(t); } catch (e) { /* una hoja que no esta no estorba */ }
     });
-    return calcularCostos_(d, h);
+    return planoParaElNavegador_(calcularCostos_(d, h));
   }
 
   return conResultadoEnCache_('costos_' + d + '_' + h, function () {
     return calcularCostos_(d, h);
   });
+}
+
+/**
+ * Deja el resultado en JSON puro antes de mandarlo al navegador (D-122).
+ *
+ * El camino con cache pasa por JSON para guardarse, asi que el navegador siempre
+ * recibio texto y numeros. El camino que recalcula devolvia el objeto CRUDO, con
+ * Date adentro: otra forma del mismo dato. Que una pantalla reciba dos formas
+ * segun por donde vino el calculo es un error esperando ocurrir —y ocurrio: al
+ * oprimir Calcular, el navegador recibio null y se cayo al pintar.
+ *
+ * @private
+ */
+function planoParaElNavegador_(valor) {
+  return JSON.parse(JSON.stringify(valor));
 }
 
 /**
@@ -630,7 +651,13 @@ function calcularCostos_(desde, hasta, conDetalle) {
     // Lo que falta por diligenciar. Va SIEMPRE, no solo en la exportacion: es
     // la explicacion de por que hay plata sin atribuir, y mientras no se vea
     // nadie la llena.
-    incompletas: incompletas,
+    // La lista completa puede ser de miles de lineas si el equipo viene
+    // atrasado con las fechas. Nadie lee mil, y una respuesta enorme corre el
+    // riesgo de no llegar entera al navegador —que es como se cae esta pantalla:
+    // sin error, con la respuesta vacia—. Se mandan las primeras y se dice
+    // cuantas son en total.
+    incompletas: incompletas.slice(0, TOPE_INCOMPLETAS),
+    incompletasTotal: incompletas.length,
     // Cuantas fases estan marcadas "no aplica" en los datos que se acaban de
     // leer. Si alguien marca cinco y aqui llega cero, el problema no es el
     // calculo: es que la marca no esta en la hoja.

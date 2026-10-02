@@ -3370,6 +3370,16 @@ function millones(n) {
 }
 
 function pintarCostos(r) {
+  // El servidor puede devolver vacio —un calculo que no cupo en la respuesta, una
+  // sesion que se cayo a mitad—. Sin esta guarda, la pagina se caia pintando y el
+  // mensaje que veia la persona era un error de javascript, no lo que paso.
+  if (!r) {
+    $('kpisCostos').innerHTML = '';
+    $('notaCostos').innerHTML = '<b style="color:var(--rojo)">El servidor no devolvió ' +
+        'el cálculo.</b> Vuelva a oprimir <b>Calcular</b>; si se repite, avise, ' +
+        'porque significa que la respuesta no alcanzó a llegar completa.';
+    return;
+  }
   if (r.sinTarifas) {
     $('kpisCostos').innerHTML = '';
     $('notaCostos').innerHTML = '<b>' + esc(r.mensaje) + '</b>';
@@ -3675,6 +3685,10 @@ function pintarFaltaInfoCostos(r) {
   });
   var ids = Object.keys(FALTA_COSTOS);
   var puedeEditar = permiso('Editar_Solicitud');
+  var total = r.incompletasTotal || f.length;
+  var recortada = total > f.length
+      ? ' Se muestran ' + f.length + ' de <b>' + total + '</b> pendientes.'
+      : '';
 
   $('faltaInfoCostos').innerHTML = aviso +
     '<div class="panel cst-falta"><div class="fila">' +
@@ -3683,7 +3697,7 @@ function pintarFaltaInfoCostos(r) {
       '<div class="sub">El costo se reparte entre las que tienen fechas. Mientras estas ' +
       'estén vacías no cargan nada, y su parte de la capacidad queda <b>sin atribuir</b>.' +
       (puedeEditar ? ' Se llenan aquí mismo.' : ' Se llenan editando la solicitud.') +
-      notaMarcadas +
+      notaMarcadas + recortada +
       ' Si corrigió algo directamente en la hoja, oprima <b>Calcular</b>: ese botón relee.' +
       '</div></div>' +
       '<button class="btn-sec ml-auto" id="btnVerFalta">Ver cuáles</button>' +

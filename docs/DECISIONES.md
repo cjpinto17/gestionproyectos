@@ -2693,6 +2693,28 @@ vuelven inútil cualquier marca: que la columna **no exista** (nadie corrió `ac
 que esté **repetida** (se lee la última, y lo escrito en la primera no se ve). `esSi_` entiende también
 `VERDADERO`, que es lo que escribe una casilla de verificación de Sheets en español.
 
+### D-122 · Dos caminos para la misma cifra entregaban dos formas distintas
+
+Al oprimir **Calcular** la página se caía con *«Cannot read properties of null»*: el navegador recibió
+**vacío** y se rompió al pintar.
+
+La causa es una asimetría que yo mismo introduje. El camino con caché pasa por `JSON` para guardarse,
+así que el navegador siempre recibió texto y números. El camino que **recalcula** —el que agregué para
+que una corrección hecha a mano en la hoja se viera— devolvía el objeto **crudo**, con `Date` adentro.
+Dos formas del mismo dato según por dónde vino el cálculo.
+
+Ahora el resultado se deja en JSON puro antes de mandarlo, en los dos caminos. Y la lista de
+pendientes viaja **acotada**: puede ser de miles de líneas si el equipo viene atrasado con las fechas,
+nadie lee mil, y una respuesta enorme es la otra manera de que al navegador no le llegue nada. Se
+mandan las primeras doscientas y se informa el total.
+
+**La pantalla ya no se cae si la respuesta llega vacía:** lo dice y pide reintentar, en vez de mostrar
+un error de javascript que a quien usa la herramienta no le significa nada.
+
+**Lo que esto enseña, otra vez:** cuando una misma información puede llegar por dos caminos, lo que hay
+que probar no es cada camino por separado sino que **entreguen lo mismo**. La prueba nueva compara las
+dos formas; sin eso, el camino menos transitado se rompe en silencio hasta que alguien lo usa.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
