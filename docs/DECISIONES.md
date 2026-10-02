@@ -2848,6 +2848,85 @@ compartían una sola columna con el rótulo equivocado.
 diciendo «valor mensual de la bolsa» mientras el número de abajo ya era el prorrateado; en una tabla
 que alguien audita con calculadora, eso no es cosmética.
 
+### D-127 · El informe de gestión, y lo que el informe no puede afirmar
+
+Pedido del usuario: un informe de gestión de septiembre de 2026 para **presidencia**, dinámico, en una
+página nueva llamada *Informe*, con indicadores del área, entregables de valor, mezcla de inversión e
+indicadores de costo.
+
+**Lo primero que encontré al revisar:** casi todo ya estaba calculado en `Metricas.gs` y `Costeo.gs`.
+Esta página no es un motor nuevo, es un **armado con el mes como eje** más cuatro huecos de datos que,
+sin cerrarlos, habrían puesto cifras incompletas delante de un comité sin que nadie lo supiera.
+
+**Las cuatro decisiones del usuario:**
+
+| Pregunta | Respuesta |
+| --- | --- |
+| ¿Qué es «ciclo de fábrica»? | El inventario por fase del embudo |
+| ¿Cuánto costo se puede mostrar? | **Solo porcentajes y costos unitarios** |
+| ¿La versión es texto libre? | **No: ya se elige de una lista.** Yo estaba equivocado |
+| ¿Los SLA son oficiales? | **Provisionales**, y hay que rotularlos así |
+
+**Donde yo me equivoqué:** afirmé que `Version_Semantica` era texto libre y que «3.4», «v3.4» y
+«3.4.0» escritas a mano romperían el amarre con el Roadmap. El usuario me corrigió: el formulario la
+ofrece de una lista y `validarVersionRoadmap_` rechaza una que no exista. Al verificarlo encontré que
+quedaba **una** puerta abierta: la **carga masiva** escribía el número sin normalizar ni validar. Se
+cerró. Y la página conserva una bolsa de *«entregado sin versión reconocida»*, porque una solicitud que
+desaparece de su release sin dar error es el peor defecto posible en el entregable estrella del informe.
+
+**Las reglas propias de esta página:**
+
+1. **Las duraciones salen de las columnas de fecha, no de la bitácora** (D-114). La bitácora solo ve lo
+   que pasó dentro de la herramienta; el equipo está diligenciando las columnas hacia atrás.
+2. **Los bloqueos sí salen de la bitácora**, porque son lo único que no tiene columnas: el bloqueo es un
+   estado. Lo que la bitácora no guarda es el **motivo** —al desbloquear, el sistema borra la causal— así
+   que de los bloqueos ya resueltos se sabe cuándo y cuánto, no por qué. El informe lo dice.
+3. **Los costos viajan como porcentajes y costos unitarios.** El valor de las bolsas **no sale del
+   servidor**: no es que la pantalla lo esconda, es que el payload no lo trae. Hay una prueba que
+   revisa el JSON completo y falla si aparece. Se le advirtió al usuario que un costo unitario
+   multiplicado por el número de actividades aproxima el total: quien quiera cerrar esa puerta tiene que
+   renunciar al unitario, y el unitario es el número más útil del bloque.
+4. **Toda cifra va con su cobertura.** El panel de calidad va **arriba de las cifras, no al final**: un
+   comité que descubre el límite de un dato después de haber decidido sobre él no puede deshacer la
+   decisión, y la próxima vez no cree ninguna cifra de la página.
+
+**Dos defectos que encontraron las pruebas, no el usuario:**
+
+- **El Cycle Time contaba un día menos que el costeo** para la misma estadía. Las columnas de fecha
+  llegan a medianoche, y medir «1 al 10 de septiembre» de medianoche a medianoche da 7 días hábiles en
+  vez de 8. El costeo ya lo corregía con `finDelDia_`; el informe no. Eran **dos cifras distintas para
+  la misma estadía en la misma presentación**. Verificado contra el código sin la corrección: 7 contra 8.
+- **La página mezclaba «17,1» y «8.6»** en la misma tarjeta. Dos separadores decimales se leen como dos
+  unidades distintas. Verificado igual.
+
+**Lo que la página declara que NO puede medir**, en lugar de mostrar un cero:
+
+- **Aceptación TI y Producción** no tienen columnas de inicio y fin en la solicitud, así que su duración
+  no se mide con esta fuente. Es un hueco de modelo, no un cero.
+- El **inventario por fase es una foto de hoy**, no del cierre del mes: reconstruirlo día por día
+  exigiría una bitácora que cubra todo el período.
+- La **plataforma de la iniciativa** está vacía en todas (S-15), así que se deduce de las plataformas de
+  sus solicitudes y la tabla declara de dónde salió cada agrupación: declarada, deducida, varias o
+  ninguna. Una iniciativa que toca varias plataformas se cuenta en todas, y la página explica por qué la
+  suma de las filas supera el número de iniciativas.
+- Lo que está **en producción sin fecha de despliegue** no se puede atribuir a ningún mes: no cuenta como
+  entrega de ninguno, y se informa aparte.
+
+**En la pantalla:** selector de mes —por defecto el mes cerrado anterior, porque abrir en el mes en curso
+muestra medio mes y parece una caída—, **modo presentación** a pantalla completa con un bloque por
+diapositiva y avance con flechas, estilos de impresión para sacar PDF, y **soporte descargable** en hoja
+de cálculo con diez pestañas, que es lo que se anexa al acta: una cifra que nadie puede abrir no se puede
+defender.
+
+**Permiso:** `Ver_Informe`, de fábrica para quien ya ve costos (Product Owner y Administrador). Se abre a
+quien haga falta desde Administración. El informe no muestra el valor del contrato, pero sigue siendo
+material de comité, así que el valor por omisión es el estrecho.
+
+**Lo que esto enseña:** antes de construir, verificar. Dos de los cuatro «huecos» que iba a reportar como
+graves no existían o existían a medias, y uno de los que no estaba en mi lista —el Cycle Time contra el
+costeo— era el verdaderamente serio. Reportar un riesgo sin confirmarlo le hace perder tiempo al usuario
+y le resta credibilidad a los riesgos que sí son ciertos.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

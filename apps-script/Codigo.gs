@@ -3181,6 +3181,8 @@ var METODOS_PUBLICOS = {
   getCostos: true,
   getCostosDetalle: true,
   registrarFechasEtapa: true,
+  getInforme: true,
+  getInformeDetalle: true,
   cambiarEstadoTarea: true,
   marcarBloqueo: true,
   refrescarDatos: true,

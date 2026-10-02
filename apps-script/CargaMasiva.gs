@@ -300,11 +300,15 @@ function crearSolicitudDesdeCarga_(datos, ctx) {
       Causal_Bloqueo: bloqueo === 'SI' ? datos.Causal_Bloqueo : '',
       Observacion_Bloqueo: bloqueo === 'SI' ? String(datos.Observacion_Bloqueo || '').trim() : '',
       Link_Taiga: datos.Link_Taiga || '',
-      Version_Semantica: datos.Version_Semantica || '',
+      // Se normaliza y se valida igual que en el formulario: era la unica via
+      // por la que podia entrar una version que no existe en el Roadmap, y una
+      // solicitud asi desaparece de su release sin dar ningun error (D-127).
+      Version_Semantica: limpiarVersion_(datos.Version_Semantica),
       Responsable_ID: datos.Responsable_ID || '',
       Fecha_Ultimo_Cambio: ahora
     };
     validarRegistro_('Solicitudes', registro, true);
+    validarVersionRoadmap_(registro.Version_Semantica, registro.Plataforma_ID);
 
     // Sin carpeta en Drive: el sistema dejo de crearlas (D-76).
 

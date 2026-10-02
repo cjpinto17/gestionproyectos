@@ -1,0 +1,105 @@
+<!-- Informe.html | Pagina 7: el informe de gestion del mes, para el comite.
+     El archivo de servidor se llama InformeGestion.gs y NO Informe.gs: Apps
+     Script ignora la extension y dos archivos con el mismo nombre rompen el
+     despliegue en silencio (D-111). Solo la ve quien tenga el permiso
+     "Informe de gestion" (D-127). -->
+<section class="pagina" id="pg-informe" hidden>
+    <div class="fila encabezado">
+      <div>
+        <h1>Informe de gesti&oacute;n</h1>
+        <p id="subInforme">Lo que entreg&oacute; el &aacute;rea en el mes, con qu&eacute; capacidad y
+        con qu&eacute; obst&aacute;culos. Cada cifra dice sobre cu&aacute;ntos datos se calcul&oacute;.</p>
+      </div>
+      <div class="fila ml-auto">
+        <div class="combo"><label for="fInformeMes">Mes</label>
+          <input type="month" id="fInformeMes"></div>
+        <div class="combo"><label>&nbsp;</label>
+          <button class="btn-primario" id="btnInforme">Generar</button></div>
+        <div class="combo"><label>&nbsp;</label>
+          <button class="btn-sec" id="btnInformePresentar" title="Pantalla completa, un bloque a la vez">Presentar</button></div>
+      </div>
+    </div>
+
+    <!-- Los numeros que el comite lee primero -->
+    <div class="kpis k4" id="kpisInforme"></div>
+    <p class="nota" id="notaInforme"></p>
+
+    <!-- Lo que el informe NO puede afirmar, dicho antes de las cifras y no
+         despues: un comite que descubre el limite al final ya tomo la decision -->
+    <div id="calidadInforme"></div>
+
+    <div class="seccion" data-bloque="1">Entregables de valor del mes</div>
+    <div class="panel">
+      <div class="fila">
+        <div>
+          <h3>Versiones entregadas a producci&oacute;n</h3>
+          <div class="sub">Agrupadas por plataforma digital, con las solicitudes que incluy&oacute; cada
+          una. El desv&iacute;o compara la fecha real contra la que se hab&iacute;a planeado.</div>
+        </div>
+        <button class="btn-sec ml-auto" id="btnInformeDetalle">Descargar soporte</button>
+      </div>
+      <div id="tablaInformeEntregadas" style="margin-top:12px"></div>
+    </div>
+
+    <div class="paneles">
+      <div class="panel">
+        <h3>Versiones planeadas</h3>
+        <div class="sub">Lo comprometido para el mes que no sali&oacute;, y lo que viene</div>
+        <div id="tablaInformePlaneadas"></div>
+      </div>
+      <div class="panel">
+        <h3>Mezcla de inversi&oacute;n</h3>
+        <div class="sub">D&oacute;nde se concentr&oacute; el valor entregado. En porcentaje del valor
+        atribuido, no en pesos</div>
+        <div id="tablaInformeMezcla"></div>
+      </div>
+    </div>
+
+    <div class="seccion" data-bloque="2">Indicadores de gesti&oacute;n</div>
+    <div class="paneles">
+      <div class="panel">
+        <h3>Iniciativas por plataforma digital</h3>
+        <div class="sub">Volumen y estado. El campo de plataforma de la iniciativa est&aacute; sin
+        llenar, as&iacute; que donde falta se deduce de sus solicitudes y la tabla lo declara</div>
+        <div id="tablaInformeIniciativas"></div>
+      </div>
+      <div class="panel">
+        <h3>Solicitudes por ciclo de f&aacute;brica</h3>
+        <div class="sub">Cu&aacute;ntas hay en cada fase del ciclo, y cu&aacute;ntas entraron y salieron
+        de cada una durante el mes</div>
+        <div id="tablaInformeEmbudo"></div>
+      </div>
+    </div>
+
+    <div class="paneles">
+      <div class="panel">
+        <h3>Cycle Time por fase contra SLA</h3>
+        <div class="sub">Solo las fases que <b>cerraron</b> en el mes. Se calcula con las fechas
+        registradas en la solicitud, no con la bit&aacute;cora</div>
+        <div id="tablaInformeCiclo"></div>
+      </div>
+      <div class="panel">
+        <h3>Distribuci&oacute;n por plataforma</h3>
+        <div class="sub">Inventario, entregas y demanda nueva: tres cosas distintas que juntas
+        dicen si una plataforma est&aacute; avanzando o acumulando</div>
+        <div id="tablaInformeDistribucion"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Bloqueos</h3>
+      <div class="sub">Los bloqueos que tocaron el mes, con los d&iacute;as h&aacute;biles que costaron.
+      Salen de la bit&aacute;cora, que es lo &uacute;nico que guarda cu&aacute;ndo se bloque&oacute; y
+      cu&aacute;ndo se liber&oacute;</div>
+      <div id="tablaInformeBloqueos" style="margin-top:12px"></div>
+    </div>
+
+    <div class="seccion" data-bloque="3">Indicadores de costo</div>
+    <div class="panel">
+      <h3>Capacidad de la f&aacute;brica</h3>
+      <div class="sub">Esta p&aacute;gina no muestra el valor del contrato ni el de ninguna bolsa de
+      capacidad: solo la distribuci&oacute;n porcentual y los costos unitarios. El detalle con valores
+      est&aacute; en Costos, que exige su propio permiso</div>
+      <div id="tablaInformeCostos" style="margin-top:12px"></div>
+    </div>
+</section>

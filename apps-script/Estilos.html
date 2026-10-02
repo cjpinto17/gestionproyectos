@@ -747,4 +747,27 @@
   .campo textarea{resize:vertical}
   .campo small{font-size:11px}
   .modal{max-height:88vh;overflow-y:auto}
+
+  /* Modo presentacion del Informe: un bloque a la vez, en grande, para
+     proyectar en el comite. Las cifras crecen porque lo que se lee a 40 cm de
+     un portatil no se lee a seis metros de un videobeam (D-127). */
+  .presentando{padding:24px 32px}
+  .presentando .seccion{font-size:26px;margin-bottom:18px}
+  .presentando .panel{box-shadow:none}
+  .presentando .kpi .cifra{font-size:40px}
+  .presentando h3{font-size:20px}
+  .presentando .sub{font-size:14px}
+  .presentando table{font-size:15px}
+  .presentando .nota{font-size:14px}
+  /* En presentacion no hay raton: el paso se da con las flechas, y hay que
+     decirlo porque nadie lo adivina. */
+  .presentando::after{content:'← →  para avanzar · Esc para salir';
+    position:fixed;bottom:12px;right:18px;font-size:12px;color:var(--ink-faint)}
+  @media print{
+    .barra,.tabs,.sesion,#calidadInforme .sub{break-inside:avoid}
+    .pagina[hidden]{display:none !important}
+    .panel{break-inside:avoid;box-shadow:none}
+    .seccion{break-after:avoid}
+    .btn-primario,.btn-sec,.barra{display:none !important}
+  }
 </style>

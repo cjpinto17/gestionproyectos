@@ -67,6 +67,7 @@ var CATALOGO_PERMISOS = [
     nombre: 'Mover y cerrar estabilizaciones' },
 
   { grupo: 'Menú principal', campo: 'Ver_Costos', nombre: 'Costos' },
+  { grupo: 'Menú principal', campo: 'Ver_Informe', nombre: 'Informe de gestión' },
 
   { grupo: 'Roadmap', campo: 'Gestionar_Versiones', nombre: 'Crear y editar versiones' }
 ];
@@ -150,6 +151,11 @@ function permisosDeFabrica_(rolId) {
     // Los costos de la fabrica no los ve todo el mundo: es informacion de
     // contrato. De fabrica, Product Owner y Administrador (D-110).
     Ver_Costos: !!f.costos,
+    // El informe de gestion no muestra el valor de las bolsas —solo
+    // porcentajes y costos unitarios— pero es material de comite: de fabrica lo
+    // ve quien ya ve costos, y desde Administracion se abre a quien haga falta
+    // (D-127).
+    Ver_Informe: !!f.costos,
     Editar_Iniciativa: !!f.iniciativa,
     // Comentar y crear solicitudes no estaban restringidos: cualquiera con
     // sesion podia hacerlo. Se conserva tal cual para no quitarle a nadie algo
@@ -356,12 +362,13 @@ var PERMISO_DE_PAGINA = {
   roadmap: 'Ver_Roadmap',
   reportes: 'Ver_Reportes',
   costos: 'Ver_Costos',
+  informe: 'Ver_Informe',
   admin: PERMISO_ADMINISTRAR
 };
 
 /**
  * @param {string} rolId
- * @param {string} pagina home | iniciativas | gestion | roadmap | reportes | admin
+ * @param {string} pagina home | iniciativas | gestion | roadmap | reportes | costos | informe | admin
  * @return {boolean}
  */
 function puedeVerPagina(rolId, pagina) {

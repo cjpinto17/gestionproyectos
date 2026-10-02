@@ -14,7 +14,8 @@ var arrastrada = null;
 var accionModal = null;
 
 var TODAS = '*';
-var PAGINAS = ['home', 'iniciativas', 'gestion', 'roadmap', 'reportes', 'costos', 'admin'];
+var PAGINAS = ['home', 'iniciativas', 'gestion', 'roadmap', 'reportes', 'costos',
+               'informe', 'admin'];
 // Mismo codigo de color que los estados de iniciativa, para que el tablero y
 // la matriz se lean igual: gris lo que no arranca, amarillo lo que avanza,
 // verde lo terminado, rojo lo detenido.
@@ -362,7 +363,7 @@ function permiso(nombre) {
 var PERMISO_DE_PAGINA = {
   home: 'Ver_Home', iniciativas: 'Ver_Iniciativas', gestion: 'Ver_Gestion',
   roadmap: 'Ver_Roadmap', reportes: 'Ver_Reportes', costos: 'Ver_Costos',
-  admin: 'Administrar'
+  informe: 'Ver_Informe', admin: 'Administrar'
 };
 
 /** Esconde del menu las pestanas que el rol no puede abrir. */
@@ -439,7 +440,7 @@ function navegar(pagina) {
   var cargadores = {
     home: cargarHome, iniciativas: cargarIniciativas, gestion: cargarGestion,
     roadmap: cargarRoadmap, reportes: cargarReportes, costos: cargarCostos,
-    admin: cargarAdmin
+    informe: cargarInforme, admin: cargarAdmin
   };
   if (cargadores[pagina]) cargadores[pagina]();
 }
@@ -3850,6 +3851,641 @@ function descargarAuditoriaCostos() {
     .then(function () { b.disabled = false; });
 }
 $('btnCostoDetalle').addEventListener('click', descargarAuditoriaCostos);
+
+/* ================= Informe de gestion ================= */
+/**
+ * El informe del mes, para el comite.
+ *
+ * Tres reglas de esta pantalla, que son las que la diferencian de Reportes:
+ *
+ *  1. Toda cifra va con su COBERTURA. Un promedio calculado sobre tres de
+ *     cuarenta solicitudes se ve igual que uno calculado sobre las cuarenta, y
+ *     en un comite esa diferencia es todo. El panel de arriba dice sobre que se
+ *     calculo antes de que nadie lea un numero.
+ *  2. No se muestran pesos del contrato. Ni el total, ni las bolsas. El servidor
+ *     no los manda (InformeGestion.gs), asi que esto no es una pantalla que
+ *     esconde: es un payload que no los trae.
+ *  3. Los SLA van rotulados como de referencia mientras nadie los apruebe.
+ *     Presentar cumplimiento contra una meta inventada es hacer creer que la
+ *     meta existe.
+ */
+function cargarInforme(forzar) {
+  var mes = $('fInformeMes').value;
+  if (!mes) {
+    // Por defecto, el mes pasado: el informe de gestion se hace sobre un mes
+    // cerrado, y abrir en el mes en curso muestra medio mes y parece una caida.
+    var h = new Date();
+    var m = new Date(h.getFullYear(), h.getMonth() - 1, 1);
+    mes = m.getFullYear() + '-' + ('0' + (m.getMonth() + 1)).slice(-2);
+    $('fInformeMes').value = mes;
+  }
+  if (!forzar && DATOS.informe && DATOS.informeClave === mes) {
+    pintarInforme(DATOS.informe); return;
+  }
+  cargando('kpisInforme', 'kpis');
+  api('getInforme', mes, !!forzar).then(function (r) {
+    DATOS.informe = r;
+    DATOS.informeClave = mes;
+    pintarInforme(r);
+  }).catch(function (e) {
+    fallo(e);
+    $('kpisInforme').innerHTML = '';
+    $('notaInforme').innerHTML = '<b style="color:var(--rojo)">No se pudo generar:</b> ' +
+        esc(e && e.message ? e.message : String(e));
+  });
+}
+$('btnInforme').addEventListener('click', function () {
+  DATOS.informe = null;
+  cargarInforme(true);
+});
+$('fInformeMes').addEventListener('change', function () {
+  DATOS.informe = null;
+  cargarInforme();
+});
+
+/** Un numero entero con separador de miles, o una raya si no hay con que. */
+function numeroInforme(n) {
+  if (n === null || n === undefined) return '—';
+  return Number(n).toLocaleString('es-CO');
+}
+/** Un porcentaje, o una raya. Distinto de cero: cero es un dato. */
+function pctInforme(n) {
+  return (n === null || n === undefined) ? '—' : formatoPorcentaje(n);
+}
+/**
+ * Dias con un decimal y coma, como el resto de la pagina.
+ *
+ * Escribir el numero crudo daba "8.6" junto a un "17,1" que si pasaba por el
+ * formato local, y dos separadores decimales distintos en la misma tarjeta se
+ * leen como dos unidades distintas.
+ */
+function diasInforme(n) {
+  if (n === null || n === undefined) return '—';
+  return (Math.round(Number(n) * 10) / 10).toString().replace('.', ',') + ' d';
+}
+
+function pintarInforme(r) {
+  // El servidor puede devolver vacio: una respuesta que no cupo, una sesion
+  // caida. Sin guarda, lo que ve la persona es un error de javascript en vez de
+  // lo que paso (D-122).
+  if (!r) {
+    $('kpisInforme').innerHTML = '';
+    $('notaInforme').innerHTML = '<b style="color:var(--rojo)">El servidor no devolvió ' +
+        'el informe.</b> Vuelva a oprimir <b>Generar</b>; si se repite, avise.';
+    return;
+  }
+  var t = r.titulares;
+  $('subInforme').textContent = 'Mes de ' + etiquetaMes(r.mes) +
+      ' · generado el ' + r.generado +
+      ' · las duraciones salen de las fechas registradas en cada solicitud';
+
+  $('kpisInforme').innerHTML = [
+    kpi('Versiones entregadas', numeroInforme(t.versionesEntregadas), '',
+        t.solicitudesEntregadas + ' solicitudes incluidas'),
+    kpi('Llegaron a producción', numeroInforme(t.llegaronAProduccion), '',
+        'Entraron al embudo ' + t.entraronAlEmbudo + ' en el mes'),
+    kpi('Puntualidad', pctInforme(t.puntualidadPct), '',
+        'Versiones que salieron en la fecha planeada o antes'),
+    kpi('Bloqueos', numeroInforme(t.bloqueosDelMes), '',
+        diasInforme(t.diasHabilesPerdidos) + ' hábiles perdidas, ' + t.bloqueosAbiertos +
+        (t.bloqueosAbiertos === 1 ? ' sigue abierto' : ' siguen abiertos'),
+        t.bloqueosAbiertos ? 'mal' : '')
+  ].join('');
+
+  $('notaInforme').innerHTML = 'Solicitudes en vuelo hoy: <b>' + numeroInforme(t.enVuelo) +
+      '</b> · iniciativas registradas: <b>' + numeroInforme(t.iniciativasActivas) +
+      '</b> · cobertura de fechas por fase: <b>' + pctInforme(t.coberturaDatosPct) + '</b>' +
+      (t.pctAtribuido !== null && t.pctAtribuido !== undefined
+        ? ' · capacidad con trazabilidad: <b>' + pctInforme(t.pctAtribuido) + '</b>' : '');
+
+  pintarCalidadInforme(r);
+  pintarInformeEntregadas(r);
+  pintarInformePlaneadas(r);
+  pintarInformeMezcla(r);
+  pintarInformeIniciativas(r);
+  pintarInformeEmbudo(r);
+  pintarInformeCiclo(r);
+  pintarInformeDistribucion(r);
+  pintarInformeBloqueos(r);
+  pintarInformeCostos(r);
+}
+
+/**
+ * Lo que el informe NO puede afirmar, arriba y no al final.
+ *
+ * Va antes de las cifras a proposito. Un comite que descubre el limite de un
+ * dato despues de haber decidido sobre el no tiene como deshacer la decision, y
+ * la proxima vez no cree ninguna de las cifras.
+ */
+function pintarCalidadInforme(r) {
+  var c = r.calidad;
+  var avisos = (c.avisos || []).map(function (a) {
+    return '<li><b>' + esc(a.titulo) + ':</b> ' + esc(a.detalle) +
+           ' <span style="color:var(--ink-faint)">(' + esc(a.donde) + ')</span></li>';
+  }).join('');
+
+  var extras = [];
+  if (r.versiones.sinVersionReconocida.length) {
+    extras.push('<li><b>' + r.versiones.sinVersionReconocida.length + ' solicitudes salieron a ' +
+      'producción con una versión que no está en el Roadmap:</b> no suman en ninguna versión de ' +
+      'la tabla de arriba. ' +
+      r.versiones.sinVersionReconocida.map(function (s) {
+        return esc(s.id) + ' (' + esc(s.version || 'sin versión') + ')';
+      }).join(', ') + '</li>');
+  }
+  if (r.bloqueos.causalPerdida) {
+    extras.push('<li><b>' + r.bloqueos.causalPerdida + ' bloqueos ya resueltos no tienen ' +
+      'causal registrada:</b> al levantar un bloqueo el sistema borra el motivo, así que de ' +
+      'esos se sabe cuánto duraron pero no por qué ocurrieron.</li>');
+  }
+  if (r.distribucion.totales.enProduccionSinFecha) {
+    extras.push('<li><b>' + r.distribucion.totales.enProduccionSinFecha + ' solicitudes están ' +
+      'en producción sin fecha de despliegue:</b> no se pueden atribuir a ningún mes, así que ' +
+      'no cuentan como entrega de este.</li>');
+  }
+  if (r.bloqueos.sinBitacora) {
+    extras.push('<li><b>La bitácora está vacía:</b> los bloqueos del mes no se pueden ' +
+      'reconstruir, y por eso aparecen en cero. No significa que no hubo.</li>');
+  }
+
+  if (!avisos && !extras.length) {
+    $('calidadInforme').innerHTML = '<p class="nota"><b>Cobertura completa:</b> las ' +
+        c.solicitudesFabrica + ' solicitudes de fábrica tienen sus fechas por fase ' +
+        'diligenciadas. Todas las cifras de esta página se calculan sobre el total.</p>';
+    return;
+  }
+
+  $('calidadInforme').innerHTML =
+    '<div class="panel" style="border-left:4px solid var(--alerta)">' +
+    '<h3>Sobre qué datos se calculó este informe</h3>' +
+    '<div class="sub">De ' + c.solicitudesFabrica + ' solicitudes de fábrica, <b>' +
+    c.conTodasLasFechas + '</b> tienen todas sus fechas por fase (' +
+    pctInforme(c.coberturaPct) + '). Lo que falta no desaparece del informe: baja la ' +
+    'base sobre la que se calcula, y eso cambia los promedios.</div>' +
+    '<ul style="margin:10px 0 0 18px;line-height:1.6">' + avisos + extras.join('') + '</ul>' +
+    '</div>';
+}
+
+/** Las versiones entregadas, por plataforma, con su contenido desplegable. */
+function pintarInformeEntregadas(r) {
+  var v = r.versiones;
+  if (!v.entregadas.length) {
+    $('tablaInformeEntregadas').innerHTML = '<p class="nota">No hay versiones con fecha de ' +
+        'despliegue real en ' + etiquetaMes(r.mes) + '. Si se entregó algo, falta registrar la ' +
+        'fecha de despliegue en el Roadmap.</p>';
+    return;
+  }
+  var h = '';
+  v.entregadasPorPlataforma.forEach(function (p) {
+    h += '<div class="seccion" style="margin-top:14px">' + esc(p.nombre) +
+         ' <span style="font-weight:400;color:var(--ink-faint)">· ' + p.versiones.length +
+         ' versión(es), ' + p.solicitudes + ' solicitudes</span></div>';
+    h += '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr>' +
+         '<th>Versión</th><th>Planeada</th><th>Real</th><th class="num">Desvío</th>' +
+         '<th class="num">Solicitudes</th></tr></thead><tbody>';
+    p.versiones.forEach(function (x) {
+      // El desvio en dias, con el signo que importa: negativo es antes de lo
+      // planeado, y eso es una buena noticia que no debe leerse como un retraso.
+      var desvio = x.desvioDias === null
+        ? '<span style="color:var(--ink-faint)">sin fecha planeada</span>'
+        : (x.desvioDias > 0
+            ? '<span style="color:var(--alerta)">+' + x.desvioDias + ' d</span>'
+            : '<span style="color:var(--verde)">' + x.desvioDias + ' d</span>');
+      h += '<tr><td><b>' + esc(x.numero) + '</b></td><td>' +
+           esc(x.fechaPlaneada ? String(x.fechaPlaneada).slice(0, 10) : '—') + '</td><td>' +
+           esc(x.fechaReal ? String(x.fechaReal).slice(0, 10) : '—') + '</td>' +
+           '<td class="num">' + desvio + '</td>' +
+           '<td class="num">' + x.cuenta + '</td></tr>';
+      if (x.solicitudes.length) {
+        h += '<tr><td colspan="5" style="padding:0 0 10px 18px">' +
+             x.solicitudes.map(function (s) {
+               return '<div style="font-size:12px;line-height:1.5">' +
+                 '<span class="t-ver num">' + esc(s.tipoNombre) + '</span> ' +
+                 esc(s.id) + ' · ' + esc(s.nombre) +
+                 (s.enProduccion ? '' : ' <span style="color:var(--alerta)">(aún no en ' +
+                   'producción)</span>') + '</div>';
+             }).join('') + '</td></tr>';
+      } else {
+        h += '<tr><td colspan="5" style="padding:0 0 10px 18px;color:var(--alerta);' +
+             'font-size:12px">Esta versión no tiene solicitudes asociadas: nadie le asignó ' +
+             'el número de versión a lo que incluyó.</td></tr>';
+      }
+    });
+    h += '</tbody></table></div>';
+  });
+  h += '<p class="nota" style="margin-top:12px">Puntualidad: <b>' +
+       v.puntualidad.aTiempo + ' de ' + v.puntualidad.conFechaPlaneada +
+       '</b> versiones salieron en la fecha planeada o antes' +
+       (v.puntualidad.sinFechaPlaneada
+         ? '. ' + v.puntualidad.sinFechaPlaneada + ' no tenían fecha planeada, así que no se ' +
+           'pueden calificar.' : '.') + '</p>';
+  $('tablaInformeEntregadas').innerHTML = h;
+}
+
+/** Lo comprometido que no salió, y lo que viene. */
+function pintarInformePlaneadas(r) {
+  var v = r.versiones;
+  var h = '';
+  if (v.planeadasDelMes.length) {
+    h += '<div class="sub" style="color:var(--alerta);font-weight:600">Planeadas para ' +
+         etiquetaMes(r.mes) + ' que no salieron</div>' +
+         '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr>' +
+         '<th>Plataforma</th><th>Versión</th><th>Planeada</th>' +
+         '<th class="num">Comprometidas</th></tr></thead><tbody>' +
+         v.planeadasDelMes.map(function (x) {
+           return '<tr><td>' + esc(x.plataforma) + '</td><td><b>' + esc(x.numero) +
+             '</b></td><td>' + esc(String(x.fechaPlaneada || '').slice(0, 10)) +
+             '</td><td class="num">' + x.cuenta + '</td></tr>';
+         }).join('') + '</tbody></table></div>';
+  } else {
+    h += '<p class="nota">No quedó ninguna versión planeada del mes sin salir.</p>';
+  }
+  if (v.planeadasFuturas.length) {
+    h += '<div class="sub" style="margin-top:14px;font-weight:600">Lo que viene</div>' +
+         '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr>' +
+         '<th>Plataforma</th><th>Versión</th><th>Planeada</th>' +
+         '<th class="num">Comprometidas</th></tr></thead><tbody>' +
+         v.planeadasFuturas.map(function (x) {
+           return '<tr><td>' + esc(x.plataforma) + '</td><td><b>' + esc(x.numero) +
+             '</b></td><td>' + esc(String(x.fechaPlaneada || '').slice(0, 10)) +
+             '</td><td class="num">' + x.cuenta + '</td></tr>';
+         }).join('') + '</tbody></table></div>';
+  }
+  $('tablaInformePlaneadas').innerHTML = h;
+}
+
+/** Donde se concentro el valor entregado. En porcentaje, nunca en pesos. */
+function pintarInformeMezcla(r) {
+  var k = r.costos;
+  if (!k.disponible) {
+    $('tablaInformeMezcla').innerHTML = '<p class="nota"><b>No disponible:</b> ' +
+        esc(k.motivo) + '</p>';
+    return;
+  }
+  var ejes = [
+    ['Línea estratégica de negocio', k.porLinea],
+    ['Vertical', k.porVertical],
+    ['Tipo de solicitud entregada', k.porTipoSolicitud]
+  ];
+  var h = ejes.map(function (par) {
+    var lista = par[1] || [];
+    if (!lista.length) return '';
+    var max = Math.max.apply(null, lista.map(function (x) { return x.pct || 0; })) || 1;
+    return '<div class="sub" style="margin-top:12px;font-weight:600">' + esc(par[0]) + '</div>' +
+      lista.map(function (x) {
+        return barra(x.nombre, x.pct || 0, max, pctInforme(x.pct));
+      }).join('');
+  }).join('');
+  $('tablaInformeMezcla').innerHTML = h +
+    '<p class="nota" style="margin-top:12px">El porcentaje es sobre el valor <b>atribuido</b> ' +
+    'del mes. Aparte, ' + pctInforme(k.pctSinAtribuir) + ' de la capacidad pagada no encontró ' +
+    'actividad a la que cargarse.</p>';
+}
+
+/** Volumen y estado de las iniciativas, por plataforma digital. */
+function pintarInformeIniciativas(r) {
+  var i = r.iniciativas;
+  var estados = i.estados || [];
+  var h = '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr>' +
+    '<th>Plataforma</th>' +
+    estados.map(function (e) { return '<th class="num">' + esc(e.nombre) + '</th>'; }).join('') +
+    '<th class="num">Total</th></tr></thead><tbody>' +
+    i.porPlataforma.map(function (p) {
+      return '<tr><td>' + esc(p.nombre) + '</td>' +
+        estados.map(function (e) {
+          var n = p.estados[e.id] || 0;
+          return '<td class="num">' + (n || '<span style="color:var(--ink-faint)">—</span>') +
+                 '</td>';
+        }).join('') +
+        '<td class="num"><b>' + p.total + '</b></td></tr>';
+    }).join('') +
+    '<tr class="cst-total"><td>Suma de las filas</td>' +
+    estados.map(function (e) {
+      var n = i.porPlataforma.reduce(function (a, p) { return a + (p.estados[e.id] || 0); }, 0);
+      return '<td class="num">' + n + '</td>';
+    }).join('') +
+    '<td class="num">' + i.sumaFilas + '</td></tr>' +
+    '</tbody></table></div>';
+
+  // La suma de las filas puede superar el numero de iniciativas: una que toca
+  // varias plataformas se cuenta en todas. Decirlo evita que alguien reste y
+  // concluya que la tabla esta mal.
+  if (i.sumaFilas !== i.total) {
+    h += '<p class="nota"><b>' + i.total + ' iniciativas en total.</b> La suma de las filas da ' +
+         i.sumaFilas + ' porque ' + i.origen.varias + ' iniciativa(s) tocan más de una ' +
+         'plataforma y se cuentan en cada una.</p>';
+  }
+  if (i.origen.deducida || i.origen.ninguna) {
+    h += '<p class="nota">Plataforma <b>declarada</b> en ' + i.origen.declarada +
+         ', <b>deducida</b> de sus solicitudes en ' + i.origen.deducida + ', y ' +
+         i.origen.ninguna + ' sin ninguna' +
+         (i.sinPlataforma.length
+           ? ': ' + i.sinPlataforma.map(function (x) { return esc(x.nombre); }).join(', ')
+           : '') + '.</p>';
+  }
+  $('tablaInformeIniciativas').innerHTML = h;
+}
+
+/** El inventario del ciclo de fabrica, fase por fase. */
+function pintarInformeEmbudo(r) {
+  var e = r.embudo;
+  var max = Math.max.apply(null, e.fases.map(function (f) { return f.enFase; })) || 1;
+  var h = '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr>' +
+    '<th>Fase del ciclo</th><th class="num">En la fase</th><th class="num">Bloqueadas</th>' +
+    '<th class="num">Entraron</th><th class="num">Salieron</th>' +
+    '</tr></thead><tbody>' +
+    e.fases.map(function (f) {
+      return '<tr><td>' + esc(f.nombre) +
+        '<span class="pista" style="display:block;margin-top:3px"><span class="relleno" ' +
+        'style="width:' + Math.round(f.enFase / max * 100) + '%"></span></span></td>' +
+        '<td class="num"><b>' + f.enFase + '</b></td>' +
+        '<td class="num"' + (f.bloqueadas ? ' style="color:var(--alerta);font-weight:700"' : '') +
+        '>' + (f.bloqueadas || '—') + '</td>' +
+        '<td class="num">' + (f.entradas || '—') + '</td>' +
+        '<td class="num">' + (f.salidas || '—') + '</td></tr>';
+    }).join('') +
+    '<tr class="cst-total"><td>Total</td><td class="num">' +
+    e.fases.reduce(function (a, f) { return a + f.enFase; }, 0) + '</td><td class="num">' +
+    e.fases.reduce(function (a, f) { return a + f.bloqueadas; }, 0) + '</td><td class="num">' +
+    e.fases.reduce(function (a, f) { return a + f.entradas; }, 0) + '</td><td class="num">' +
+    e.fases.reduce(function (a, f) { return a + f.salidas; }, 0) + '</td></tr>' +
+    '</tbody></table></div>' +
+    '<p class="nota"><b>En la fase</b> es una foto de hoy, no del cierre del mes: ' +
+    'reconstruir el inventario día por día exigiría una bitácora que cubra todo el ' +
+    'período. <b>Entraron</b> y <b>salieron</b> sí son del mes. Fuera del embudo hay ' +
+    e.tareas + ' tareas y ' + e.estabilizaciones + ' estabilizaciones, que no lo recorren.</p>';
+  $('tablaInformeEmbudo').innerHTML = h;
+}
+
+/** Cuanto duro cada fase contra su SLA, con la cobertura al lado. */
+function pintarInformeCiclo(r) {
+  var c = r.ciclo;
+  var h = '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr>' +
+    '<th>Fase</th><th class="num">Cerradas</th><th class="num">Promedio</th>' +
+    '<th class="num">Mediana</th><th class="num">SLA ref.</th>' +
+    '<th class="num">Cumple</th><th class="num">Sin medir</th>' +
+    '</tr></thead><tbody>' +
+    c.fases.map(function (f) {
+      var cumple = f.cumplimientoPct === null
+        ? '<span style="color:var(--ink-faint)">—</span>'
+        : '<span style="color:' + (f.cumplimientoPct >= 80 ? 'var(--verde)' : 'var(--alerta)') +
+          ';font-weight:700">' + pctInforme(f.cumplimientoPct) + '</span>';
+      // "Sin medir" junta lo que sigue en curso y lo que no tiene fechas: son
+      // las dos razones por las que una solicitud no entra en el promedio, y
+      // quien lee necesita saber cuantas quedaron fuera.
+      var fuera = f.enCurso + f.sinFechas;
+      return '<tr><td>' + esc(f.nombre) + '</td>' +
+        '<td class="num"><b>' + f.cerradas + '</b></td>' +
+        '<td class="num">' + diasInforme(f.promedio) + '</td>' +
+        '<td class="num">' + diasInforme(f.mediana) + '</td>' +
+        '<td class="num">' + diasInforme(f.sla) + '</td>' +
+        '<td class="num">' + cumple + '</td>' +
+        '<td class="num" title="' + f.enCurso + ' en curso, ' + f.sinFechas +
+        ' sin fechas, ' + f.noAplica + ' no aplican">' +
+        (fuera || '—') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+
+  if (c.sinColumnas.length) {
+    h += '<p class="nota"><b>' +
+      c.sinColumnas.map(function (f) { return esc(f.nombre); }).join(' y ') +
+      '</b> no tienen columnas de fecha de inicio y fin en la solicitud, así que su duración ' +
+      'no se puede medir con esta fuente. No es que hayan durado cero.</p>';
+  }
+  if (c.slaProvisional) {
+    h += '<p class="nota" style="color:var(--alerta)"><b>Los SLA son valores de referencia, ' +
+      'pendientes de aprobación.</b> Se sembraron al instalar la herramienta y nadie los ha ' +
+      'confirmado, así que el cumplimiento se mide contra una meta que todavía no es un ' +
+      'compromiso. Se editan en Administración → SLA por Fase.</p>';
+  }
+  h += '<p class="nota">Se miden solo las fases que <b>cerraron</b> en el mes: una fase abierta ' +
+    'todavía no tiene duración. Los días son hábiles, y la mediana va al lado del promedio ' +
+    'porque una sola solicitud olvidada en una fase desplaza el promedio y no la mediana.</p>';
+  $('tablaInformeCiclo').innerHTML = h;
+}
+
+/** Inventario, entregas y demanda nueva, plataforma por plataforma. */
+function pintarInformeDistribucion(r) {
+  var d = r.distribucion;
+  $('tablaInformeDistribucion').innerHTML =
+    '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr>' +
+    '<th>Plataforma</th><th class="num">En vuelo</th><th class="num">%</th>' +
+    '<th class="num">Entregadas</th><th class="num">%</th>' +
+    '<th class="num">Nuevas</th><th class="num">Bloqueadas</th>' +
+    '</tr></thead><tbody>' +
+    d.plataformas.map(function (p) {
+      return '<tr><td>' + esc(p.nombre) + '</td>' +
+        '<td class="num">' + p.enVuelo + '</td>' +
+        '<td class="num">' + pctInforme(p.pctEnVuelo) + '</td>' +
+        '<td class="num"><b>' + p.entregadas + '</b></td>' +
+        '<td class="num">' + pctInforme(p.pctEntregadas) + '</td>' +
+        '<td class="num">' + p.registradas + '</td>' +
+        '<td class="num"' + (p.bloqueadas ? ' style="color:var(--alerta);font-weight:700"' : '') +
+        '>' + (p.bloqueadas || '—') + '</td></tr>';
+    }).join('') +
+    '<tr class="cst-total"><td>Total</td><td class="num">' + d.totales.enVuelo +
+    '</td><td class="num">100%</td><td class="num">' + d.totales.entregadas +
+    '</td><td class="num">100%</td><td class="num">' + d.totales.registradas +
+    '</td><td class="num">' +
+    d.plataformas.reduce(function (a, p) { return a + p.bloqueadas; }, 0) + '</td></tr>' +
+    '</tbody></table></div>' +
+    '<p class="nota"><b>En vuelo</b> es inventario de hoy; <b>entregadas</b> y <b>nuevas</b> son ' +
+    'del mes. Una plataforma con mucho inventario y ninguna entrega es exactamente lo que esta ' +
+    'tabla existe para mostrar.</p>';
+}
+
+/** Los bloqueos del mes, con lo que costaron en dias habiles. */
+function pintarInformeBloqueos(r) {
+  var b = r.bloqueos;
+  if (b.sinBitacora) {
+    $('tablaInformeBloqueos').innerHTML = '<p class="nota"><b>La bitácora está vacía</b>, así ' +
+      'que los bloqueos del mes no se pueden reconstruir. Aparecen en cero porque no hay con ' +
+      'qué medirlos, no porque no hubo.</p>';
+    return;
+  }
+  if (!b.episodiosTotal) {
+    $('tablaInformeBloqueos').innerHTML = '<p class="nota">Ninguna solicitud estuvo bloqueada ' +
+      'durante ' + etiquetaMes(r.mes) + '.</p>';
+    return;
+  }
+  var h = '<div class="paneles" style="margin-bottom:12px">' +
+    '<div>' + [
+      kpi('Bloqueos del mes', numeroInforme(b.episodiosTotal), '',
+          b.sigueAbiertos + ' siguen abiertos'),
+      kpi('Días hábiles perdidos', numeroInforme(b.diasHabilesPerdidos), '',
+          'Promedio de ' + diasInforme(b.promedioDias) + ' por bloqueo')
+    ].join('') + '</div>' +
+    '<div>' + (b.porCausal.length
+      ? b.porCausal.map(function (c) {
+          var max = Math.max.apply(null, b.porCausal.map(function (x) { return x.dias; })) || 1;
+          return barra(c.nombre, c.dias, max, diasInforme(c.dias) + ' · ' + c.cuenta);
+        }).join('')
+      : '') + '</div></div>';
+
+  h += '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr>' +
+    '<th>Solicitud</th><th>Fase</th><th>Desde</th><th>Hasta</th>' +
+    '<th class="num">Días háb.</th><th>Causal</th></tr></thead><tbody>' +
+    b.episodios.map(function (e) {
+      return '<tr><td>' + esc(e.id) + ' · ' + esc(e.nombre) + '</td>' +
+        '<td>' + esc(nombreFase(e.fase)) + '</td>' +
+        '<td>' + esc(String(e.desde || '').slice(0, 10)) + '</td>' +
+        '<td>' + (e.sigueAbierto
+          ? '<span style="color:var(--alerta);font-weight:700">abierto</span>'
+          : esc(String(e.hasta || '').slice(0, 10))) + '</td>' +
+        '<td class="num">' + diasInforme(e.diasHabiles) + '</td>' +
+        '<td' + (e.causalPerdida ? ' style="color:var(--ink-faint);font-style:italic"' : '') +
+        '>' + esc(e.causalNombre) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+
+  if (b.episodiosTotal > b.episodios.length) {
+    h += '<p class="nota">Se muestran ' + b.episodios.length + ' de ' + b.episodiosTotal +
+         '. El resto está en el soporte descargable.</p>';
+  }
+  if (b.causalPerdida) {
+    h += '<p class="nota"><b>' + b.causalPerdida + ' bloqueos aparecen sin causal.</b> No es ' +
+      'que no la tuvieran: al levantar un bloqueo el sistema borra el motivo, y de los ya ' +
+      'resueltos no queda registro de por qué ocurrieron.</p>';
+  }
+  $('tablaInformeBloqueos').innerHTML = h;
+}
+
+/** Los indicadores de costo que si se pueden presentar. */
+function pintarInformeCostos(r) {
+  var k = r.costos;
+  if (!k.disponible) {
+    $('tablaInformeCostos').innerHTML = '<p class="nota"><b>No disponible:</b> ' +
+        esc(k.motivo) + '</p>';
+    return;
+  }
+  var cvc = k.construirVsCorregir;
+  var h = '<div class="kpis k4">' + [
+    kpi('Capacidad con trazabilidad', pctInforme(k.pctAtribuido), '',
+        k.actividadesCosteadas + ' actividades ocuparon la fábrica',
+        (k.pctAtribuido !== null && k.pctAtribuido < 75) ? 'mal' : ''),
+    kpi('Sin atribuir', pctInforme(k.pctSinAtribuir), '',
+        'Capacidad pagada que, según las fechas registradas, nadie ocupó',
+        (k.pctSinAtribuir !== null && k.pctSinAtribuir > 25) ? 'mal' : ''),
+    kpi('Construir', pctInforme(cvc.construirPct), '',
+        'Nuevo, mejoras y ajustes'),
+    kpi('Corregir', pctInforme(cvc.corregirPct), '',
+        'Estabilizaciones: arreglar lo que ya estaba entregado',
+        (cvc.corregirPct !== null && cvc.corregirPct > 25) ? 'mal' : '')
+  ].join('') + '</div>';
+
+  h += '<div class="tabla-scroll" style="margin-top:12px"><table class="tabla-compacta">' +
+    '<thead><tr><th>Costo unitario</th><th class="num">Valor</th><th>Sobre qué</th>' +
+    '</tr></thead><tbody>' +
+    '<tr><td>Por actividad que ocupó la fábrica</td><td class="num">' +
+    (k.unitarios.porActividadCosteada === null
+      ? '—' : pesos(k.unitarios.porActividadCosteada)) +
+    '</td><td>' + k.actividadesCosteadas + ' actividades con fechas registradas en el mes</td></tr>' +
+    '<tr><td>Por solicitud entregada a producción</td><td class="num">' +
+    (k.unitarios.porSolicitudEntregada === null
+      ? '—' : pesos(k.unitarios.porSolicitudEntregada)) +
+    '</td><td>' + k.unitarios.solicitudesEntregadas + ' solicitudes en producción</td></tr>' +
+    '</tbody></table></div>';
+
+  h += '<p class="nota">Esta página <b>no muestra el valor del contrato ni el de ninguna bolsa ' +
+    'de capacidad</b>: solo distribución porcentual y costos unitarios. Tenga en cuenta que un ' +
+    'costo unitario multiplicado por el número de actividades aproxima el total del mes; si eso ' +
+    'tampoco debe salir del área, hay que quitar también el costo unitario.</p>';
+
+  if (k.actividadesSinFechas) {
+    h += '<p class="nota" style="color:var(--alerta)"><b>' + k.actividadesSinFechas +
+      ' actividades no tienen fechas registradas</b> en alguna de sus fases, así que no ' +
+      'participaron del reparto. Esa es la mayor parte de lo que aparece como «sin atribuir», ' +
+      'y se completa en Costos.</p>';
+  }
+  if (k.bolsasParciales) {
+    h += '<p class="nota">' + k.bolsasParciales + ' de ' + k.bolsasVigentes + ' bolsas de ' +
+      'capacidad no estuvieron vigentes todo el mes y cobraron solo la parte proporcional.</p>';
+  }
+  $('tablaInformeCostos').innerHTML = h;
+}
+
+/**
+ * Modo presentacion: pantalla completa y un bloque a la vez.
+ *
+ * Es una presentacion de comite, no un tablero de trabajo: proyectar la pagina
+ * completa obliga a quien expone a desplazarse buscando el siguiente cuadro. Se
+ * usa la pantalla completa del navegador y se esconden los bloques que no son el
+ * actual; con Escape o con el boton se vuelve a la vista normal.
+ */
+var INFORME_BLOQUE = 0;
+function bloquesDelInforme() {
+  var pg = $('pg-informe');
+  // Cada "diapositiva" es un titulo de seccion con lo que le sigue hasta el
+  // siguiente titulo.
+  var hijos = [].slice.call(pg.children);
+  var grupos = [], actual = null;
+  hijos.forEach(function (h) {
+    if (h.classList.contains('encabezado') || h.id === 'kpisInforme' ||
+        h.id === 'notaInforme' || h.id === 'calidadInforme') return;
+    if (h.classList.contains('seccion')) { actual = [h]; grupos.push(actual); return; }
+    if (actual) actual.push(h);
+  });
+  return grupos;
+}
+function mostrarBloqueInforme(n) {
+  var grupos = bloquesDelInforme();
+  if (!grupos.length) return;
+  INFORME_BLOQUE = Math.max(0, Math.min(n, grupos.length - 1));
+  grupos.forEach(function (g, i) {
+    g.forEach(function (h) { h.hidden = i !== INFORME_BLOQUE; });
+  });
+}
+function salirDePresentacion() {
+  $('pg-informe').classList.remove('presentando');
+  bloquesDelInforme().forEach(function (g) {
+    g.forEach(function (h) { h.hidden = false; });
+  });
+  if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
+}
+$('btnInformePresentar').addEventListener('click', function () {
+  var pg = $('pg-informe');
+  if (pg.classList.contains('presentando')) { salirDePresentacion(); return; }
+  pg.classList.add('presentando');
+  mostrarBloqueInforme(0);
+  if (pg.requestFullscreen) pg.requestFullscreen().catch(function () { /* sin permiso: igual sirve */ });
+});
+document.addEventListener('keydown', function (e) {
+  var pg = $('pg-informe');
+  if (!pg || !pg.classList.contains('presentando')) return;
+  if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+    mostrarBloqueInforme(INFORME_BLOQUE + 1); e.preventDefault();
+  } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+    mostrarBloqueInforme(INFORME_BLOQUE - 1); e.preventDefault();
+  } else if (e.key === 'Escape') {
+    salirDePresentacion();
+  }
+});
+document.addEventListener('fullscreenchange', function () {
+  // Si se sale de pantalla completa con la tecla del navegador, la pagina no
+  // puede quedarse con los bloques escondidos.
+  if (!document.fullscreenElement) salirDePresentacion();
+});
+
+/** Arma el soporte del informe en una hoja de calculo y entrega el enlace. */
+function descargarInformeDetalle() {
+  var b = $('btnInformeDetalle');
+  b.disabled = true;
+  var antes = b.textContent;
+  b.textContent = 'Armando…';
+  api('getInformeDetalle', $('fInformeMes').value)
+    .then(function (d) {
+      $('notaInforme').innerHTML = '<b>Soporte listo:</b> <a href="' + esc(d.url) +
+          '" target="_blank" rel="noopener">' + esc(d.nombre) + '</a> · ' + d.versiones +
+          ' versiones, ' + d.bloqueos + ' bloqueos. Queda en su Drive; desde ahí se descarga ' +
+          'como Excel con <i>Archivo → Descargar → Microsoft Excel</i>.';
+    })
+    .catch(function (e) {
+      fallo(e);
+      $('notaInforme').innerHTML = '<b style="color:var(--rojo)">No se pudo generar el ' +
+          'soporte:</b> ' + esc(e && e.message ? e.message : String(e));
+    })
+    .then(function () { b.disabled = false; b.textContent = antes; });
+}
+$('btnInformeDetalle').addEventListener('click', descargarInformeDetalle);
+
 
 
 /* ================= Administracion ================= */
