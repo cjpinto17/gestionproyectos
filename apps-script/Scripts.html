@@ -3648,8 +3648,35 @@ function pintarFaltaInfoCostos(r) {
   var marcadas = r.fasesNoAplican || 0;
   var notaMarcadas = marcadas
       ? ' Hay <b>' + marcadas + '</b> fase' + (marcadas === 1 ? '' : 's') +
-        ' marcada' + (marcadas === 1 ? '' : 's') + ' como <i>no aplica</i>, que no se piden.'
+        ' marcada' + (marcadas === 1 ? '' : 's') + ' como <i>no aplica</i>, que no se piden ' +
+        'ni cuestan. <a href="#" id="verMarcadas">Ver cuáles</a>.'
       : '';
+
+  /* La lista de lo marcado. Una marca puesta sin querer saca la solicitud del
+     costeo en silencio, y sin poder verla no hay como encontrarla. */
+  function bloqueMarcadas() {
+    var m = r.noAplicaDetalle || [];
+    if (!m.length) return '';
+    return '<div id="listaMarcadas" hidden style="margin-top:10px"><div class="tabla-scroll">' +
+      '<table class="tabla-compacta"><thead><tr><th>Actividad</th><th>Fase</th>' +
+      '<th>Columna</th></tr></thead><tbody>' +
+      m.map(function (x) {
+        return '<tr><td><b>' + esc(x.id) + '</b> · ' + esc(x.nombre) + '</td>' +
+          '<td>' + esc(x.rango) + '</td>' +
+          '<td><code>' + esc(x.campoNo) + '</code></td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+  }
+  function cablearVerMarcadas() {
+    var a = $('verMarcadas');
+    if (!a) return;
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      var l = $('listaMarcadas');
+      if (!l) return;
+      l.hidden = !l.hidden;
+      a.textContent = l.hidden ? 'Ver cuáles' : 'Ocultar';
+    });
+  }
 
   // Si las columnas de la hoja estan mal, ninguna marca va a servir y hay que
   // decirlo antes que nada: es la causa, no un detalle.
@@ -3678,8 +3705,9 @@ function pintarFaltaInfoCostos(r) {
     // de que quedaron guardadas.
     $('faltaInfoCostos').innerHTML = aviso + (marcadas
         ? '<p class="nota" style="margin-top:0">Ninguna actividad tiene fechas pendientes.' +
-          notaMarcadas + '</p>'
+          notaMarcadas + '</p>' + bloqueMarcadas()
         : '');
+    cablearVerMarcadas();
     return;
   }
 
@@ -3726,8 +3754,9 @@ function pintarFaltaInfoCostos(r) {
                   : '<code>' + esc(x.campo) + '</code>')
               : (puedeEditar ? '' : '<code>' + esc(x.campo) + '</code>')) + '</td></tr>';
         }).join('');
-      }).join('') + '</tbody></table></div></div></div>';
+      }).join('') + '</tbody></table></div></div>' + bloqueMarcadas() + '</div>';
 
+  cablearVerMarcadas();
   $('btnVerFalta').addEventListener('click', function () {
     var l = $('listaFalta');
     l.hidden = !l.hidden;
@@ -3966,11 +3995,20 @@ function construirCampos(columnas, opciones, registro, campoBloqueado) {
                  esc(o) + '</option>';
         }).join('') + '</select>';
     } else if (c.tipo === 'boolSN') {
+      /* El valor vacio tiene que caer en NO, y por eso NO va primero.
+         Antes la lista empezaba por SI y, con la celda vacia, ninguna opcion
+         quedaba marcada: el navegador mostraba la primera —SI— y quien abriera
+         el formulario y guardara, por cualquier motivo, dejaba el campo en SI
+         sin haberlo tocado. Con las columnas de "no aplica" eso dejo de ser un
+         detalle: marcaba fases que nadie quiso marcar y sacaba la solicitud del
+         costeo en silencio (D-125). */
+      var siMarcado = String(valor || '').trim().toUpperCase();
+      var esSi = siMarcado === 'SI' || siMarcado === 'SÍ' || siMarcado === 'TRUE' ||
+                 siMarcado === 'VERDADERO' || siMarcado === 'X' || siMarcado === '1';
       control = '<select id="campo_' + c.campo + '"' + bloqueado + '>' +
-        ['SI', 'NO'].map(function (o) {
-          return '<option value="' + o + '"' +
-                 (String(valor).toUpperCase().indexOf(o) === 0 ? ' selected' : '') + '>' + o + '</option>';
-        }).join('') + '</select>';
+        '<option value="NO"' + (esSi ? '' : ' selected') + '>NO</option>' +
+        '<option value="SI"' + (esSi ? ' selected' : '') + '>SI</option>' +
+        '</select>';
     } else if (c.tipo === 'longtext') {
       control = '<textarea id="campo_' + c.campo + '" rows="3"' + bloqueado + '>' + esc(valor) + '</textarea>';
     } else if (c.tipo === 'date' || c.tipo === 'datetime') {

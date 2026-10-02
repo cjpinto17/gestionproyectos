@@ -2775,6 +2775,38 @@ días hábiles en septiembre, no los de agosto—, y lo mismo una estadía abier
 lectura de arriba, y quien quiera el detalle de una la despliega. Con todo abierto había que recorrer
 cientos de filas para llegar al siguiente grupo.
 
+### D-125 · Un «SI» que nadie escribió
+
+El usuario reportó una tarjeta que arrancó desarrollo en septiembre, sigue en curso, sin fecha de fin,
+y no aparecía en el costo. La causa no estaba en el costeo.
+
+El formulario de edición dibujaba los campos SÍ/NO poniendo `SI` primero y marcando la opción que
+coincidiera con el valor guardado. Con la celda **vacía** no coincidía ninguna, así que el navegador
+mostraba la primera —**SI**—, y quien abriera una solicitud y la guardara, por el motivo que fuera,
+dejaba el campo en SI **sin haberlo tocado**.
+
+Mientras los campos SÍ/NO eran `Tiene_Bloqueo`, `Aprobada` y `Hubo_Indisponibilidad` —que casi siempre
+traen un valor— el defecto pasó desapercibido. Las cuatro columnas de «no aplica» nacen vacías en todas
+las filas: desde D-116, **editar cualquier solicitud marcaba sus cuatro fases como que no aplican**, y
+esa solicitud salía del costeo en silencio.
+
+**El arreglo.** `NO` va primero y se marca explícitamente cuando el valor no es un sí. Probado contra
+el código anterior: los siete campos SÍ/NO del formulario arrancaban en `SI` con la celda vacía, y
+ahora arrancan en `NO`. Entre ellos **`Aprobada`**, que es el peor de la lista.
+
+**El destrozo no se puede deshacer con criterio.** Una marca puesta a propósito y una puesta por el
+error dicen las dos `SI`; no hay cómo distinguirlas. Por eso `limpiarNoAplica` las borra **todas** —con
+simulación primero, como las demás funciones de mantenimiento— y el equipo vuelve a marcar las pocas
+que de verdad no aplican. Adivinar cuál era cuál sería peor que empezar de nuevo.
+
+**Y para que se vea.** La página de Costos lista ahora **cuáles** fases están marcadas, no solo cuántas.
+Una marca puesta sin querer saca una solicitud del cálculo sin decir nada; sin poder verla, no hay cómo
+encontrarla.
+
+**Lo que esto enseña:** un campo nuevo no hereda solo el tipo, hereda también los defectos de cómo se
+dibuja ese tipo. Agregué cuatro columnas `boolSN` sin revisar qué hacía el formulario con un `boolSN`
+vacío, y convertí un defecto latente de años en pérdida silenciosa de datos.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

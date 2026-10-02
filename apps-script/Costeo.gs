@@ -427,9 +427,19 @@ function calcularCostos_(desde, hasta, conDetalle) {
   var incompletas = [];          // lo que al equipo le falta por diligenciar
 
   var marcadas = 0;
+  var detalleMarcadas = [];
   costeables.forEach(function (s) {
     ETAPAS_COSTO.forEach(function (e) {
-      e.rangos.forEach(function (ra) { if (esSi_(s[ra[3]])) marcadas++; });
+      e.rangos.forEach(function (ra) {
+        if (!esSi_(s[ra[3]])) return;
+        marcadas++;
+        // Quien esta marcado, no solo cuantos: una marca puesta sin querer saca
+        // la solicitud del costeo y sin la lista no hay como encontrarla.
+        if (detalleMarcadas.length < TOPE_INCOMPLETAS) {
+          detalleMarcadas.push({ id: s.ID_Solicitud, nombre: s.Nombre_Solicitud,
+                                 rango: ra[2], campoNo: ra[3] });
+        }
+      });
     });
 
     var r = estadiasPorColumnas_(s, fin);
@@ -691,6 +701,7 @@ function calcularCostos_(desde, hasta, conDetalle) {
     // leer. Si alguien marca cinco y aqui llega cero, el problema no es el
     // calculo: es que la marca no esta en la hoja.
     fasesNoAplican: marcadas,
+    noAplicaDetalle: detalleMarcadas,
     // Por que una marca podria no estar sirviendo. Vacio = las columnas estan bien.
     revisionColumnas: revisarColumnasDeMarcas_(),
     detalle: conDetalle ? { estancias: estancias, reparto: reparto } : null

@@ -876,3 +876,75 @@ function formatearFecha_(f) {
   var dos = function (n) { return (n < 10 ? '0' : '') + n; };
   return dos(d.getDate()) + '/' + dos(d.getMonth() + 1) + '/' + d.getFullYear();
 }
+
+/**
+ * Quita TODAS las marcas de "no aplica" de las solicitudes (D-125).
+ *
+ * Existe por un error propio: el formulario de edicion mostraba los campos SI/NO
+ * vacios con "SI" preseleccionado, asi que abrir una solicitud y guardarla
+ * —por cualquier motivo— marcaba sus cuatro fases como que no aplican, sin que
+ * nadie lo tocara. Esas solicitudes salian del costeo en silencio.
+ *
+ * No hay forma de distinguir una marca puesta a proposito de una puesta por el
+ * error: las dos dicen "SI". Por eso esto las borra TODAS y deja que el equipo
+ * vuelva a marcar lo que de verdad no aplica, que son unas pocas. Adivinar cual
+ * era cual seria peor que empezar de nuevo.
+ *
+ * @param {boolean=} aplicar false (por omision) solo informa.
+ * @return {!Object}
+ */
+function limpiarNoAplica(aplicar) {
+  exigirOperador_();
+  var resumen = { aplicado: !!aplicar, solicitudes: [], marcas: 0 };
+
+  var columnas = [];
+  ETAPAS_COSTO.forEach(function (e) {
+    e.rangos.forEach(function (r) { columnas.push(r[3]); });
+  });
+
+  var hoja = getHoja_('Solicitudes');
+  var ancho = Math.max(hoja.getLastColumn(), 1);
+  var filas = hoja.getLastRow();
+  if (filas < 2) { resumen.mensaje = 'No hay solicitudes.'; return resumen; }
+
+  var datos = hoja.getRange(1, 1, filas, ancho).getValues();
+  var enc = datos[0].map(function (v) { return String(v || '').trim(); });
+  var colId = enc.indexOf('ID_Solicitud');
+  var indices = columnas.map(function (c) { return enc.indexOf(c); })
+      .filter(function (i) { return i !== -1; });
+
+  if (!indices.length) {
+    resumen.mensaje = 'La hoja no tiene columnas de "no aplica". Ejecute actualizarEstructura.';
+    return resumen;
+  }
+
+  for (var f = 1; f < datos.length; f++) {
+    var tocadas = [];
+    indices.forEach(function (i) {
+      if (!esSi_(datos[f][i])) return;
+      tocadas.push(enc[i]);
+      datos[f][i] = 'NO';
+    });
+    if (!tocadas.length) continue;
+    resumen.marcas += tocadas.length;
+    resumen.solicitudes.push((colId !== -1 ? datos[f][colId] : 'fila ' + (f + 1)) +
+                             ': ' + tocadas.join(', '));
+  }
+
+  if (aplicar && resumen.marcas) {
+    hoja.getRange(1, 1, filas, ancho).setValues(datos);
+    invalidarTabla_('Solicitudes');
+    limpiarCache_();
+  }
+
+  resumen.mensaje = aplicar
+      ? 'Marcas retiradas. Vuelva a marcar en Costos solo las fases que de verdad no aplican.'
+      : 'Esto es lo que se BORRARIA. Para hacerlo de verdad ejecute limpiarNoAplicaAplicar.';
+  Logger.log(JSON.stringify(resumen, null, 2));
+  return resumen;
+}
+
+/** Borra de verdad lo que simula limpiarNoAplica. */
+function limpiarNoAplicaAplicar() {
+  return limpiarNoAplica(true);
+}
