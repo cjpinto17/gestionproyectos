@@ -3322,15 +3322,15 @@ function pintarReportes(r) {
  * actividades hubo— sino el COSTO POR DIA de capacidad, que va al lado.
  */
 function cargarCostos() {
-  var desde = $('fCostoDesde').value, hasta = $('fCostoHasta').value;
-  var clave = desde + '|' + hasta;
-  if (DATOS.costos && DATOS.costosClave === clave) { pintarCostos(DATOS.costos); return; }
+  // Un mes a la vez: el costo de la fabrica es una cuenta mensual, y mezclar
+  // meses en un total escondia que cada mes se paga completo.
+  var mes = $('fCostoMes').value;
+  if (DATOS.costos && DATOS.costosClave === mes) { pintarCostos(DATOS.costos); return; }
   cargando('kpisCostos', 'kpis');
-  api('getCostos', desde, hasta).then(function (r) {
+  api('getCostos', mes, mes).then(function (r) {
     DATOS.costos = r;
-    DATOS.costosClave = clave;
-    if (!$('fCostoDesde').value && r.desde) $('fCostoDesde').value = r.desde;
-    if (!$('fCostoHasta').value && r.hasta) $('fCostoHasta').value = r.hasta;
+    DATOS.costosClave = mes;
+    if (!$('fCostoMes').value && r.desde) $('fCostoMes').value = r.desde;
     pintarCostos(r);
   }).catch(function (e) {
     // Un aviso que se desvanece deja la pagina con el esqueleto puesto y a quien
@@ -3346,11 +3346,9 @@ $('btnCostos').addEventListener('click', function () {
   cargarCostos();
 });
 // Cambiar el mes recalcula, sin tener que acordarse del boton.
-['fCostoDesde', 'fCostoHasta'].forEach(function (id) {
-  $(id).addEventListener('change', function () {
-    DATOS.costos = null;
-    cargarCostos();
-  });
+$('fCostoMes').addEventListener('change', function () {
+  DATOS.costos = null;
+  cargarCostos();
 });
 
 /** Pesos colombianos, sin decimales: $1.234.567 */
@@ -3377,16 +3375,16 @@ function pintarCostos(r) {
   }
 
   var t = r.total;
-  $('subCostos').textContent = 'De ' + etiquetaMes(r.desde) + ' a ' + etiquetaMes(r.hasta) +
-      ' · valores en pesos, sin IVA';
+  $('subCostos').textContent = etiquetaMes(r.desde) +
+      ' · valores en pesos, sin IVA · las fechas salen de las columnas de cada solicitud';
 
   $('kpisCostos').innerHTML = [
-    kpi('Costo del período', millones(t.contrato), ' M',
+    kpi('Costo del mes', millones(t.contrato), ' M',
         pesos(t.contrato) + ' facturados por la fábrica'),
     kpi('Repartido', millones(t.atribuido), ' M',
         formatoPorcentaje(t.pctAtribuido) + ' del total, entre ' + t.actividades + ' actividades'),
     kpi('Sin atribuir', millones(t.noAtribuido), ' M',
-        'Se gastó, pero ninguna actividad de las que costeamos ocupó esa etapa',
+        'Capacidad pagada que, según las fechas registradas, nadie ocupó',
         t.noAtribuido > t.contrato * 0.25 ? 'mal' : ''),
     kpi('Costo promedio', t.actividades ? millones(t.atribuido / t.actividades) : null, ' M',
         'Por actividad que ocupó la fábrica')
@@ -3450,31 +3448,21 @@ function pintarCostos(r) {
         '<td class="num">' + pesos(e.costoPorDia) + '</td></tr>';
     }).join('') + '</tbody></table></div>';
 
-  /* --- mes a mes --- */
-  $('graficoCostoMes').innerHTML = r.porMes.length
-      ? columnas(r.porMes.map(function (m) {
-          return { etq: etiquetaMes(m.mes), v1: m.atribuido, v2: m.contrato,
-                   txt: millones(m.atribuido) + ' M' };
-        })) + '<div class="leyenda">' +
-        '<span><span class="punto" style="background:var(--navy)"></span>Repartido</span>' +
-        '<span><span class="punto" style="background:var(--esmeralda)"></span>Facturado</span></div>'
-      : '';
-
   /* --- las bolsas --- */
+  // Resumida: con un solo mes sobran la vigencia y el conteo de meses, y lo que
+  // importa de cada bolsa es cuanto costo y cuanto de eso no encontro donde ir.
   $('tablaBolsas').innerHTML =
     '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr><th>Concepto</th>' +
-    '<th>Etapa</th><th>Dedicada a</th><th class="num">Mensual</th><th class="num">Meses</th>' +
-    '<th class="num">Facturado</th><th class="num">Sin atribuir</th></tr></thead><tbody>' +
-    r.bolsas.map(function (b) {
-      return '<tr><td>' + esc(b.concepto) + '</td>' +
-        '<td>' + esc(b.etapaNombre) + '</td>' +
+    '<th>Dedicada a</th><th class="num">Facturado</th>' +
+    '<th class="num">Sin atribuir</th></tr></thead><tbody>' +
+    r.bolsas.filter(function (b) { return b.meses > 0; }).map(function (b) {
+      return '<tr><td>' + esc(b.concepto) +
+        '<div style="color:var(--ink-faint);font-size:11px">' + esc(b.etapaNombre) + '</div></td>' +
         '<td>' + (b.dedicada
           ? (b.sinIniciativa
               ? '<span style="color:var(--rojo)">' + esc(b.dedicada) + ' (no existe)</span>'
               : esc(b.dedicadaNombre))
           : '<span style="color:var(--ink-faint)">todas</span>') + '</td>' +
-        '<td class="num">' + pesos(b.mensual) + '</td>' +
-        '<td class="num">' + b.meses + '</td>' +
         '<td class="num">' + pesos(b.total) + '</td>' +
         '<td class="num"' + (b.noAtribuido ? ' style="color:var(--alerta);font-weight:700"' : '') +
         '>' + pesos(b.noAtribuido) + '</td></tr>';
@@ -3482,27 +3470,27 @@ function pintarCostos(r) {
 
   /* --- actividades: el detalle que alguien va a sumar con la calculadora --- */
   pintarDetalleCostos(r);
+  pintarFaltaInfoCostos(r);
 }
 
 /**
- * El detalle, agrupado por iniciativa (D-113).
+ * El detalle, agrupado por iniciativa y plegable (D-113, D-114).
  *
- * La iniciativa es un rotulo de grupo y no una columna: repetida en cada fila
- * se comia el ancho que necesitan los dias y los pesos, que son el dato.
- *
- * Cada fila muestra, etapa por etapa, los dias habiles que ocupo y lo que cargo
- * por ellos. Las filas suman el subtotal de la iniciativa y los subtotales suman
- * el total repartido —exactamente, sin diferencias de redondeo— porque el
- * reparto se hace en pesos enteros desde el servidor.
+ * La iniciativa es un renglon de grupo que YA TRAE su subtotal: ponerlo en una
+ * fila aparte al final obligaba a buscarlo, y con los grupos cerrados no se
+ * veria. Cada etapa muestra en una sola celda los dias, lo que costo y —debajo—
+ * las fechas de las que salio, que es lo que permite verificarlo.
  */
+var COSTO_ABIERTAS = {};
+
 function pintarDetalleCostos(r) {
   if (!r.actividades.length) {
     $('tablaCostoActividades').innerHTML =
-        '<p style="color:var(--ink-muted);font-size:13px">Sin actividades con costo en el período.</p>';
+        '<p style="color:var(--ink-muted);font-size:13px">Ninguna actividad tiene fechas ' +
+        'registradas en este mes, así que no hay nada que repartir.</p>';
     return;
   }
 
-  // Agrupadas por iniciativa, la mas costosa primero, igual que la tabla de arriba.
   var grupos = {};
   r.actividades.forEach(function (a) {
     (grupos[a.idProyecto] = grupos[a.idProyecto] ||
@@ -3515,20 +3503,33 @@ function pintarDetalleCostos(r) {
   });
 
   var etapas = r.porEtapa;
-  var dia = function (n) { return n ? (Math.round(n * 10) / 10).toString().replace('.', ',') : '—'; };
-  var plata = function (n) { return n ? pesos(n) : '—'; };
+  var dia = function (n) { return (Math.round(n * 10) / 10).toString().replace('.', ','); };
+
+  /** Una celda de etapa: dias, plata y las fechas de donde salen. */
+  function celda(dias, costo, rango) {
+    if (!dias && !costo) {
+      return '<td class="cst-etapa cst-nada">—</td>';
+    }
+    var fechas = rango
+        ? fecha(rango.desde) + ' → ' + (rango.abierta
+            ? '<i>sin cerrar</i>'
+            : fecha(rango.hasta))
+        : '<i>sin fechas</i>';
+    return '<td class="cst-etapa"><b>' + pesos(costo) + '</b>' +
+           '<div class="cst-dias">' + dia(dias) + (dias === 1 ? ' día' : ' días') + '</div>' +
+           '<div class="cst-fechas">' + fechas + '</div></td>';
+  }
 
   var cab = '<tr><th>Actividad</th><th>Tipo</th>' +
       etapas.map(function (e) {
-        return '<th class="num" style="text-align:right">Días<br><small>' + esc(e.nombre) +
-               '</small></th><th class="num" style="text-align:right">Costo<br><small>' +
-               esc(e.nombre) + '</small></th>';
+        return '<th class="num" style="text-align:right">' + esc(e.nombre) + '</th>';
       }).join('') +
       '<th class="num" style="text-align:right">Total</th></tr>';
 
   var cuerpo = orden.map(function (k) {
     var g = grupos[k];
     var filas = g.filas.sort(function (a, b) { return b.costo - a.costo; });
+    var abierta = COSTO_ABIERTAS[k] !== false;     // abiertas por omision
     var subDias = {}, subCosto = {};
     filas.forEach(function (a) {
       etapas.forEach(function (e) {
@@ -3537,37 +3538,99 @@ function pintarDetalleCostos(r) {
       });
     });
 
-    return '<tr class="cst-grupo"><td colspan="' + (3 + etapas.length * 2) + '">' +
-        esc(g.nombre) + ' <span style="font-weight:400;color:var(--ink-faint)">· ' +
-        filas.length + (filas.length === 1 ? ' actividad' : ' actividades') + '</span></td></tr>' +
-      filas.map(function (a) {
-        return '<tr><td><b>' + esc(a.id) + '</b> · ' + esc(a.nombre) + '</td>' +
+    // El grupo trae su subtotal en la misma linea: se lee cerrado o abierto.
+    var cabGrupo = '<tr class="cst-grupo' + (abierta ? ' abierta' : '') +
+        '" data-ini="' + esc(k) + '">' +
+      '<td colspan="2"><span class="cst-flecha">▸</span> ' + esc(g.nombre) +
+        ' <span class="cst-cuenta">' + filas.length +
+        (filas.length === 1 ? ' actividad' : ' actividades') + '</span></td>' +
+      etapas.map(function (e) {
+        return '<td class="num">' + (subCosto[e.etapa] ? pesos(subCosto[e.etapa]) : '—') +
+               '<div class="cst-dias">' + dia(subDias[e.etapa] || 0) + ' d</div></td>';
+      }).join('') +
+      '<td class="num">' + pesos(g.costo) + '</td></tr>';
+
+    return cabGrupo + filas.map(function (a) {
+        return '<tr class="cst-fila" data-de="' + esc(k) + '"' +
+          (abierta ? '' : ' hidden') + '>' +
+          '<td><b>' + esc(a.id) + '</b> · ' + esc(a.nombre) + '</td>' +
           '<td><span class="rm-tipo ' + (CLASE_TIPO[a.tipo] || '') + '">' +
             esc(a.tipoNombre) + '</span></td>' +
           etapas.map(function (e) {
-            return '<td class="num">' + dia(a.diasPorEtapa[e.etapa]) + '</td>' +
-                   '<td class="num">' + plata(a.porEtapa[e.etapa]) + '</td>';
+            return celda(a.diasPorEtapa[e.etapa] || 0, a.porEtapa[e.etapa] || 0,
+                         a.rangos[e.etapa]);
           }).join('') +
           '<td class="num" style="font-weight:700">' + pesos(a.costo) + '</td></tr>';
-      }).join('') +
-      '<tr class="cst-sub"><td colspan="2">Subtotal ' + esc(g.nombre) + '</td>' +
-        etapas.map(function (e) {
-          return '<td class="num">' + dia(subDias[e.etapa]) + '</td>' +
-                 '<td class="num">' + plata(subCosto[e.etapa]) + '</td>';
-        }).join('') +
-        '<td class="num">' + pesos(g.costo) + '</td></tr>';
+      }).join('');
   }).join('');
 
   var total = '<tr class="cst-total"><td colspan="2">TOTAL REPARTIDO</td>' +
       etapas.map(function (e) {
-        return '<td class="num">' + dia(e.dias) + '</td>' +
-               '<td class="num">' + pesos(e.costo) + '</td>';
+        return '<td class="num">' + pesos(e.costo) +
+               '<div class="cst-dias">' + dia(e.dias) + ' d</div></td>';
       }).join('') +
       '<td class="num">' + pesos(r.total.atribuido) + '</td></tr>';
 
   $('tablaCostoActividades').innerHTML =
-      '<div class="tabla-scroll"><table class="tabla-compacta cst-detalle"><thead>' + cab +
+      '<div class="cst-caja"><table class="tabla-compacta cst-detalle"><thead>' + cab +
       '</thead><tbody>' + cuerpo + total + '</tbody></table></div>';
+}
+
+/* Plegar y desplegar una iniciativa. El estado se recuerda mientras dure la
+   sesion: repintar por cambiar de mes no vuelve a abrir lo que se cerro. */
+$('tablaCostoActividades').addEventListener('click', function (e) {
+  var cab = e.target.closest('.cst-grupo');
+  if (!cab) return;
+  var id = cab.dataset.ini;
+  var abrir = !cab.classList.contains('abierta');
+  COSTO_ABIERTAS[id] = abrir;
+  cab.classList.toggle('abierta', abrir);
+  Array.prototype.forEach.call(
+    $('tablaCostoActividades').querySelectorAll('.cst-fila[data-de="' + id + '"]'),
+    function (f) { f.hidden = !abrir; });
+});
+
+/**
+ * Lo que al equipo le falta por diligenciar (D-114).
+ *
+ * Va arriba y no escondido abajo porque es la explicacion de la plata sin
+ * atribuir: mientras esas fechas no esten, esa capacidad no tiene a quien
+ * cargarse. Es una lista de trabajo, no un reproche.
+ */
+function pintarFaltaInfoCostos(r) {
+  var f = r.incompletas || [];
+  if (!f.length) { $('faltaInfoCostos').innerHTML = ''; return; }
+
+  var porSolicitud = {};
+  f.forEach(function (x) {
+    (porSolicitud[x.id] = porSolicitud[x.id] || { nombre: x.nombre, faltan: [] })
+      .faltan.push(x);
+  });
+  var ids = Object.keys(porSolicitud);
+
+  $('faltaInfoCostos').innerHTML =
+    '<div class="panel cst-falta"><div class="fila">' +
+      '<div><h3>' + ids.length + (ids.length === 1
+        ? ' actividad sin fechas registradas' : ' actividades sin fechas registradas') + '</h3>' +
+      '<div class="sub">El costo se reparte entre las que tienen fechas. Mientras estas ' +
+      'estén vacías no cargan nada, y su parte de la capacidad queda <b>sin atribuir</b>. ' +
+      'Se llenan editando la solicitud.</div></div>' +
+      '<button class="btn-sec ml-auto" id="btnVerFalta">Ver cuáles</button>' +
+    '</div><div id="listaFalta" hidden><div class="tabla-scroll">' +
+      '<table class="tabla-compacta"><thead><tr><th>Actividad</th><th>Etapa</th>' +
+      '<th>Qué falta</th><th>Columna</th></tr></thead><tbody>' +
+      f.map(function (x) {
+        return '<tr><td><b>' + esc(x.id) + '</b> · ' + esc(x.nombre) + '</td>' +
+          '<td>' + esc(x.rango) + '</td>' +
+          '<td>' + esc(x.falta) + '</td>' +
+          '<td><code>' + esc(x.campo) + '</code></td></tr>';
+      }).join('') + '</tbody></table></div></div></div>';
+
+  $('btnVerFalta').addEventListener('click', function () {
+    var l = $('listaFalta');
+    l.hidden = !l.hidden;
+    this.textContent = l.hidden ? 'Ver cuáles' : 'Ocultar';
+  });
 }
 
 /** Arma el archivo de auditoria y entrega el enlace. */
@@ -3575,13 +3638,14 @@ function descargarAuditoriaCostos() {
   var b = $('btnCostoDetalle');
   b.disabled = true;
   $('avisoDetalle').innerHTML = 'Armando el archivo. Puede tardar un momento…';
-  api('getCostosDetalle', $('fCostoDesde').value, $('fCostoHasta').value)
+  api('getCostosDetalle', $('fCostoMes').value, $('fCostoMes').value)
     .then(function (d) {
       $('avisoDetalle').innerHTML =
           '<b>Listo:</b> <a href="' + esc(d.url) + '" target="_blank" rel="noopener">' +
           esc(d.nombre) + '</a> · ' + d.actividades + ' actividades, ' + d.filas +
-          ' líneas de reparto. Queda en su Drive; desde ahí se descarga como Excel ' +
-          'con <i>Archivo → Descargar → Microsoft Excel</i>.';
+          ' líneas de reparto, ' + d.incompletas + ' pendientes por diligenciar. ' +
+          'Queda en su Drive; desde ahí se descarga como Excel con ' +
+          '<i>Archivo → Descargar → Microsoft Excel</i>.';
     })
     .catch(function (e) {
       fallo(e);

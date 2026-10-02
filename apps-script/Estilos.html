@@ -580,16 +580,29 @@
   .tabla-compacta thead th{padding:6px 8px}
   .tabla-compacta td{padding:6px 8px}
 
-  /* Detalle de costos: la iniciativa es un rotulo de grupo, no una columna, y
-     los subtotales tienen que distinguirse de las filas que suman (D-113). */
+  /* Detalle de costos (D-113, D-114). La iniciativa es un renglon de grupo que
+     trae su propio subtotal y se pliega; la caja tiene su propio desplazamiento
+     para que el encabezado quede fijo al bajar. */
+  .cst-caja{max-height:calc(100vh - 260px);min-height:300px;overflow:auto;
+    border:1px solid var(--line-soft);border-radius:8px}
+  .cst-detalle{width:100%}
+  .cst-detalle thead th{position:sticky;top:0;z-index:3;background:var(--navy);color:#fff}
   .cst-detalle .cst-grupo td{background:var(--ground);font-weight:700;
-    font-size:11.5px;letter-spacing:.3px;text-transform:uppercase;padding:9px 8px;
-    border-top:1px solid var(--line-soft)}
-  .cst-detalle .cst-sub td{font-weight:700;border-top:1px solid var(--line-soft);
-    color:var(--ink-muted)}
+    padding:9px 8px;border-top:1px solid var(--line);cursor:pointer;user-select:none}
+  .cst-detalle .cst-grupo:hover td{background:#E6ECF6}
+  .cst-detalle .cst-flecha{display:inline-block;transition:transform .12s;
+    color:var(--ink-faint);font-size:11px}
+  .cst-detalle .cst-grupo.abierta .cst-flecha{transform:rotate(90deg)}
+  .cst-detalle .cst-cuenta{font-weight:400;color:var(--ink-faint);font-size:11px}
   .cst-detalle .cst-total td{font-weight:800;border-top:2px solid var(--navy);
-    background:var(--ground)}
-  .cst-detalle thead th small{font-weight:400;color:var(--ink-faint);font-size:10px}
+    background:var(--ground);position:sticky;bottom:0}
+  .cst-detalle .cst-etapa{text-align:right;vertical-align:top;white-space:nowrap}
+  .cst-detalle .cst-etapa.cst-nada{color:var(--ink-faint)}
+  .cst-detalle .cst-dias{color:var(--ink-muted);font-size:10.5px;font-weight:400}
+  .cst-detalle .cst-fechas{color:var(--ink-faint);font-size:10px;font-weight:400}
+  .cst-falta{border-color:var(--alerta-line);background:var(--alerta-bg);margin-bottom:14px}
+  .cst-falta h3{color:var(--alerta)}
+  .cst-falta .sub{color:var(--ink);margin-bottom:0}
   /* La raya que muestra donde va a caer la tarjeta al soltarla */
   .tarjeta.sitio-antes{box-shadow:0 -3px 0 -1px var(--esmeralda)}
   .col.sitio-final .tarjeta:last-of-type{box-shadow:0 3px 0 -1px var(--esmeralda)}

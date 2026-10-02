@@ -75,58 +75,113 @@ function limitesDelMes_(mes) {
 }
 
 /**
- * Reconstruye por donde paso una solicitud y cuanto tiempo estuvo en cada sitio.
+ * Las estadias de una solicitud, leidas de SUS columnas de fecha (D-114).
  *
- * Sale de la bitacora y no de las columnas de fecha de la solicitud, porque las
- * columnas guardan una sola entrada y una sola salida por fase: una solicitud
- * devuelta de QA a Desarrollo vuelve a ocupar desarrollo, y eso solo lo sabe la
- * bitacora. El costo tiene que cobrar las dos estadias.
+ * Antes salian de la bitacora de transiciones. Se cambio porque la herramienta
+ * empezo a usarse en septiembre y todavia se esta cargando historia: la bitacora
+ * solo sabe de los movimientos hechos DENTRO de la aplicacion, asi que a un
+ * trabajo de septiembre registrado en octubre le asignaba octubre. Las columnas
+ * de fecha, en cambio, las diligencia el equipo con lo que de verdad paso.
  *
- * @param {!Array<!Object>} transiciones Las de ESA solicitud, ordenadas.
+ * El precio de ese cambio es que una fecha que nadie escribio ya no se puede
+ * adivinar. Y no se adivina: la etapa queda marcada como SIN INFORMACION, no
+ * cuesta nada, y sale listada para que alguien la llene. Inventar un rango
+ * seria repartir plata sobre un supuesto.
+ *
  * @param {!Object} s La solicitud.
  * @param {!Date} hasta Hasta cuando contar lo que sigue abierto.
- * @return {!Array<{desde: !Date, hasta: !Date, etapa: string}>}
+ * @return {{estadias: !Array<!Object>, faltantes: !Array<!Object>}}
  * @private
  */
-function estadiasDeSolicitud_(transiciones, s, hasta) {
-  var estabilizacion = esTipoEstabilizacion(s.Tipo_Solicitud);
-  var estadias = [];
+function estadiasPorColumnas_(s, hasta) {
+  var estadias = [], faltantes = [];
 
-  // Donde empezo: la fase (o el estado) con que nacio, desde su registro.
-  var sitio = estabilizacion
-      ? (transiciones.length ? transiciones[0].Estado_Origen : s.Estado_Actual)
-      : (transiciones.length ? transiciones[0].Fase_Origen : s.Fase_Actual);
-  var desde = aFecha_(s.Fecha_Registro);
-
-  function cerrar(hastaFecha) {
-    if (!desde || !hastaFecha || hastaFecha < desde) return;
-    // Una estabilizacion En progreso ocupa desarrollo Y pruebas a la vez.
-    var etapas = estabilizacion
-        ? (sitio === 'EST-02' ? ETAPAS_DE_ESTABILIZACION : [])
-        : (etapaDeFase(sitio) ? [etapaDeFase(sitio).id] : []);
-    etapas.forEach(function (idEtapa) {
-      estadias.push({ desde: desde, hasta: hastaFecha, etapa: idEtapa,
-                      sitio: sitio, abierta: false });
-    });
+  /* Quien escribe "fin: 30/09" quiere decir que estuvo ahi TODO el 30, no hasta
+     la medianoche con que empieza ese dia. Sin esto se perdia un dia habil por
+     cada etapa de cada solicitud, siempre hacia abajo. Una fecha con hora se
+     respeta tal cual: ahi la persona si dijo el momento. */
+  function finDelDia(f) {
+    if (!f) return f;
+    if (f.getHours() || f.getMinutes() || f.getSeconds()) return f;
+    return new Date(f.getFullYear(), f.getMonth(), f.getDate(), 23, 59, 59, 999);
   }
 
-  transiciones.forEach(function (t) {
-    var cuando = aFecha_(t.Fecha_Hora_Cambio);
-    if (!cuando) return;
-    cerrar(cuando);
-    sitio = estabilizacion ? t.Estado_Destino : t.Fase_Destino;
-    desde = cuando;
+  ETAPAS_COSTO.forEach(function (etapa) {
+    var esperada = etapaEsperadaDeSolicitud_(s, etapa);
+    var algunRango = false;
+
+    etapa.rangos.forEach(function (r) {
+      var campoIni = r[0], campoFin = r[1], nombre = r[2];
+      var desde = aFecha_(s[campoIni]), fin = aFecha_(s[campoFin]);
+      if (!desde && !fin) return;
+      algunRango = true;
+
+      if (!desde) {
+        faltantes.push({ id: s.ID_Solicitud, etapa: etapa.id, rango: nombre,
+                         falta: 'Falta la fecha de inicio', campo: campoIni });
+        return;
+      }
+      if (!fin) {
+        // Sin fecha de fin hay dos casos distintos y no se pueden confundir: la
+        // solicitud sigue AHI —y entonces sigue ocupando, legitimamente— o ya
+        // paso de largo y nadie cerro la fecha, que es un dato por llenar.
+        if (siguenEnLaEtapa_(s, etapa)) {
+          estadias.push({ etapa: etapa.id, rango: nombre, desde: desde, hasta: hasta,
+                          abierta: true, campoIni: campoIni, campoFin: campoFin });
+        } else {
+          faltantes.push({ id: s.ID_Solicitud, etapa: etapa.id, rango: nombre,
+                           falta: 'Falta la fecha de fin', campo: campoFin });
+        }
+        return;
+      }
+      if (fin < desde) {
+        faltantes.push({ id: s.ID_Solicitud, etapa: etapa.id, rango: nombre,
+                         falta: 'La fecha de fin es anterior a la de inicio', campo: campoFin });
+        return;
+      }
+      estadias.push({ etapa: etapa.id, rango: nombre, desde: desde, hasta: finDelDia(fin),
+                      abierta: false, campoIni: campoIni, campoFin: campoFin });
+    });
+
+    // Una etapa por la que la solicitud ya paso y que no tiene ni una fecha.
+    if (!algunRango && esperada) {
+      faltantes.push({ id: s.ID_Solicitud, etapa: etapa.id, rango: etapa.nombre,
+                       falta: 'Sin información: no tiene fechas registradas',
+                       campo: etapa.rangos[0][0] });
+    }
   });
 
-  // La ultima estadia sigue ABIERTA: la tarjeta no se ha movido, asi que sigue
-  // ocupando capacidad hasta hoy. Es la razon de que un trabajo hecho en
-  // septiembre siga cargando en octubre, y por eso va marcada: quien audite el
-  // numero tiene que poder distinguirla de una estadia cerrada por la bitacora.
-  var cerradas = estadias.length;
-  cerrar(hasta);
-  for (var i = cerradas; i < estadias.length; i++) estadias[i].abierta = true;
+  return { estadias: estadias, faltantes: faltantes };
+}
 
-  return estadias;
+/**
+ * ¿Esa solicitud ya deberia tener fechas en esa etapa?
+ *
+ * Solo se reclama lo que falta de verdad: una solicitud que sigue en Backlog no
+ * tiene por que tener fechas de desarrollo, y listarla como incompleta seria
+ * ruido que esconde las que si hay que llenar.
+ *
+ * @private
+ */
+function etapaEsperadaDeSolicitud_(s, etapa) {
+  if (esTipoEstabilizacion(s.Tipo_Solicitud)) {
+    // Una estabilizacion no recorre fases: en cuanto arranca consume desarrollo
+    // y pruebas, y sus fechas las escribe el equipo a mano.
+    return ETAPAS_DE_ESTABILIZACION.indexOf(etapa.id) !== -1 &&
+           String(s.Estado_Actual || '') !== 'EST-01';
+  }
+  var actual = ordenDeFase(s.Fase_Actual);
+  var minima = Math.min.apply(null, etapa.fases.map(function (f) { return ordenDeFase(f); }));
+  return actual >= minima;
+}
+
+/** ¿La solicitud esta parada ahora mismo dentro de esa etapa? @private */
+function siguenEnLaEtapa_(s, etapa) {
+  if (esTipoEstabilizacion(s.Tipo_Solicitud)) {
+    return ETAPAS_DE_ESTABILIZACION.indexOf(etapa.id) !== -1 &&
+           String(s.Estado_Actual || '') === 'EST-02';
+  }
+  return etapa.fases.indexOf(String(s.Fase_Actual || '')) !== -1;
 }
 
 /**
@@ -253,24 +308,33 @@ function calcularCostos_(desde, hasta, conDetalle) {
   var porId = {};
   costeables.forEach(function (s) { porId[s.ID_Solicitud] = s; });
 
-  var transiciones = {};
-  datos.auditoria.forEach(function (t) {
-    if (!porId[t.ID_Solicitud]) return;
-    (transiciones[t.ID_Solicitud] = transiciones[t.ID_Solicitud] || []).push(t);
-  });
-  Object.keys(transiciones).forEach(function (id) {
-    transiciones[id].sort(function (a, b) {
-      return marcaDeTiempo_(a.Fecha_Hora_Cambio) - marcaDeTiempo_(b.Fecha_Hora_Cambio);
-    });
-  });
-
   // dias[mes][etapa][idSolicitud] = dias habiles
   var dias = {};
   var diasDeSolicitud = {};
   var diasPorEtapa = {};         // id -> etapa -> dias
+  var rangosDeSolicitud = {};    // id -> etapa -> { desde, hasta, abierta }
   var estancias = [];            // la bitacora del costeo, para poder auditarla
+  var incompletas = [];          // lo que al equipo le falta por diligenciar
+
   costeables.forEach(function (s) {
-    estadiasDeSolicitud_(transiciones[s.ID_Solicitud] || [], s, fin).forEach(function (e) {
+    var r = estadiasPorColumnas_(s, fin);
+
+    r.faltantes.forEach(function (f) {
+      incompletas.push({ id: s.ID_Solicitud, nombre: s.Nombre_Solicitud,
+                         idProyecto: s.ID_Proyecto || '', tipo: s.Tipo_Solicitud,
+                         fase: s.Fase_Actual || '', estado: s.Estado_Actual || '',
+                         etapa: f.etapa, rango: f.rango, falta: f.falta, campo: f.campo });
+    });
+
+    r.estadias.forEach(function (e) {
+      // El rango que se muestra en pantalla es el ENTERO, no el recorte del mes:
+      // es la fecha que el equipo escribio y contra la que va a verificar.
+      var re = rangosDeSolicitud[s.ID_Solicitud] = rangosDeSolicitud[s.ID_Solicitud] || {};
+      var ya = re[e.etapa];
+      re[e.etapa] = { desde: (ya && ya.desde < e.desde) ? ya.desde : e.desde,
+                      hasta: (ya && ya.hasta > e.hasta) ? ya.hasta : e.hasta,
+                      abierta: (ya && ya.abierta) || e.abierta };
+
       var porMes = diasPorMesDeEstadia_(e, meses);
       Object.keys(porMes).forEach(function (mes) {
         dias[mes] = dias[mes] || {};
@@ -283,7 +347,7 @@ function calcularCostos_(desde, hasta, conDetalle) {
         pe[e.etapa] = (pe[e.etapa] || 0) + porMes[mes];
         estancias.push({ id: s.ID_Solicitud, etapa: e.etapa, mes: mes,
                          desde: e.desde, hasta: e.hasta, abierta: !!e.abierta,
-                         sitio: e.sitio, dias: porMes[mes] });
+                         sitio: e.rango, dias: porMes[mes] });
       });
     });
   });
@@ -412,7 +476,8 @@ function calcularCostos_(desde, hasta, conDetalle) {
       dias: red_(diasDeSolicitud[id] || 0, 1),
       costo: c.total,                      // ya es entero y la suma cuadra
       porEtapa: c.porEtapa,
-      diasPorEtapa: diasPorEtapa[id] || {}
+      diasPorEtapa: diasPorEtapa[id] || {},
+      rangos: rangosDeSolicitud[id] || {}
     });
   });
 
@@ -463,6 +528,10 @@ function calcularCostos_(desde, hasta, conDetalle) {
     actividades: actividades.sort(function (a, b) { return b.costo - a.costo; }),
     // La bitacora del calculo. Pesa, asi que solo viaja cuando la piden para
     // exportarla: la pagina no la necesita para pintar.
+    // Lo que falta por diligenciar. Va SIEMPRE, no solo en la exportacion: es
+    // la explicacion de por que hay plata sin atribuir, y mientras no se vea
+    // nadie la llena.
+    incompletas: incompletas,
     detalle: conDetalle ? { estancias: estancias, reparto: reparto } : null
   };
 }
@@ -503,6 +572,9 @@ function getCostosDetalle(desde, hasta) {
   var porId = {};
   r.actividades.forEach(function (a) { porId[a.id] = a; });
   var nombreEtapa = function (id) { return etapas[id] ? etapas[id].nombre : id; };
+  var proyectos = {};
+  cargarDatos_().proyectos.forEach(function (p) { proyectos[p.ID_Proyecto] = p.Nombre_Proyecto; });
+  var nombreDeProyecto = function (id) { return proyectos[id] || 'Sin iniciativa'; };
 
   var libro = SpreadsheetApp.create(
       'Costos de la fábrica · ' + r.desde + ' a ' + r.hasta + ' · ' +
@@ -513,13 +585,13 @@ function getCostosDetalle(desde, hasta) {
     return d ? Utilities.formatDate(new Date(d), CONFIG.ZONA_HORARIA, 'yyyy-MM-dd HH:mm') : '';
   };
   var estancias = [['ID solicitud', 'Actividad', 'Iniciativa', 'Tipo', 'Etapa',
-                    'Fase o estado', 'Entró', 'Salió', '¿Sigue ahí?', 'Mes',
-                    'Días hábiles del mes']];
+                    'Rango registrado', 'Fecha de inicio', 'Fecha de fin',
+                    '¿Sin fecha de fin?', 'Mes', 'Días hábiles del mes']];
   r.detalle.estancias.forEach(function (e) {
     var a = porId[e.id] || {};
     estancias.push([e.id, a.nombre || '', a.iniciativa || '', a.tipoNombre || '',
                     nombreEtapa(e.etapa), e.sitio, fechas(e.desde), fechas(e.hasta),
-                    e.abierta ? 'SÍ, sigue abierta' : 'no', e.mes,
+                    e.abierta ? 'SÍ, sigue en curso' : 'no', e.mes,
                     Math.round(e.dias * 100) / 100]);
   });
   escribirHoja_(libro, 'Estancias', estancias, 0);
@@ -568,11 +640,21 @@ function getCostosDetalle(desde, hasta) {
                r.total.atribuido, r.total.noAtribuido]);
   escribirHoja_(libro, 'Bolsas', bolsas, 3);
 
+  /* --- 5. Lo que falta por diligenciar --- */
+  var faltan = [['ID solicitud', 'Actividad', 'Iniciativa', 'Tipo', 'Fase actual',
+                 'Etapa', 'Rango', 'Qué falta', 'Columna que hay que llenar']];
+  r.incompletas.forEach(function (f) {
+    faltan.push([f.id, f.nombre, nombreDeProyecto(f.idProyecto), f.tipo, f.fase,
+                 nombreEtapa(f.etapa), f.rango, f.falta, f.campo]);
+  });
+  escribirHoja_(libro, 'Información faltante', faltan, 4);
+
   var sobra = libro.getSheetByName('Hoja 1') || libro.getSheetByName('Sheet1');
   if (sobra) libro.deleteSheet(sobra);
 
   return { url: libro.getUrl(), nombre: libro.getName(),
-           filas: r.detalle.reparto.length, actividades: r.actividades.length };
+           filas: r.detalle.reparto.length, actividades: r.actividades.length,
+           incompletas: r.incompletas.length };
 }
 
 /**

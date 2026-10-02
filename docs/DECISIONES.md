@@ -2495,6 +2495,43 @@ mientras esté ahí—, pero tampoco puede quedar escondido: la pestaña *Estanc
 **«SÍ, sigue abierta»**. Si aparecen muchas, lo que hay que corregir es la disciplina de mover las
 tarjetas, no el costeo.
 
+### D-114 · El costo se calcula con las fechas que el equipo escribe, no con la bitácora
+
+El costeo salía de la bitácora de transiciones. Se cambió a las **columnas de fecha de cada
+solicitud** —`Fecha_Inicio_Analisis`, `Fecha_Fin_Dev`, etc.— por una razón de fondo: la herramienta
+empezó a usarse en septiembre y todavía se está cargando historia. La bitácora solo sabe de los
+movimientos hechos *dentro* de la aplicación, así que a un trabajo de septiembre registrado en
+octubre le asignaba octubre. Las columnas, en cambio, las diligencia el equipo con lo que de verdad
+pasó.
+
+**El precio del cambio es que ya no se puede adivinar.** Una fecha que nadie escribió no se inventa:
+la etapa queda como **sin información**, no cuesta nada, y sale listada —con el nombre exacto de la
+columna— en un panel arriba de la página y en una pestaña del archivo de auditoría. Repartir plata
+sobre un supuesto sería peor que no repartirla.
+
+| Caso | Qué hace |
+| --- | --- |
+| Inicio y fin registrados | Cuenta los días hábiles entre los dos |
+| Inicio sin fin, y la solicitud **sigue** en esa fase | Cuenta hasta hoy; se marca *sin cerrar* |
+| Inicio sin fin, y la solicitud **ya pasó** de esa fase | No cuenta; se reclama la fecha de fin |
+| Fin sin inicio, o fin anterior al inicio | No cuenta; se reclama la corrección |
+| Ninguna fecha, en una etapa por la que ya pasó | No cuenta; se reclama |
+| Ninguna fecha, en una etapa por la que **no** ha pasado | No se reclama: no es un dato faltante |
+
+**Una fecha sin hora cubre el día entero.** Quien escribe «fin: 30/09» quiere decir que estuvo ahí
+todo el 30, no hasta la medianoche con que ese día empieza. Sin esta corrección se perdía un día
+hábil por etapa y por solicitud, siempre hacia abajo. Una fecha *con* hora se respeta tal cual.
+
+**Lo que se pierde.** La bitácora sabía de las devoluciones: si una solicitud volvía de QA a
+Desarrollo, cobraba las dos estadías. Las columnas guardan **un solo rango por fase**, así que una
+devolución queda dentro del mismo intervalo. Es una pérdida consciente: vale más una fecha que el
+equipo confirma que una reconstrucción exacta de un registro incompleto.
+
+**En la pantalla.** Un mes a la vez —el costo de la fábrica es una cuenta mensual y mezclar meses en
+un total escondía que cada mes se paga completo—. El detalle se pliega por iniciativa, con el
+subtotal en el mismo renglón del grupo para que se lea también cerrado, encabezado fijo al bajar, y
+cada celda de etapa muestra el costo, los días y **las fechas de las que salen**.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

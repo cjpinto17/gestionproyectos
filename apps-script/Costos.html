@@ -7,10 +7,8 @@
         <p id="subCostos">La capacidad se paga por mes; aqu&iacute; se reparte entre las actividades que la ocuparon.</p>
       </div>
       <div class="fila ml-auto">
-        <div class="combo"><label for="fCostoDesde">Desde</label>
-          <input type="month" id="fCostoDesde"></div>
-        <div class="combo"><label for="fCostoHasta">Hasta</label>
-          <input type="month" id="fCostoHasta"></div>
+        <div class="combo"><label for="fCostoMes">Mes</label>
+          <input type="month" id="fCostoMes"></div>
         <div class="combo"><label>&nbsp;</label>
           <button class="btn-primario" id="btnCostos">Calcular</button></div>
       </div>
@@ -18,6 +16,7 @@
 
     <div class="kpis k4" id="kpisCostos"></div>
     <p class="nota" id="notaCostos"></p>
+    <div id="faltaInfoCostos"></div>
 
     <div class="seccion">A d&oacute;nde se fue la plata</div>
     <div class="paneles">
@@ -41,17 +40,10 @@
         <div id="tablaCostoEtapa"></div>
       </div>
       <div class="panel">
-        <h3>Mes a mes</h3>
-        <div class="sub">Lo facturado contra lo que alcanz&oacute; a cargarse a una solicitud</div>
-        <div id="graficoCostoMes"></div>
+        <h3>De d&oacute;nde sale cada peso</h3>
+        <div class="sub">Las tarifas se editan en Administraci&oacute;n &rarr; Costos de la f&aacute;brica</div>
+        <div id="tablaBolsas"></div>
       </div>
-    </div>
-
-    <div class="seccion">Las bolsas</div>
-    <div class="panel">
-      <h3>De d&oacute;nde sale cada peso</h3>
-      <div class="sub">Las tarifas se editan en Administraci&oacute;n &rarr; Costos de la f&aacute;brica</div>
-      <div id="tablaBolsas"></div>
     </div>
 
     <div class="seccion">Detalle por actividad</div>

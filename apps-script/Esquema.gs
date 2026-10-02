@@ -195,9 +195,13 @@ var TIPOS_INDISPONIBILIDAD = ['Total', 'Parcial'];
  * y despliegue, no construccion.
  */
 var ETAPAS_COSTO = [
-  { id: 'ETA-ANA', nombre: 'Análisis y diseño', fases: ['FAS-03'] },
-  { id: 'ETA-DEV', nombre: 'Desarrollo', fases: ['FAS-04'] },
-  { id: 'ETA-QA', nombre: 'Pruebas QA y UAT', fases: ['FAS-05', 'FAS-06'] }
+  { id: 'ETA-ANA', nombre: 'Análisis y diseño', fases: ['FAS-03'],
+    rangos: [['Fecha_Inicio_Analisis', 'Fecha_Fin_Analisis', 'Análisis y diseño']] },
+  { id: 'ETA-DEV', nombre: 'Desarrollo', fases: ['FAS-04'],
+    rangos: [['Fecha_Inicio_Dev', 'Fecha_Fin_Dev', 'Desarrollo']] },
+  { id: 'ETA-QA', nombre: 'Pruebas QA y UAT', fases: ['FAS-05', 'FAS-06'],
+    rangos: [['Fecha_Inicio_QA', 'Fecha_Fin_QA', 'Pruebas QA'],
+             ['Fecha_Inicio_UAT', 'Fecha_Fin_UAT', 'Pruebas UAT']] }
 ];
 
 /**
