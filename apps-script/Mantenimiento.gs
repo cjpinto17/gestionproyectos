@@ -760,10 +760,19 @@ function normalizarAprobadas(aplicar) {
  * apuntan a otra tabla: su contenido es un identificador que cambia cuando
  * alguien agrega un catalogo, y una lista congelada envejeceria mal.
  *
+ * LA VELOCIDAD IMPORTA
+ * --------------------
+ * Antes preguntaba la regla de CADA columna por separado —getDataValidation()
+ * sobre la columna entera, una llamada a Google por columna y por hoja: mas de
+ * mil en total— y se pasaba del limite de seis minutos de Apps Script sin
+ * terminar. Ahora lee las reglas de una fila de muestra en UNA sola llamada por
+ * hoja. Una herramienta de reparacion que no alcanza a correr no repara nada.
+ *
  * @param {boolean=} aplicar false (por omision) solo informa.
+ * @param {string=} soloHoja Para arreglar una sola hoja y no esperar por todas.
  * @return {!Object}
  */
-function normalizarValidaciones(aplicar) {
+function normalizarValidaciones(aplicar, soloHoja) {
   exigirOperador_();
   var resumen = { aplicado: !!aplicar, puestas: [], limpiadas: [], hojas: 0 };
 
@@ -771,6 +780,7 @@ function normalizarValidaciones(aplicar) {
    [getIdLibroTransaccional_(), ESQUEMA_TRANSACCIONAL]].forEach(function (par) {
     var libro = SpreadsheetApp.openById(par[0]);
     Object.keys(par[1]).forEach(function (nombreHoja) {
+      if (soloHoja && nombreHoja !== soloHoja) return;
       var hoja = libro.getSheetByName(nombreHoja);
       if (!hoja) return;
       resumen.hojas++;
@@ -783,14 +793,20 @@ function normalizarValidaciones(aplicar) {
       var encabezados = hoja.getRange(1, 1, 1, ancho).getValues()[0];
       var filas = Math.max(hoja.getMaxRows() - 1, 1);
 
+      // Las reglas de toda la hoja en UNA llamada, leidas de la primera fila de
+      // datos. Basta como muestra: una regla heredada cubre la columna entera,
+      // que es como Sheets las copia.
+      var muestra = hoja.getRange(2, 1, 1, ancho).getDataValidations()[0];
+
       encabezados.forEach(function (nombre, i) {
         var col = porCampo[String(nombre || '')];
-        var rango = hoja.getRange(2, i + 1, filas, 1);
         var lista = null;
         if (col && col.tipo === 'boolSN') lista = ['SI', 'NO'];
         else if (col && col.opciones && col.opciones.length) lista = col.opciones.slice();
 
-        var actual = rango.getDataValidation();
+        var actual = muestra[i];
+        if (!lista && !actual) return;          // ya esta limpia: ni se toca
+        var rango = hoja.getRange(2, i + 1, filas, 1);
         if (lista) {
           // Se vuelve a poner siempre: una regla heredada puede tener la lista
           // correcta y seguir rechazando lo que no esta en ella.
@@ -801,7 +817,6 @@ function normalizarValidaciones(aplicar) {
           }
           return;
         }
-        if (!actual) return;                    // ya esta limpia: nada que hacer
         resumen.limpiadas.push(nombreHoja + '.' + (nombre || '(sin nombre)'));
         if (aplicar) rango.clearDataValidations();
       });
@@ -819,6 +834,14 @@ function normalizarValidaciones(aplicar) {
 /** Aplica de verdad lo que simula normalizarValidaciones. */
 function normalizarValidacionesAplicar() {
   return normalizarValidaciones(true);
+}
+
+/**
+ * Arregla las reglas de UNA hoja. Para destrabar rapido la que esta fallando,
+ * sin esperar a que recorra las veinticinco.
+ */
+function normalizarValidacionesDeSolicitudes() {
+  return normalizarValidaciones(true, 'Solicitudes');
 }
 
 /** Aplica de verdad lo que simula normalizarAprobadas. */

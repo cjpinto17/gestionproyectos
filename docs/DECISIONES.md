@@ -2600,6 +2600,24 @@ produjo el síntoma.
 heredada. Se reparan ejecutando `normalizarValidaciones` y luego `normalizarValidacionesAplicar`
 (`Mantenimiento.gs`), que alinean cada columna con el tipo que el esquema declara.
 
+### D-118 · Una herramienta de reparación que no alcanza a correr no repara nada
+
+`normalizarValidaciones` —la función que arregla justamente el problema de D-107 y D-117— se quedaba
+cargando y nunca terminaba. Preguntaba la regla de **cada columna de cada hoja** por separado:
+`getDataValidation()` sobre la columna entera, más de mil llamadas a Google, y se pasaba del límite de
+seis minutos de Apps Script sin acabar.
+
+Ahora lee las reglas de toda una hoja en **una sola llamada**, sobre una fila de muestra —basta,
+porque una regla heredada cubre la columna entera, que es como Sheets las copia— y solo toca las
+columnas que hay que cambiar. Y acepta el nombre de una hoja, con el atajo
+`normalizarValidacionesDeSolicitudes()`, para destrabar la que está fallando sin esperar por las
+veinticinco.
+
+**Lo que esto enseña:** las herramientas de reparación se prueban en el tamaño real, no en el de la
+prueba. Esta funcionaba perfecto con cinco columnas y moría con cuarenta y ocho por veinticinco hojas,
+y el usuario se enteró primero —esperando cinco minutos frente a una pantalla cargando— mientras yo la
+recomendaba como la solución.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
