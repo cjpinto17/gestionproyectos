@@ -2573,6 +2573,33 @@ sin ella cada quien suma la columna a mano para ver si cuadra con lo repartido d
 día del total es la división de los totales, **no** el promedio de las tres etapas: promediar etapas
 con volúmenes distintos da un número que no corresponde a ninguna plata real.
 
+### D-117 · La misma regla heredada, por el otro camino
+
+Al marcar una fase como «no aplica», la aplicación dejó de funcionar. La causa es la misma de la
+celda S7 (D-107), por un camino que entonces no se tocó.
+
+Hay **dos** sitios que agregan a una hoja las columnas que el esquema declara y ella no tiene:
+`alinearEncabezados_` en `Setup.gs`, que corre cuando alguien ejecuta `actualizarEstructura`, y
+`asegurarColumnas_` en `Codigo.gs`, que corre **sola, durante el uso normal**, la primera vez que se
+escribe una fila. En D-107 se corrigió el primero y el segundo se quedó igual.
+
+Google Sheets copia la validación de la columna vecina en la que se inserta. Las cuatro columnas
+nuevas de «no aplica» quedan junto a columnas de fecha, así que nacieron con una **regla de fecha**, y
+el primer `SI` que alguien escribiera la infringía.
+
+**Lo que se hizo.** `asegurarColumnas_` limpia ahora la validación de la columna que inserta, igual
+que su gemela. La prueba se verificó contra el código anterior: sin el arreglo, la columna hereda
+`["fecha"]`; con él, nace limpia.
+
+**La lección.** Un arreglo que vive en un solo camino no es un arreglo: es una mitad que espera a que
+alguien pase por la otra. Cuando una corrección depende de una regla del entorno —aquí, que Sheets
+hereda validaciones— hay que buscar **todos** los sitios donde esa regla aplica, no solo el que
+produjo el síntoma.
+
+**Para las hojas que ya quedaron mal** el arreglo no sirve: la columna ya existe con la regla
+heredada. Se reparan ejecutando `normalizarValidaciones` y luego `normalizarValidacionesAplicar`
+(`Mantenimiento.gs`), que alinean cada columna con el tipo que el esquema declara.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

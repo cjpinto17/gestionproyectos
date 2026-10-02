@@ -384,6 +384,13 @@ function asegurarColumnas_(tabla) {
     } else {
       hoja.insertColumnsAfter(hoja.getMaxColumns(), 1);
     }
+    // Google Sheets COPIA la validacion de la columna vecina en la que se
+    // inserta. Una columna SI/NO abierta al lado de una de fecha nacia con una
+    // regla de fecha, y el primer "SI" que se escribiera la infringia. Es
+    // exactamente lo que paso con la celda S7 (D-107): alli se corrigio en
+    // Setup.gs y este camino —el que corre en la operacion normal, sin que nadie
+    // ejecute nada— se quedo sin la misma limpieza (D-117).
+    hoja.getRange(1, posicion, hoja.getMaxRows(), 1).clearDataValidations();
     hoja.getRange(1, posicion).setValue(campo)
         .setFontWeight('bold').setFontColor(CONFIG.COLORES.BLANCO)
         .setBackground(CONFIG.COLORES.NAVY);
