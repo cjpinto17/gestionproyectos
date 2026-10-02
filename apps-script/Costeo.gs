@@ -1,6 +1,10 @@
 /**
- * Costos.gs
+ * Costeo.gs
  * Cuanto cuesta la fabrica, repartido entre lo que la ocupo (D-110).
+ *
+ * NO se llama Costos.gs: Apps Script le quita la extension a cada archivo, de
+ * modo que Costos.gs y Costos.html pelearian por el mismo nombre y Google
+ * rechaza la subida entera. Hay una comprobacion que lo vigila.
  *
  * EL PRINCIPIO
  * ------------

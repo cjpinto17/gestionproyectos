@@ -116,12 +116,41 @@ jobs:
           EOF
           echo "Sellado: version ${numero}, publicada ${publicada}"
 
+      - name: Revisar que no haya dos archivos con el mismo nombre
+        run: |
+          # Apps Script le quita la extension a cada archivo: Costos.gs y
+          # Costos.html pelearian por el nombre "Costos" y Google rechaza la
+          # subida COMPLETA. Mejor caerse aqui, con el motivo claro, que
+          # publicar una version con el codigo viejo.
+          repetidos=$(ls -1 apps-script | sed 's/\.[^.]*$//' | sort | uniq -d)
+          if [ -n "$repetidos" ]; then
+            echo "Hay archivos que quedarian con el mismo nombre en Apps Script:"
+            echo "$repetidos"
+            echo "Renombre uno de los dos: la extension no los distingue alla."
+            exit 1
+          fi
+          echo "Ningun nombre se repite."
+
       - name: Subir los archivos
         run: |
           set +e
           salida=$(clasp push --force 2>&1)
           codigo=$?
           echo "$salida"
+
+          # clasp puede imprimir el rechazo de Google y terminar con exito: paso
+          # el 2026-10-02, se publico el codigo viejo y el flujo salio en verde.
+          # Si la respuesta trae un error de la API, esto no es un despliegue.
+          case "$salida" in
+            *"already exists in the current project"*|*"GaxiosError"*|*"code: 4"*|*"code: 5"*)
+              echo "=================================================="
+              echo "GOOGLE RECHAZO LA SUBIDA. Nada se publico, aunque clasp"
+              echo "haya terminado sin error. El motivo esta en el mensaje de"
+              echo "arriba (busque la linea 'message:')."
+              echo "=================================================="
+              exit 1 ;;
+          esac
+
           if [ "$codigo" -eq 0 ]; then exit 0; fi
 
           echo "=================================================="

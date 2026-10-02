@@ -2414,6 +2414,27 @@ dedicadas. Cuando vuelva a negociarse el contrato se cambia una fila, no el cód
 a una iniciativa que no existe sale marcada en rojo arriba de la página: ese reparto no está llegando
 a ningún lado y callarlo sería esconder plata.
 
+### D-111 · Un despliegue que decía haber salido y no salió
+
+El despliegue de D-110 terminó en verde y publicó la **versión anterior**. Google había rechazado la
+subida entera:
+
+> `A file with this name already exists in the current project: Costos`
+
+Apps Script le quita la extensión a cada archivo, así que `Costos.gs` y `Costos.html` quedaban los dos
+con el nombre `Costos`. El proyecto no admite dos archivos con el mismo nombre, y el rechazo es de
+toda la subida, no de un archivo. `clasp` imprimió el error y **terminó con código 0**, de modo que el
+paso siguiente publicó una versión nueva con el código viejo y el flujo se declaró exitoso.
+
+**Tres cambios, porque un solo arreglo habría dejado la trampa armada.** El archivo del motor de
+costos se llama ahora `Costeo.gs`. El flujo revisa antes de subir que no haya dos nombres iguales, y
+revisa después que la respuesta de Google no traiga un error, sin confiar en el código de salida de
+`clasp`. Y la batería local hace la misma comprobación de nombres, para enterarse antes de subir.
+
+**La lección, que es la de D-105 otra vez:** una herramienta que reporta éxito no es evidencia de
+éxito. Lo que vale es el efecto —aquí, que el pie de página muestre la fecha del despliegue—, y hay
+que comprobarlo donde se produce.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
