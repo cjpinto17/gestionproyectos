@@ -81,6 +81,23 @@ function limitesDelMes_(mes) {
 }
 
 /**
+ * El final del dia de una fecha sin hora.
+ *
+ * Quien escribe "fin: 30/09" quiere decir que estuvo ahi TODO el 30, no hasta la
+ * medianoche con que ese dia empieza. Sin esto se perdia un dia habil por cada
+ * etapa y por cada solicitud, siempre hacia abajo. Una fecha CON hora se respeta
+ * tal cual: ahi la persona si dijo el momento. Lo usan las estadias y tambien la
+ * vigencia de las bolsas (D-126).
+ *
+ * @private
+ */
+function finDelDia_(f) {
+  if (!f) return f;
+  if (f.getHours() || f.getMinutes() || f.getSeconds()) return f;
+  return new Date(f.getFullYear(), f.getMonth(), f.getDate(), 23, 59, 59, 999);
+}
+
+/**
  * Las estadias de una solicitud, leidas de SUS columnas de fecha (D-114).
  *
  * Antes salian de la bitacora de transiciones. Se cambio porque la herramienta
@@ -102,15 +119,6 @@ function limitesDelMes_(mes) {
 function estadiasPorColumnas_(s, hasta) {
   var estadias = [], faltantes = [];
 
-  /* Quien escribe "fin: 30/09" quiere decir que estuvo ahi TODO el 30, no hasta
-     la medianoche con que empieza ese dia. Sin esto se perdia un dia habil por
-     cada etapa de cada solicitud, siempre hacia abajo. Una fecha con hora se
-     respeta tal cual: ahi la persona si dijo el momento. */
-  function finDelDia(f) {
-    if (!f) return f;
-    if (f.getHours() || f.getMinutes() || f.getSeconds()) return f;
-    return new Date(f.getFullYear(), f.getMonth(), f.getDate(), 23, 59, 59, 999);
-  }
 
   ETAPAS_COSTO.forEach(function (etapa) {
     var esperada = etapaEsperadaDeSolicitud_(s, etapa);
@@ -158,7 +166,7 @@ function estadiasPorColumnas_(s, hasta) {
                                  'La fecha de fin es anterior a la de inicio', campoFin));
         return;
       }
-      estadias.push({ etapa: etapa.id, rango: nombre, desde: desde, hasta: finDelDia(fin),
+      estadias.push({ etapa: etapa.id, rango: nombre, desde: desde, hasta: finDelDia_(fin),
                       abierta: false, campoIni: campoIni, campoFin: campoFin });
     });
 
@@ -522,6 +530,9 @@ function calcularCostos_(desde, hasta, conDetalle) {
     var resumen = { id: t.ID_Costo, concepto: t.Concepto || t.ID_Costo, etapa: etapa,
                     etapaNombre: etapas[etapa] ? etapas[etapa].nombre : etapa,
                     dedicada: dedicada, mensual: valor,
+                    vigenciaDesde: vDesde ? claveDia_(vDesde) : '',
+                    vigenciaHasta: vHasta ? claveDia_(vHasta) : '',
+                    habiles: 0, habilesPosibles: 0,
                     meses: 0, total: 0, atribuido: 0, noAtribuido: 0 };
 
     meses.forEach(function (mes) {
@@ -529,10 +540,27 @@ function calcularCostos_(desde, hasta, conDetalle) {
       if (vDesde && lim.fin < vDesde) return;
       if (vHasta && lim.inicio > vHasta) return;
 
-      resumen.meses++;
-      resumen.total += valor;
+      /* Una bolsa cuya vigencia no cubre el mes completo solo cobra la parte que
+         le corresponde. Antes se cobraba el mes entero por tocarlo un solo dia:
+         una capacidad que entra el 20 de septiembre facturaba septiembre
+         completo. Se prorratea por DIAS HABILES —no por dias calendario— porque
+         lo que se compra es gente disponible en dias de trabajo, que es la misma
+         unidad con la que se reparte (D-126). */
+      var desdeMes = (vDesde && vDesde > lim.inicio) ? vDesde : lim.inicio;
+      var hastaMes = (vHasta && finDelDia_(vHasta) < lim.fin) ? finDelDia_(vHasta) : lim.fin;
+      var habilesMes = diasHabilesEntre(lim.inicio, lim.fin) || 0;
+      var habilesVigentes = diasHabilesEntre(desdeMes, hastaMes) || 0;
+      var fraccion = habilesMes ? Math.min(habilesVigentes / habilesMes, 1) : 0;
+      var valorMes = Math.round(valor * fraccion);
+      if (!valorMes) return;              // vigencia que no alcanza ni un dia habil
+
+      resumen.meses += red_(fraccion, 2);
+      resumen.habiles += red_(habilesVigentes, 2);
+      resumen.habilesPosibles += red_(habilesMes, 2);
+      if (fraccion < 1) resumen.parcial = true;
+      resumen.total += valorMes;
       porMes[mes] = porMes[mes] || { contrato: 0, atribuido: 0 };
-      porMes[mes].contrato += valor;
+      porMes[mes].contrato += valorMes;
 
       var enEtapa = (dias[mes] && dias[mes][etapa]) || {};
       var propias = conBolsaPropia[mes] || {};
@@ -548,14 +576,14 @@ function calcularCostos_(desde, hasta, conDetalle) {
       if (!totalDias) {
         // Nadie de los que costeamos ocupo esa etapa ese mes: la plata se gasto
         // igual, pero no hay a quien cargarsela. Se reporta, no se reparte.
-        resumen.noAtribuido += valor;
+        resumen.noAtribuido += valorMes;
         return;
       }
 
-      resumen.atribuido += valor;
-      porMes[mes].atribuido += valor;
+      resumen.atribuido += valorMes;
+      porMes[mes].atribuido += valorMes;
       porEtapa[etapa] = porEtapa[etapa] || { costo: 0, dias: 0 };
-      porEtapa[etapa].costo += valor;
+      porEtapa[etapa].costo += valorMes;
       // Los dias NO se suman aqui: desarrollo tiene tres bolsas y cada una
       // recorreria los mismos dias, de modo que el costo por dia saldria
       // dividido entre tres. Se anota QUIEN cobro, y los dias se cuentan una
@@ -569,7 +597,7 @@ function calcularCostos_(desde, hasta, conDetalle) {
       // deja diferencias de unos pesos entre la suma de las filas y el total, y
       // en una tabla que alguien va a sumar con la calculadora eso es un error,
       // por pequeno que sea. Asi cada bolsa se reparte completa, sin sobras.
-      var partes = repartirEnteros_(valor, candidatos.map(function (id) {
+      var partes = repartirEnteros_(valorMes, candidatos.map(function (id) {
         return enEtapa[id];
       }));
 
@@ -579,7 +607,8 @@ function calcularCostos_(desde, hasta, conDetalle) {
         c.total += parte;
         c.porEtapa[etapa] = (c.porEtapa[etapa] || 0) + parte;
         reparto.push({ mes: mes, etapa: etapa, bolsa: t.ID_Costo,
-                       concepto: resumen.concepto, valorBolsa: valor,
+                       concepto: resumen.concepto, valorBolsa: valorMes,
+                       mensual: valor,
                        dedicada: dedicada, id: id, dias: enEtapa[id],
                        diasTotales: totalDias, costo: parte });
       });
@@ -770,12 +799,13 @@ function getCostosDetalle(desde, hasta) {
 
   /* --- 2. Reparto: de donde sale cada peso --- */
   var reparto = [['Mes', 'Etapa', 'Bolsa', 'Concepto', 'Valor mensual de la bolsa',
+                  'Valor cobrado en el mes (según vigencia)',
                   'Dedicada a', 'ID solicitud', 'Actividad', 'Días de la solicitud',
                   'Días totales en la etapa ese mes', 'Participación', 'Costo asignado']];
   r.detalle.reparto.forEach(function (x) {
     var a = porId[x.id] || {};
-    reparto.push([x.mes, nombreEtapa(x.etapa), x.bolsa, x.concepto, x.valorBolsa,
-                  x.dedicada || 'todas', x.id, a.nombre || '',
+    reparto.push([x.mes, nombreEtapa(x.etapa), x.bolsa, x.concepto, x.mensual,
+                  x.valorBolsa, x.dedicada || 'todas', x.id, a.nombre || '',
                   Math.round(x.dias * 100) / 100,
                   Math.round(x.diasTotales * 100) / 100,
                   x.diasTotales ? x.dias / x.diasTotales : 0,
@@ -802,14 +832,18 @@ function getCostosDetalle(desde, hasta) {
 
   /* --- 4. Las bolsas, tal como se facturaron --- */
   var bolsas = [['Bolsa', 'Concepto', 'Etapa', 'Dedicada a', 'Valor mensual',
-                 'Meses vigentes en el período', 'Facturado', 'Repartido', 'Sin atribuir']];
+                 'Vigencia desde', 'Vigencia hasta', 'Días hábiles vigentes',
+                 'Días hábiles del período', 'Meses vigentes en el período',
+                 'Facturado', 'Repartido', 'Sin atribuir']];
   r.bolsas.forEach(function (b) {
     bolsas.push([b.id, b.concepto, b.etapaNombre, b.dedicada || 'todas', b.mensual,
+                 b.vigenciaDesde || 'sin límite', b.vigenciaHasta || 'sin límite',
+                 b.habiles, b.habilesPosibles,
                  b.meses, b.total, b.atribuido, b.noAtribuido]);
   });
   bolsas.push([]);
-  bolsas.push(['', 'TOTAL DEL PERÍODO', '', '', '', '', r.total.contrato,
-               r.total.atribuido, r.total.noAtribuido]);
+  bolsas.push(['', 'TOTAL DEL PERÍODO', '', '', '', '', '', '', '', '',
+               r.total.contrato, r.total.atribuido, r.total.noAtribuido]);
   escribirHoja_(libro, 'Bolsas', bolsas, 3);
 
   /* --- 5. Lo que falta por diligenciar --- */

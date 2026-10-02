@@ -2807,6 +2807,47 @@ encontrarla.
 dibuja ese tipo. Agregué cuatro columnas `boolSN` sin revisar qué hacía el formulario con un `boolSN`
 vacío, y convertí un defecto latente de años en pérdida silenciosa de datos.
 
+### D-126 · Una bolsa cobra solo el tiempo que estuvo vigente
+
+Pedido del usuario: *«Requiero que tengas en cuenta en los costos de fábrica, las vigencias, y solo
+aplicar al mes que se va a calcular en costos lo que le corresponde a cada mes. Porque puede que no
+sea completo.»*
+
+Hasta ahora la vigencia era un interruptor: si la bolsa tocaba el mes aunque fuera un día, cobraba el
+mes entero; si no lo tocaba, no cobraba nada. Una capacidad que entra el 16 de septiembre facturaba
+septiembre completo. Con las tarifas de fábrica actuales eso no es teórico: la capacidad extendida
+SETI de pruebas va del 1 de septiembre al 30 de noviembre, y la de desarrollo del 1 de julio al 31 de
+diciembre.
+
+**La regla nueva:** la bolsa cobra la fracción del mes que su vigencia alcanza. En septiembre de 2026
+—22 días hábiles— una bolsa vigente desde el 16 alcanza 11 y cobra la mitad.
+
+**Por qué días hábiles y no días calendario:** lo que se compra es gente disponible en días de
+trabajo, y es la misma unidad con la que ya se reparte el costo entre las solicitudes. Prorratear por
+días calendario mezclaría dos unidades en el mismo cálculo. Si el contrato se factura por días
+calendario, es un cambio de una línea y hay que decirlo.
+
+**Lo que no cambió, a propósito:** una bolsa sin vigencia o con vigencia que cubre el mes completo
+sigue cobrando su valor mensual íntegro, y el reparto sigue entregando exactamente lo facturado (la
+suma de las filas no se pasa de la bolsa, regla del usuario en D-123).
+
+**Un límite conocido:** la exclusión de la bolsa general (D-124) sigue siendo mensual, no prorrateada.
+Una iniciativa cuya bolsa dedicada arranca el 16 queda fuera de la bolsa general todo el mes, aunque
+la primera quincena no tuviera capacidad propia. Partir el mes en tramos de vigencia para repartir
+cada tramo aparte es un cambio mayor; hoy el efecto es que esa iniciativa sale barata ese mes, y la
+pantalla lo deja ver.
+
+**En la pantalla y en la auditoría:** la tabla de bolsas marca en color la bolsa parcial y dice
+*«vigente 11 de 22 días hábiles · mensual $14.530.000»*, porque una cifra menor sin explicación parece
+un error de cálculo. El Excel de auditoría agrega a la hoja *Bolsas* las columnas **vigencia desde**,
+**vigencia hasta**, **días hábiles vigentes** y **días hábiles del período**; y en la hoja *Reparto*
+se separa el **valor mensual de la bolsa** del **valor cobrado en el mes (según vigencia)**, que antes
+compartían una sola columna con el rótulo equivocado.
+
+**Lo que esto enseña:** el rótulo de una columna es parte del cálculo. La columna del Excel seguía
+diciendo «valor mensual de la bolsa» mientras el número de abajo ya era el prorrateado; en una tabla
+que alguien audita con calculadora, eso no es cosmética.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

@@ -3491,8 +3491,15 @@ function pintarCostos(r) {
     '<th>Dedicada a</th><th class="num">Facturado</th>' +
     '<th class="num">Sin atribuir</th></tr></thead><tbody>' +
     r.bolsas.filter(function (b) { return b.meses > 0; }).map(function (b) {
+      // Una bolsa que no estuvo vigente todo el mes factura menos que su valor
+      // mensual. Sin decirlo, la cifra parece un error de calculo (D-126).
+      var parcial = b.parcial
+        ? '<div style="color:var(--alerta);font-size:11px">vigente ' + b.habiles +
+          ' de ' + b.habilesPosibles + ' días hábiles · mensual ' + pesos(b.mensual) + '</div>'
+        : '';
       return '<tr><td>' + esc(b.concepto) +
-        '<div style="color:var(--ink-faint);font-size:11px">' + esc(b.etapaNombre) + '</div></td>' +
+        '<div style="color:var(--ink-faint);font-size:11px">' + esc(b.etapaNombre) + '</div>' +
+        parcial + '</td>' +
         '<td>' + (b.dedicada
           ? (b.sinIniciativa
               ? '<span style="color:var(--rojo)">' + esc(b.dedicada) + ' (no existe)</span>'
