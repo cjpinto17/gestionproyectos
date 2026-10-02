@@ -2435,6 +2435,29 @@ revisa después que la respuesta de Google no traiga un error, sin confiar en el
 éxito. Lo que vale es el efecto —aquí, que el pie de página muestre la fecha del despliegue—, y hay
 que comprobarlo donde se produce.
 
+### D-112 · Una hoja que nace vacía es una función que no sirve
+
+`actualizarEstructura` creó la hoja `Costos_Fabrica` y la dejó **sin una sola fila**. La página de
+Costos quedó publicada, visible y sin nada que calcular.
+
+La siembra de las tarifas vivía dentro de `sembrarCatalogos_`, que solo corre en `setupInicial()` —el
+arranque de cero—. Y `completarCatalogos_`, que sí corre en cada `actualizarEstructura`, únicamente
+sabe completar catálogos de *id y nombre*: una tabla con siete columnas no cabe en ese molde. Entre
+las dos, nadie sembraba.
+
+**Lo que se hizo.** Las tarifas salieron a una constante propia, `TARIFAS_DE_FABRICA`, y
+`actualizarEstructura` siembra ahora las tablas que traen valores de fábrica y están vacías. Solo si
+están vacías: correrlo dos veces no duplica nada, y no pisa lo que alguien haya editado a mano.
+
+**La regla que queda:** una tabla cuya ausencia de datos deja una función inservible tiene que
+sembrarse desde `actualizarEstructura`, no solo desde `setupInicial`. `Analistas` es el caso
+contrario y por eso no está ahí: nace vacía a propósito, porque nadie sino el área sabe quiénes son
+(ver S-20).
+
+**Y el síntoma importa tanto como la causa:** al no haber tarifas, la página se quedaba quieta. Ahora
+dice qué falta —en la página, no en un aviso que se desvanece— tanto si falta la hoja como si falta
+su contenido.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

@@ -184,7 +184,16 @@ function actualizarEstructura() {
 
   resumen.filasAgregadas = completarCatalogos_(
       SpreadsheetApp.openById(getIdLibroParametrizacion_()));
-  if (resumen.filasAgregadas.length) limpiarCache_();
+
+  // Una hoja recien creada queda vacia, y hay tablas que SIN datos no sirven de
+  // nada: Costos_Fabrica sin tarifas deja la pagina de Costos sin con que
+  // calcular. completarCatalogos_ no las cubre porque no son listas de id y
+  // nombre. Se siembran aqui, y solo si siguen vacias, para no pisar lo que
+  // alguien haya editado a mano.
+  resumen.filasSembradas = sembrarTablasConValoresDeFabrica_(
+      SpreadsheetApp.openById(getIdLibroParametrizacion_()));
+
+  if (resumen.filasAgregadas.length || resumen.filasSembradas.length) limpiarCache_();
 
   Logger.log(JSON.stringify(resumen, null, 2));
   return resumen;
@@ -288,6 +297,60 @@ function alinearEncabezados_(hoja, encabezados) {
 }
 
 /**
+ * Siembra las tablas que traen valores de fabrica y que estan vacias.
+ *
+ * sembrarCatalogos_ solo corre en setupInicial(), asi que una tabla agregada
+ * despues nacia vacia para siempre. Paso con Costos_Fabrica: la hoja se creo, la
+ * pagina de Costos no tenia tarifas y desde afuera parecia que no hacia nada.
+ *
+ * @param {!Spreadsheet} libro Libro de parametrizacion.
+ * @return {!Array<string>} Las hojas que se sembraron.
+ * @private
+ */
+function sembrarTablasConValoresDeFabrica_(libro) {
+  var sembradas = [];
+  var conSemilla = { Costos_Fabrica: TARIFAS_DE_FABRICA };
+
+  Object.keys(conSemilla).forEach(function (nombreHoja) {
+    var hoja = libro.getSheetByName(nombreHoja);
+    if (!hoja || hoja.getLastRow() > 1) return;     // no existe, o ya tiene datos
+    sembrarSiVacio_(libro, nombreHoja, conSemilla[nombreHoja]);
+    sembradas.push(nombreHoja + ' (' + conSemilla[nombreHoja].length + ' filas)');
+  });
+
+  return sembradas;
+}
+
+/**
+ * Las bolsas de costo con que arranca la fabrica (D-110).
+ *
+ * Vive aqui arriba y no dentro de sembrarCatalogos_ porque la hoja tambien se
+ * crea desde actualizarEstructura, y la primera vez quedo creada y VACIA: la
+ * pagina de Costos no tenia con que calcular y no habia como saber por que.
+ *
+ * Las dos dedicadas salen por resta de la capacidad base: el "Desarrollador
+ * Junior - Devops" ya estaba dentro de los 111 millones de desarrollo, y los dos
+ * "Analista de Pruebas Middle - Automatizacion" dentro de los 43,7 de pruebas.
+ * Cobrarlas aparte sin restarlas habria contado esa gente dos veces.
+ */
+var TARIFAS_DE_FABRICA = [
+    ['CF-ANA', 'ETA-ANA', 'Capacidad base de análisis y diseño',
+     51297629, '2026-09-01', '2026-12-31', ''],
+    ['CF-DEV', 'ETA-DEV', 'Capacidad base de desarrollo (sin el dev dedicado a Devops)',
+     105914086, '2026-09-01', '2026-12-31', ''],
+    ['CF-DEV-DEVOPS', 'ETA-DEV', 'Desarrollador Junior dedicado a Devops',
+     5179412, '2026-09-01', '2026-12-31', 'INI-018'],
+    ['CF-DEV-SETI', 'ETA-DEV', 'Capacidad extendida SETI · Devops',
+     14530000, '2026-07-01', '2026-12-31', 'INI-018'],
+    ['CF-QA', 'ETA-QA', 'Capacidad base de pruebas QA y UAT (sin los QA de automatización)',
+     34633651, '2026-09-01', '2026-12-31', ''],
+    ['CF-QA-AUTO', 'ETA-QA', '2 Analistas de Pruebas Middle dedicados a Automatización',
+     9115764, '2026-09-01', '2026-12-31', 'INI-019'],
+    ['CF-QA-SETI', 'ETA-QA', 'Capacidad extendida SETI · Automatización de pruebas',
+     15200000, '2026-09-01', '2026-11-30', 'INI-019']
+  ];
+
+/**
  * Carga los catalogos maestros si sus hojas estan vacias.
  * @param {!Spreadsheet} libro Libro de parametrizacion.
  * @private
@@ -321,27 +384,8 @@ function sembrarCatalogos_(libro) {
     return [p.id, p.nombre];
   }));
 
-  // Las bolsas de costo de la fabrica (D-110). Las dos dedicadas salen por resta
-  // de la capacidad base: el "Desarrollador Junior - Devops" ya estaba dentro de
-  // los 111 millones de desarrollo, y los dos "Analista de Pruebas Middle -
-  // Automatizacion" dentro de los 43,7 de pruebas. Cobrarlas aparte sin restarlas
-  // habria contado esa gente dos veces.
-  sembrarSiVacio_(libro, 'Costos_Fabrica', [
-    ['CF-ANA', 'ETA-ANA', 'Capacidad base de análisis y diseño',
-     51297629, '2026-09-01', '2026-12-31', ''],
-    ['CF-DEV', 'ETA-DEV', 'Capacidad base de desarrollo (sin el dev dedicado a Devops)',
-     105914086, '2026-09-01', '2026-12-31', ''],
-    ['CF-DEV-DEVOPS', 'ETA-DEV', 'Desarrollador Junior dedicado a Devops',
-     5179412, '2026-09-01', '2026-12-31', 'INI-018'],
-    ['CF-DEV-SETI', 'ETA-DEV', 'Capacidad extendida SETI · Devops',
-     14530000, '2026-07-01', '2026-12-31', 'INI-018'],
-    ['CF-QA', 'ETA-QA', 'Capacidad base de pruebas QA y UAT (sin los QA de automatización)',
-     34633651, '2026-09-01', '2026-12-31', ''],
-    ['CF-QA-AUTO', 'ETA-QA', '2 Analistas de Pruebas Middle dedicados a Automatización',
-     9115764, '2026-09-01', '2026-12-31', 'INI-019'],
-    ['CF-QA-SETI', 'ETA-QA', 'Capacidad extendida SETI · Automatización de pruebas',
-     15200000, '2026-09-01', '2026-11-30', 'INI-019']
-  ]);
+  sembrarSiVacio_(libro, 'Costos_Fabrica', TARIFAS_DE_FABRICA);
+
 
   sembrarSiVacio_(libro, 'Analistas', ANALISTAS.map(function (a) {
     return [a.id, a.nombre];
