@@ -3962,6 +3962,7 @@ function pintarInforme(r) {
   pintarInformeEntregadas(r);
   pintarInformePlaneadas(r);
   pintarInformeMezcla(r);
+  pintarInformeIniciativasTarjetas(r);
   pintarInformeIniciativas(r);
   pintarInformeEmbudo(r);
   pintarInformeCiclo(r);
@@ -4485,6 +4486,168 @@ function descargarInformeDetalle() {
     .then(function () { b.disabled = false; b.textContent = antes; });
 }
 $('btnInformeDetalle').addEventListener('click', descargarInformeDetalle);
+/**
+ * Las tarjetas de iniciativa.
+ *
+ * Una tarjeta y no una fila de tabla porque son nueve datos por iniciativa: en
+ * una tabla de nueve columnas no se lee ninguno, y proyectada en un comite
+ * menos. La tarjeta agrupa los tres que se leen juntos —avance real contra
+ * esperado y su desviacion— y deja el resto como etiquetas.
+ *
+ * Los filtros son del navegador, no del servidor: el informe ya trae todas las
+ * iniciativas, y pedirlas de nuevo por cada filtro haria esperar para esconder
+ * filas que ya estan en la pagina.
+ */
+var INFORME_FILTRO_INI = { estado: '', plataforma: '', soloBloqueo: false };
+/* Lo ultimo que se pinto. Los filtros repintan con esto y no con DATOS.informe:
+   el filtro es de la pantalla y no debe dejar de responder porque alguien haya
+   limpiado la cache del cliente. */
+var INFORME_ULTIMO = null;
+
+function pintarInformeIniciativasTarjetas(r) {
+  INFORME_ULTIMO = r;
+  var pf = r.portafolio;
+  if (!pf || !pf.tarjetas.length) {
+    $('tarjetasInformeIniciativas').innerHTML = '<p class="nota">No hay iniciativas ' +
+      'registradas.</p>';
+    $('notaInformePortafolio').innerHTML = '';
+    return;
+  }
+
+  // Los dos selectores se llenan una sola vez, con lo que de verdad hay.
+  if (!$('fInformeIniEstado').options.length) {
+    $('fInformeIniEstado').innerHTML = '<option value="">Todos</option>' +
+      pf.estados.map(function (e) {
+        return '<option value="' + esc(e.id) + '">' + esc(e.nombre) + '</option>';
+      }).join('');
+    var plats = {};
+    pf.tarjetas.forEach(function (t) { plats[t.plataforma] = true; });
+    $('fInformeIniPlataforma').innerHTML = '<option value="">Todas</option>' +
+      Object.keys(plats).sort().map(function (k) {
+        return '<option value="' + esc(k) + '">' + esc(k) + '</option>';
+      }).join('');
+  }
+
+  var f = INFORME_FILTRO_INI;
+  var visibles = pf.tarjetas.filter(function (t) {
+    if (f.estado && t.estado !== f.estado) return false;
+    if (f.plataforma && t.plataforma !== f.plataforma) return false;
+    if (f.soloBloqueo && !t.tieneBloqueo) return false;
+    return true;
+  });
+
+  $('notaInformePortafolio').innerHTML =
+    '<b>' + pf.total + ' iniciativas</b>' +
+    (visibles.length !== pf.total ? ' · se muestran ' + visibles.length : '') +
+    ' · <b>' + pf.atrasadas + '</b> por debajo de su plan' +
+    ' · <b>' + pf.conBloqueo + '</b> con alguna solicitud bloqueada' +
+    (pf.sinPlan ? ' · <b>' + pf.sinPlan + '</b> sin fechas de plan, así que no se les puede ' +
+      'calcular el avance esperado' : '') +
+    (pf.sinActividades ? ' · <b>' + pf.sinActividades + '</b> sin solicitudes, así que no hay ' +
+      'con qué medir su avance real' : '');
+
+  if (!visibles.length) {
+    $('tarjetasInformeIniciativas').innerHTML = '<p class="nota">Ninguna iniciativa cumple el ' +
+      'filtro.</p>';
+    return;
+  }
+
+  $('tarjetasInformeIniciativas').innerHTML = '<div class="tarjetas-ini">' +
+    visibles.map(tarjetaDeIniciativa).join('') + '</div>';
+}
+
+/** Una tarjeta. Se separa para poder leerla y para poder probarla sola. */
+function tarjetaDeIniciativa(t) {
+  /* La desviacion manda el color de la tarjeta: es la unica lectura que le dice
+     a un comite si hay que hacer algo. Sin plan no hay desviacion, y entonces no
+     hay color: pintar de verde una iniciativa que nadie puede evaluar seria
+     tranquilizar sin motivo. */
+  var clase = 'ti';
+  if (t.desviacion === null) clase += ' ti-sinplan';
+  else if (t.desviacion < -15) clase += ' ti-mal';
+  else if (t.desviacion < 0) clase += ' ti-ojo';
+  else clase += ' ti-bien';
+
+  var fecha = function (d) {
+    return d ? esc(String(d).slice(0, 10)) : '<span class="ti-falta">sin fecha</span>';
+  };
+  var barraAvance = function (etq, valor, modificador) {
+    if (valor === null || valor === undefined) {
+      return '<div class="ti-av"><span class="ti-av-rot">' + esc(etq) + '</span>' +
+        '<span class="pista"></span><span class="ti-av-val">—</span></div>';
+    }
+    return '<div class="ti-av"><span class="ti-av-rot">' + esc(etq) + '</span>' +
+      '<span class="pista"><span class="relleno' + (modificador ? ' ' + modificador : '') +
+      '" style="width:' + Math.max(0, Math.min(100, valor)) + '%"></span></span>' +
+      '<span class="ti-av-val num">' + formatoPorcentaje(valor) + '</span></div>';
+  };
+
+  /* Sin desviacion hay DOS razones distintas y exigen acciones distintas: le
+     faltan las fechas del plan, o le faltan solicitudes. Decir "sin plan" a una
+     iniciativa que tiene sus dos fechas y ninguna solicitud manda a corregir lo
+     que no esta mal. */
+  var desv;
+  if (t.desviacion !== null) {
+    desv = '<span class="ti-pill ' + (t.desviacion < 0 ? 'ti-pill-mal' : 'ti-pill-bien') + '">' +
+      (t.desviacion > 0 ? '+' : '') + formatoPorcentaje(t.desviacion) + '</span>';
+  } else if (t.faltaFechaInicio || t.faltaFechaFin) {
+    desv = '<span class="ti-pill ti-pill-gris" title="Falta ' +
+      (t.faltaFechaInicio && t.faltaFechaFin ? 'la fecha de inicio y la fecha fin planeada'
+        : (t.faltaFechaInicio ? 'la fecha de inicio' : 'la fecha fin planeada')) +
+      '">sin plan</span>';
+  } else {
+    desv = '<span class="ti-pill ti-pill-gris" title="Tiene fechas de plan, pero ninguna ' +
+      'solicitud de la cual medir el avance real">sin solicitudes</span>';
+  }
+
+  return '<article class="' + clase + '">' +
+    '<header class="ti-cab">' +
+      '<div class="ti-nombre" title="' + esc(t.id) + '">' + esc(t.nombre) + '</div>' +
+      desv +
+    '</header>' +
+    '<div class="ti-etqs">' +
+      '<span class="ti-etq">' + esc(t.estadoNombre) + '</span>' +
+      '<span class="ti-etq ti-pri-' + esc(t.prioridad || 'x') + '">' +
+        esc(t.prioridadNombre) + '</span>' +
+      '<span class="ti-etq">' + esc(t.tipoNombre) + '</span>' +
+      '<span class="ti-etq' + (t.origenPlataforma === 'declarada' ? '' : ' ti-etq-tenue') +
+        '" title="' + (t.origenPlataforma === 'declarada'
+          ? 'Plataforma declarada en la iniciativa'
+          : t.origenPlataforma === 'varias'
+            ? 'La iniciativa toca varias plataformas'
+            : t.origenPlataforma === 'deducida'
+              ? 'Deducida de las solicitudes: la iniciativa no la tiene declarada'
+              : 'La iniciativa no tiene plataforma y no tiene solicitudes de las cuales deducirla') +
+        '">' + esc(t.plataforma) +
+        (t.origenPlataforma === 'deducida' ? ' *' : '') + '</span>' +
+      (t.tieneBloqueo
+        ? '<span class="ti-etq ti-etq-bloqueo" title="' +
+          esc(t.detalleBloqueo.map(function (b) { return b.id + ' · ' + b.nombre; }).join('\n')) +
+          '">Bloqueo: ' + t.bloqueadas + '</span>'
+        : '') +
+    '</div>' +
+    barraAvance('Real', t.avanceReal) +
+    barraAvance('Esperado', t.avanceEsperado, 'ambar') +
+    '<footer class="ti-pie">' +
+      '<span>Inicio ' + fecha(t.fechaInicio) + '</span>' +
+      '<span>Fin plan. ' + fecha(t.fechaFinPlaneada) + '</span>' +
+      '<span>' + t.actividades + ' solicitud(es)' +
+        (t.estabilizaciones ? ' · ' + t.estabilizaciones + ' incid.' : '') + '</span>' +
+    '</footer>' +
+    '</article>';
+}
+
+['fInformeIniEstado', 'fInformeIniPlataforma'].forEach(function (id) {
+  $(id).addEventListener('change', function () {
+    INFORME_FILTRO_INI[id === 'fInformeIniEstado' ? 'estado' : 'plataforma'] = this.value;
+    if (INFORME_ULTIMO) pintarInformeIniciativasTarjetas(INFORME_ULTIMO);
+  });
+});
+$('fInformeIniBloqueo').addEventListener('change', function () {
+  INFORME_FILTRO_INI.soloBloqueo = this.checked;
+  if (INFORME_ULTIMO) pintarInformeIniciativasTarjetas(INFORME_ULTIMO);
+});
+
 
 
 

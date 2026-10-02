@@ -55,7 +55,30 @@
       </div>
     </div>
 
-    <div class="seccion" data-bloque="2">Indicadores de gesti&oacute;n</div>
+    <div class="seccion" data-bloque="2">Portafolio de iniciativas</div>
+    <div class="panel">
+      <div class="fila">
+        <div>
+          <h3>Una tarjeta por iniciativa</h3>
+          <div class="sub">Ordenadas por <b>fecha fin planeada</b>: primero lo que vence antes.
+          Las que no tienen fechas van al final, porque a una iniciativa sin plan no le falta
+          urgencia, le falta el plan</div>
+        </div>
+        <div class="fila ml-auto">
+          <div class="combo"><label for="fInformeIniEstado">Estado</label>
+            <select id="fInformeIniEstado"></select></div>
+          <div class="combo"><label for="fInformeIniPlataforma">Plataforma</label>
+            <select id="fInformeIniPlataforma"></select></div>
+          <div class="combo"><label>&nbsp;</label>
+            <label class="fila" style="gap:6px;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="fInformeIniBloqueo"> Solo con bloqueo</label></div>
+        </div>
+      </div>
+      <p class="nota" id="notaInformePortafolio"></p>
+      <div id="tarjetasInformeIniciativas" style="margin-top:12px"></div>
+    </div>
+
+    <div class="seccion" data-bloque="3">Indicadores de gesti&oacute;n</div>
     <div class="paneles">
       <div class="panel">
         <h3>Iniciativas por plataforma digital</h3>
@@ -94,7 +117,7 @@
       <div id="tablaInformeBloqueos" style="margin-top:12px"></div>
     </div>
 
-    <div class="seccion" data-bloque="3">Indicadores de costo</div>
+    <div class="seccion" data-bloque="4">Indicadores de costo</div>
     <div class="panel">
       <h3>Capacidad de la f&aacute;brica</h3>
       <div class="sub">Esta p&aacute;gina no muestra el valor del contrato ni el de ninguna bolsa de

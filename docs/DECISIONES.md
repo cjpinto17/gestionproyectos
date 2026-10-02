@@ -2927,6 +2927,61 @@ graves no existían o existían a medias, y uno de los que no estaba en mi lista
 costeo— era el verdaderamente serio. Reportar un riesgo sin confirmarlo le hace perder tiempo al usuario
 y le resta credibilidad a los riesgos que sí son ciertos.
 
+### D-128 · Tarjetas de iniciativa: el portafolio de un vistazo
+
+Pedido del usuario: una sección en el Informe con **solo tarjetas de iniciativa**, cada una con nombre,
+estado, prioridad, % real, % esperado, si tiene bloqueo en alguna de sus solicitudes, tipo, plataforma,
+fecha de inicio y fecha fin planeada, **organizadas por fechas**.
+
+**Lo que ya existía y se reusó, no se reimplementó:** `avanceRealIniciativa_` y
+`avanceEsperadoIniciativa_` de `Metricas.gs`, y `normalizarPrioridad_`, que reconoce una prioridad venga
+como código (`PRI-01`) o como nombre (`Critica`) —la carga original del portafolio llegó con el nombre.
+Escribir otro cálculo de avance habría dado una página con dos avances distintos de la misma iniciativa.
+
+**Por lo mismo, la deducción de plataforma se extrajo a `informePlataformaDeIniciativas_`.** La tabla por
+plataforma y las tarjetas son el mismo universo de iniciativas; con la deducción escrita dos veces, dos
+secciones de **la misma página** podrían decir plataformas distintas de la misma iniciativa. Hay una
+prueba que recorre las dos y compara el origen asignado a cada una.
+
+**El orden:** por **fecha fin planeada** ascendente —lo que vence antes, primero—, a igualdad por fecha
+de inicio y luego por nombre. Las que no tienen fechas van **al final**, no al principio: a una
+iniciativa sin plan no le falta urgencia, le falta el plan, y va con su propia etiqueta.
+
+**El bloqueo es heredado.** Una iniciativa no tiene campo de bloqueo: lo tienen sus solicitudes. Basta
+**una** solicitud bloqueada para marcarla, porque para el comité la pregunta es si hay algo detenido
+ahí; y la tarjeta dice **cuántas y cuáles** (en el título emergente) para que la pregunta siguiente
+tenga respuesta. Las estabilizaciones se cuentan aparte y no bajan el avance: un incidente no es alcance
+planeado (D-101).
+
+**Tres huecos que la tarjeta distingue en vez de confundir:**
+
+| Lo que falta | Lo que dice | Lo que hay que hacer |
+| --- | --- | --- |
+| Las fechas del plan | «sin plan» | Poner fecha de inicio y fecha fin estimada |
+| Las solicitudes | «sin solicitudes» | Crear las solicitudes de la iniciativa |
+| Nada: va adelante o atrás | La desviación, con signo y color | Leerla |
+
+**El defecto que encontró la prueba:** la etiqueta decía **«sin plan» en los dos primeros casos**. Una
+iniciativa con sus dos fechas y ninguna solicitud aparecía como si le faltara el plan, y eso manda a
+corregir lo que no está mal. Son dos huecos distintos que exigen dos acciones distintas. Verificado
+contra el código sin la corrección.
+
+**Y uno menor, de la misma tanda:** los filtros de la sección repintaban leyendo `DATOS.informe`. Si
+alguien limpiaba la caché del cliente, el filtro dejaba de responder sin decir nada. Ahora la pantalla
+guarda su propia referencia a lo último que pintó (`INFORME_ULTIMO`).
+
+**El color lo manda la desviación**, porque es la única lectura que le dice a un comité si hay que hacer
+algo: verde si va igual o adelante, ámbar hasta 15 puntos por debajo, rojo más abajo. **Sin desviación no
+hay color**: pintar de verde una iniciativa que nadie puede evaluar sería tranquilizar sin motivo.
+
+**Los filtros son del navegador**, no del servidor: el informe ya trae todas las iniciativas, y volver a
+pedirlas por cada filtro haría esperar para esconder tarjetas que ya están en la página. Hay una prueba
+que verifica que filtrar no llama al servidor.
+
+**La plataforma deducida se distingue de la declarada** con un asterisco y cursiva, y el título emergente
+dice de dónde salió. En el soporte descargable hay una pestaña *Portafolio* con la misma información y en
+el mismo orden, más una columna que dice si la plataforma era declarada o deducida.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
