@@ -2357,18 +2357,27 @@ document.addEventListener('click', function (e) {
   if (t) verDetalle(t.dataset.id);
 });
 
-/** Edicion completa de una solicitud, para los roles autorizados. */
+/**
+ * Edicion completa de una solicitud, para los roles autorizados.
+ *
+ * Dos columnas: a la izquierda los datos de la solicitud, que no dependen de
+ * donde este; a la derecha un paso por fase con lo que se diligencia en ella.
+ * Antes era una sola columna con las 52 columnas de la tabla, las de los tres
+ * gobiernos juntas: a una tarea se le pedian fechas de QA y a una de fabrica la
+ * causa raiz de un incidente. Medio formulario era ruido, y el ruido ensena a no
+ * leer el formulario (D-130).
+ *
+ * El servidor decide que campos aplican y como se reparten. La pantalla no tiene
+ * su propia lista: si la tuviera, agregar una columna al esquema obligaria a
+ * acordarse de dos sitios, y el que se olvide deja un campo que no se puede
+ * diligenciar sin que nada avise.
+ */
 function editarSolicitud(idSolicitud) {
   abrirModal('Editar solicitud', idSolicitud, '<p class="nota">Cargando…</p>', null);
   api('getFormularioSolicitud', idSolicitud).then(function (f) {
-    var campos = construirCampos(f.columnas, f.opciones, f.valores, null);
     abrirModal('Editar solicitud',
       idSolicitud + ' · ' + (f.valores.Nombre_Solicitud || ''),
-      '<div class="formulario">' +
-        '<p class="nota" style="margin:0">Si cambia la fase o el estado, el movimiento queda ' +
-        'registrado en la bitácora igual que un arrastre en el tablero. La fecha de registro ' +
-        'es la que alimenta el Lead Time y la antigüedad: corríjala solo si la que quedó no ' +
-        'es la real.</p>' + campos + '</div>',
+      cuerpoFormularioSolicitud(f),
       function () {
         return api('actualizarSolicitudCompleta', idSolicitud, leerCampos(f.columnas))
             .then(function (r) {
@@ -2376,8 +2385,132 @@ function editarSolicitud(idSolicitud) {
               invalidarCacheCliente();
               cargarGestion(true);
             });
-      });
+      }, true);
+    activarPasosFormulario(f);
   }).catch(function (err) { cerrarModal(); fallo(err); });
+}
+
+/** Como se llama el gobierno, para decirlo en el encabezado. */
+function nombreDelGobierno(g) {
+  return g === 'tarea' ? 'tarea'
+       : g === 'estabilizacion' ? 'estabilización'
+       : 'solicitud de fábrica';
+}
+
+/**
+ * En que va la informacion de un paso: completa, a medias, sin datos o marcada
+ * como que no aplica.
+ *
+ * Se mira solo lo que de verdad hay que llenar —las fechas y las marcas—, no
+ * todos los campos del paso: una fase con fechas puestas y la version todavia
+ * sin asignar no esta "incompleta" por eso.
+ */
+function estadoDelPaso(paso, valores) {
+  var noAplica = paso.columnas.some(function (c) {
+    return /^No_Aplica_/.test(c.campo) &&
+           String(valores[c.campo] || '').toUpperCase().indexOf('S') === 0;
+  });
+  if (noAplica) return { clave: 'noaplica', texto: 'no aplica' };
+
+  var fechas = paso.columnas.filter(function (c) {
+    return c.tipo === 'date' || c.tipo === 'datetime';
+  });
+  if (!fechas.length) return { clave: 'otros', texto: '' };
+  var puestas = fechas.filter(function (c) { return !!valores[c.campo]; }).length;
+  if (puestas === 0) return { clave: 'sin', texto: 'sin fechas' };
+  if (puestas < fechas.length) return { clave: 'medias', texto: 'a medias' };
+  return { clave: 'listo', texto: 'completo' };
+}
+
+/** El cuerpo del modal: izquierda los datos, derecha los pasos. */
+function cuerpoFormularioSolicitud(f) {
+  var izq = f.sueltos.map(function (g) {
+    return '<div class="fs-grupo"><h4>' + esc(g.grupo) + '</h4>' +
+           construirCampos(g.columnas, f.opciones, f.valores, null) + '</div>';
+  }).join('');
+
+  /* Lo que aplica y el reparto no acomodo. No se descarta en silencio: un campo
+     que desaparece del formulario deja de poderse diligenciar y nadie se
+     entera. */
+  if (f.sinAcomodar && f.sinAcomodar.length) {
+    izq += '<div class="fs-grupo"><h4>Otros datos</h4>' +
+      '<p class="nota" style="margin:0 0 8px">Estos campos aplican a este tipo pero todavía ' +
+      'no están ubicados en ningún paso. Avise para acomodarlos.</p>' +
+      construirCampos(f.sinAcomodar, f.opciones, f.valores, null) + '</div>';
+  }
+
+  var filas = f.pasos.map(function (p, i) {
+    var est = estadoDelPaso(p, f.valores);
+    // La fase en la que esta la solicitud llega abierta; las demas, plegadas.
+    var actual = !!p.fase && p.fase === f.faseActual;
+    /* Un gobierno sin embudo —una tarea, una estabilizacion— no tiene "donde
+       estas": sus pasos son secciones de lo mismo, no etapas por las que se
+       avanza, asi que llegan todas abiertas. Plegadas, quien abre una tarea ve la
+       columna derecha en blanco y concluye que no hay nada que diligenciar. */
+    var abierto = p.fase ? actual : true;
+    return '<div class="fs-paso' + (actual ? ' fs-paso-actual' : '') +
+      '" data-paso="' + i + '">' +
+      '<button type="button" class="fs-paso-cab" data-abrir="' + i + '">' +
+        '<span class="fs-paso-n">' + (p.fase ? p.orden : '·') + '</span>' +
+        '<span class="fs-paso-tit">' + esc(p.titulo) +
+          (actual ? ' <b class="fs-aqui">está aquí</b>' : '') + '</span>' +
+        (est.texto ? '<span class="fs-chip fs-chip-' + est.clave + '">' +
+          esc(est.texto) + '</span>' : '') +
+        '<span class="fs-flecha">▾</span>' +
+      '</button>' +
+      '<div class="fs-paso-cuerpo"' + (abierto ? '' : ' hidden') + '>' +
+        (p.ayuda ? '<p class="nota" style="margin:0 0 8px">' + esc(p.ayuda) + '</p>' : '') +
+        construirCampos(p.columnas, f.opciones, f.valores, null) +
+      '</div></div>';
+  }).join('');
+
+  var aviso = f.seApruebaEnTablero
+    ? '<p class="nota fs-aprob" style="margin:10px 0 0">La <b>aprobación</b> de la fase no se edita ' +
+      'aquí: se da desde la tarjeta del tablero, que es donde se verifica el permiso. ' +
+      'Hoy está en <b>' + (String(f.aprobada).toUpperCase().indexOf('S') === 0
+        ? 'aprobada' : 'sin aprobar') + '</b>.</p>'
+    : '';
+
+  return '<div class="fs">' +
+    '<div class="fs-izq"><div class="formulario">' +
+      '<p class="nota" style="margin:0 0 10px">Datos de la ' +
+      esc(nombreDelGobierno(f.gobierno)) + '. Si cambia ' +
+      (f.gobierno === 'fabrica' ? 'la fase o el estado' : 'el estado') +
+      ', el movimiento queda registrado en la bitácora igual que un arrastre en el tablero. ' +
+      'La fecha de registro alimenta el Lead Time: corríjala solo si la que quedó no es ' +
+      'la real.</p>' +
+      izq + '</div></div>' +
+    '<div class="fs-der">' +
+      '<h4>' + (f.gobierno === 'fabrica' ? 'Qué diligenciar en cada fase'
+                                         : 'Qué diligenciar') + '</h4>' +
+      '<p class="nota" style="margin:0 0 10px">' +
+      (f.gobierno === 'fabrica'
+        ? 'La fase en la que está viene abierta. Las demás se despliegan al hacer clic: de ahí ' +
+          'salen el Cycle Time y el costo, así que lo que quede vacío no se puede medir.'
+        : 'Lo que hace falta para poder cerrarla y para que su costo se pueda calcular.') +
+      '</p>' +
+      (filas || '<p class="nota">Este tipo no tiene pasos por diligenciar.</p>') +
+      aviso +
+    '</div></div>';
+}
+
+/** Conecta el plegado de los pasos. */
+function activarPasosFormulario(f) {
+  var caja = $('modalCuerpo');
+  if (!caja) return;
+  caja.querySelectorAll('[data-abrir]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var paso = b.closest('.fs-paso');
+      var cuerpo = paso.querySelector('.fs-paso-cuerpo');
+      cuerpo.hidden = !cuerpo.hidden;
+      paso.classList.toggle('fs-abierto', !cuerpo.hidden);
+    });
+  });
+  // El paso de la fase actual arranca abierto: su marca tiene que coincidir.
+  caja.querySelectorAll('.fs-paso').forEach(function (paso) {
+    var cuerpo = paso.querySelector('.fs-paso-cuerpo');
+    paso.classList.toggle('fs-abierto', !cuerpo.hidden);
+  });
 }
 
 function verDetalle(id) {

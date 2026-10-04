@@ -805,6 +805,50 @@
   .ti-enpausa{background:#FFFDF5}
   .pf-check{display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;
     white-space:nowrap}
+
+  /* El formulario de edicion de una solicitud, a dos columnas (D-130): a la
+     izquierda los datos, a la derecha un paso por fase. */
+  .fs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}
+  .fs-izq,.fs-der{min-width:0}
+  .fs-der{border-left:1px solid var(--line);padding-left:20px}
+  .fs h4{font-size:12px;font-family:var(--display);font-weight:700;
+    text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);
+    margin:16px 0 8px}
+  .fs-izq .fs-grupo:first-of-type h4,.fs-der>h4:first-child{margin-top:0}
+  .fs-grupo{border-top:1px solid var(--line-soft);padding-top:4px;margin-top:12px}
+  .fs-izq .fs-grupo:first-of-type{border-top:0;margin-top:0;padding-top:0}
+  /* Un paso por fase. Plegado por defecto; el de la fase actual llega abierto. */
+  .fs-paso{border:1px solid var(--line);border-radius:8px;margin-bottom:7px;
+    background:var(--surface)}
+  .fs-paso-actual{border-color:var(--navy);box-shadow:0 0 0 1px var(--navy)}
+  .fs-paso-cab{display:flex;align-items:center;gap:8px;width:100%;
+    background:none;border:0;padding:8px 10px;cursor:pointer;text-align:left;
+    font:inherit;color:inherit}
+  .fs-paso-cab:hover{background:var(--line-soft)}
+  .fs-paso-n{flex:none;width:19px;height:19px;border-radius:50%;
+    background:var(--line-soft);color:var(--ink-muted);font-size:11px;
+    font-weight:700;display:flex;align-items:center;justify-content:center}
+  .fs-paso-actual .fs-paso-n{background:var(--navy);color:#fff}
+  .fs-paso-tit{flex:1;font-size:13px;font-weight:600;min-width:0}
+  .fs-aqui{color:var(--navy);font-size:11px;font-weight:700}
+  .fs-flecha{flex:none;color:var(--ink-faint);font-size:11px;transition:transform .15s}
+  .fs-abierto .fs-flecha{transform:rotate(180deg)}
+  .fs-paso-cuerpo{padding:2px 10px 10px}
+  /* La marca de en que va la informacion del paso. "sin fechas" no es un error
+     —puede que la fase no haya empezado— pero si es lo que no se puede medir. */
+  .fs-chip{flex:none;font-size:10.5px;font-weight:700;padding:1px 6px;
+    border-radius:999px;white-space:nowrap}
+  .fs-chip-listo{background:#E7F8EF;color:var(--verde)}
+  .fs-chip-medias{background:var(--alerta-bg);color:var(--alerta)}
+  .fs-chip-sin{background:var(--line-soft);color:var(--ink-muted)}
+  .fs-chip-noaplica{background:var(--line-soft);color:var(--ink-faint);
+    font-style:italic;font-weight:600}
+  /* En una pantalla angosta las dos columnas se apilan: dos columnas de 180 px
+     no son dos columnas, son dos rendijas. */
+  @media (max-width:900px){
+    .fs{grid-template-columns:1fr;gap:16px}
+    .fs-der{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:14px}
+  }
   #filtrosPortafolio{gap:10px;align-items:flex-end}
   .presentando .tarjetas-ini{grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
   .presentando .ti-nombre{font-size:16px}

@@ -434,6 +434,211 @@ var VERTICALES = [
 ];
 
 /* ================================================================== */
+/* El formulario de edicion de una solicitud (D-130)                   */
+/* ================================================================== */
+
+/**
+ * Campos que administra el sistema y que NO se ofrecen para editar a mano.
+ *
+ * Los tres de aprobacion estaban editables y eso abria una puerta: quien tiene
+ * "Editar solicitud" pero NO "Aprobar solicitud" podia aprobar escribiendo el
+ * campo, saltandose tambien la validacion de que la fase pida aprobacion. Y
+ * ademas fue el campo que causo D-125, donde un SI que nadie escribio saco
+ * solicitudes del costeo en silencio. La aprobacion se hace desde la tarjeta del
+ * tablero, que es donde se verifica el permiso.
+ *
+ * Orden_Columna se acomoda arrastrando las tarjetas; su propia ayuda ya decia que
+ * no hacia falta escribirlo.
+ */
+var CAMPOS_DEL_SISTEMA = ['ID_Solicitud', 'Fecha_Ultimo_Cambio', 'Orden_Columna',
+                          'Aprobada', 'Aprobada_Por', 'Fecha_Aprobacion'];
+
+/**
+ * Campos que existen solo para algunos gobiernos.
+ *
+ * Lo que no aparece aqui aplica a los tres. El formulario mostraba las 52
+ * columnas a todo el mundo, asi que a una tarea se le pedian fechas de QA y a una
+ * solicitud de fabrica, la causa raiz de un incidente: medio formulario era ruido
+ * y el ruido ensena a no leer el formulario.
+ *
+ * Desarrollo y pruebas son de fabrica Y de estabilizacion: una estabilizacion no
+ * recorre fases, pero en cuanto arranca consume las etapas de desarrollo y
+ * pruebas (ETAPAS_DE_ESTABILIZACION), y el costeo lee justo esas columnas. Si el
+ * formulario no las ofreciera, nadie podria diligenciar lo que el costo necesita.
+ */
+var CAMPOS_SOLO_DE = {
+  Fase_Actual: ['fabrica'],
+  Version_Semantica: ['fabrica'],
+  Estado_Historias: ['fabrica'],
+  Analista_ID: ['fabrica'],
+  Fecha_Socializacion: ['fabrica'],
+  Fecha_Despliegue: ['fabrica'],
+  Fecha_Inicio_Demanda: ['fabrica'],
+  Fecha_Fin_Demanda: ['fabrica'],
+  Fecha_Inicio_Backlog: ['fabrica'],
+  Fecha_Fin_Backlog: ['fabrica'],
+  Fecha_Inicio_Analisis: ['fabrica'],
+  Fecha_Fin_Analisis: ['fabrica'],
+  No_Aplica_Analisis: ['fabrica'],
+  Fecha_Inicio_Dev: ['fabrica', 'estabilizacion'],
+  Fecha_Fin_Dev: ['fabrica', 'estabilizacion'],
+  No_Aplica_Dev: ['fabrica', 'estabilizacion'],
+  Fecha_Inicio_QA: ['fabrica', 'estabilizacion'],
+  Fecha_Fin_QA: ['fabrica', 'estabilizacion'],
+  No_Aplica_QA: ['fabrica', 'estabilizacion'],
+  Fecha_Inicio_UAT: ['fabrica', 'estabilizacion'],
+  Fecha_Fin_UAT: ['fabrica', 'estabilizacion'],
+  No_Aplica_UAT: ['fabrica', 'estabilizacion'],
+  Fecha_Compromiso: ['tarea'],
+  Version_Afectada: ['estabilizacion'],
+  Version_Correccion: ['estabilizacion'],
+  Causa_Raiz: ['estabilizacion'],
+  Detalle_Causa_Raiz: ['estabilizacion'],
+  Link_Postmortem: ['estabilizacion'],
+  Hubo_Indisponibilidad: ['estabilizacion'],
+  Inicio_Indisponibilidad: ['estabilizacion'],
+  Fin_Indisponibilidad: ['estabilizacion'],
+  Tipo_Indisponibilidad: ['estabilizacion']
+};
+
+/**
+ * Como se reparte el formulario: a la izquierda los campos que no dependen de
+ * la fase, a la derecha un paso por fase con lo que se diligencia en ella.
+ *
+ * La columna izquierda se lee de arriba abajo una sola vez —son los datos de la
+ * solicitud— y la derecha se recorre segun donde este: la fase actual llega
+ * abierta y las demas plegadas, con una marca de si su informacion esta
+ * completa, incompleta o marcada como que no aplica.
+ */
+var FORMULARIO_SOLICITUD = {
+  sueltos: [
+    { grupo: 'Lo que se pidió',
+      campos: ['Nombre_Solicitud', 'Alcance', 'Proceso_Impactado', 'Doc_Requerimiento_URL'] },
+    { grupo: 'Clasificación',
+      campos: ['ID_Proyecto', 'Plataforma_ID', 'Tipo_Solicitud', 'Prioridad'] },
+    { grupo: 'Responsables',
+      campos: ['Solicitante_ID', 'Responsable_ID'] },
+    { grupo: 'Situación',
+      campos: ['Fase_Actual', 'Estado_Actual', 'Tiene_Bloqueo', 'Causal_Bloqueo',
+               'Observacion_Bloqueo'] },
+    { grupo: 'Trazabilidad',
+      campos: ['Fecha_Registro', 'Link_Taiga'] }
+  ],
+  pasos: {
+    /* Las ocho fases del embudo. Los nombres salen de FASES al armar el
+       formulario: repetirlos aqui seria tener dos nombres para la misma fase y
+       que uno quede viejo cuando alguien renombre el catalogo. */
+    fabrica: [
+      { fase: 'FAS-01', campos: ['Fecha_Inicio_Demanda', 'Fecha_Fin_Demanda'] },
+      { fase: 'FAS-02', campos: ['Fecha_Inicio_Backlog', 'Fecha_Fin_Backlog'] },
+      { fase: 'FAS-03', campos: ['Fecha_Inicio_Analisis', 'Fecha_Fin_Analisis',
+                                 'No_Aplica_Analisis', 'Analista_ID', 'Estado_Historias'] },
+      { fase: 'FAS-04', campos: ['Fecha_Inicio_Dev', 'Fecha_Fin_Dev', 'No_Aplica_Dev',
+                                 'Version_Semantica'] },
+      { fase: 'FAS-05', campos: ['Fecha_Inicio_QA', 'Fecha_Fin_QA', 'No_Aplica_QA'] },
+      { fase: 'FAS-06', campos: ['Fecha_Inicio_UAT', 'Fecha_Fin_UAT', 'No_Aplica_UAT'] },
+      { fase: 'FAS-07', campos: ['Fecha_Socializacion'] },
+      { fase: 'FAS-08', campos: ['Fecha_Despliegue'] }
+    ],
+    /* Una tarea no tiene embudo: su unico paso es el compromiso contra el cual
+       se mide, porque no tiene SLA de fase (D-79). */
+    tarea: [
+      { titulo: 'Compromiso', campos: ['Fecha_Compromiso'],
+        ayuda: 'Una tarea no recorre fases: se mide contra el día para el que se comprometió.' }
+    ],
+    /* Una estabilizacion tampoco recorre fases, pero consume desarrollo y
+       pruebas, y para cerrarla hacen falta la causa raiz y la version de
+       correccion (D-101). */
+    estabilizacion: [
+      { titulo: 'Desarrollo del arreglo',
+        campos: ['Fecha_Inicio_Dev', 'Fecha_Fin_Dev', 'No_Aplica_Dev'],
+        ayuda: 'Con estas fechas se cuantifica lo que el incidente ocupó de la fábrica.' },
+      { titulo: 'Pruebas',
+        campos: ['Fecha_Inicio_QA', 'Fecha_Fin_QA', 'No_Aplica_QA',
+                 'Fecha_Inicio_UAT', 'Fecha_Fin_UAT', 'No_Aplica_UAT'] },
+      { titulo: 'Diagnóstico',
+        campos: ['Causa_Raiz', 'Detalle_Causa_Raiz', 'Link_Postmortem'],
+        ayuda: 'La causa raíz hace falta para poder cerrar la estabilización; el postmortem, ' +
+               'si es crítica o alta.' },
+      { titulo: 'Versiones',
+        campos: ['Version_Afectada', 'Version_Correccion'],
+        ayuda: 'En qué versión apareció el problema y con cuál se despliega el arreglo.' },
+      { titulo: 'Indisponibilidad',
+        campos: ['Hubo_Indisponibilidad', 'Inicio_Indisponibilidad', 'Fin_Indisponibilidad',
+                 'Tipo_Indisponibilidad'],
+        ayuda: 'No toda crítica tumba el servicio. Si lo tumbó, registre inicio, fin y tipo: ' +
+               'de ahí sale el indicador de disponibilidad.' }
+    ]
+  }
+};
+
+/**
+ * Los campos de la solicitud que aplican a un gobierno, en el orden del esquema.
+ *
+ * @param {string} gobierno 'fabrica' | 'tarea' | 'estabilizacion'
+ * @return {!Array<!Object>} Las columnas aplicables.
+ */
+function camposAplicables(gobierno) {
+  var g = String(gobierno || GOBIERNO_FABRICA);
+  return getDefinicionTabla('Solicitudes').def.columnas.filter(function (c) {
+    if (CAMPOS_DEL_SISTEMA.indexOf(c.campo) !== -1) return false;
+    var solo = CAMPOS_SOLO_DE[c.campo];
+    return !solo || solo.indexOf(g) !== -1;
+  });
+}
+
+/**
+ * El formulario armado para un gobierno: los grupos de la izquierda y los pasos
+ * de la derecha, ya filtrados y con los nombres de fase resueltos.
+ *
+ * Devuelve tambien `campos`, la lista de columnas que el formulario ofrece. Es la
+ * que el navegador usa para leer lo que la persona escribio: si se calculara
+ * aparte, un campo que esta en la pantalla y no en esa lista se dibujaria y no se
+ * guardaria, sin dar ningun error.
+ *
+ * @param {string} gobierno
+ * @return {!Object}
+ */
+function formularioDeSolicitud(gobierno) {
+  var g = String(gobierno || GOBIERNO_FABRICA);
+  var aplicables = camposAplicables(g);
+  var porCampo = {};
+  aplicables.forEach(function (c) { porCampo[c.campo] = c; });
+  var nombreFase = {};
+  FASES.forEach(function (f) { nombreFase[f.id] = f.nombre; });
+
+  var usados = {};
+  var tomar = function (lista) {
+    return (lista || []).filter(function (n) { return !!porCampo[n]; })
+        .map(function (n) { usados[n] = true; return porCampo[n]; });
+  };
+
+  var sueltos = FORMULARIO_SOLICITUD.sueltos.map(function (gr) {
+    return { grupo: gr.grupo, columnas: tomar(gr.campos) };
+  }).filter(function (gr) { return gr.columnas.length; });
+
+  var pasos = (FORMULARIO_SOLICITUD.pasos[g] || []).map(function (p, i) {
+    return { fase: p.fase || '', orden: i + 1,
+             titulo: p.fase ? (nombreFase[p.fase] || p.fase) : p.titulo,
+             ayuda: p.ayuda || '', columnas: tomar(p.campos) };
+  }).filter(function (p) { return p.columnas.length; });
+
+  /* Lo que aplica y no quedo en ningun grupo ni en ningun paso. No se descarta
+     en silencio: se entrega aparte para que la pantalla lo muestre y se vea que
+     falta acomodarlo. Un campo que desaparece del formulario deja de poderse
+     diligenciar y nadie se entera. */
+  var sueltosExtra = aplicables.filter(function (c) { return !usados[c.campo]; });
+
+  var columnas = [];
+  sueltos.forEach(function (gr) { columnas = columnas.concat(gr.columnas); });
+  pasos.forEach(function (p) { columnas = columnas.concat(p.columnas); });
+  columnas = columnas.concat(sueltosExtra);
+
+  return { gobierno: g, sueltos: sueltos, pasos: pasos,
+           sinAcomodar: sueltosExtra, columnas: columnas };
+}
+
+/* ================================================================== */
 /* Libro 1: Parametrizacion (maestros)                                 */
 /* ================================================================== */
 

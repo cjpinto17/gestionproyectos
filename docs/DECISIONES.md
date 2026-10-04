@@ -3046,6 +3046,80 @@ la serie sea monótona.
 la misma información del portafolio y **ni un solo dato de costo**. Hay una prueba de pantalla que
 falla si en la página aparece cualquier valor en pesos.
 
+### D-130 · Editar una solicitud: solo lo que aplica, y en dos columnas
+
+Pedido del usuario: mejorar la experiencia de editar una solicitud en Gestión, mostrando **solo los
+datos que aplican a cada tipo**, y ampliando el modal con **los campos sueltos a la izquierda y a la
+derecha una tabla que, según la fase, diga qué datos editar**.
+
+**Lo que había:** el formulario ofrecía **las 52 columnas** de la tabla, las mismas para los tres
+gobiernos, en una sola columna. A una **tarea** se le pedían las fechas de QA, la causa raíz de un
+incidente, la fase y la versión; a una de **fábrica**, la indisponibilidad del servicio. Medio
+formulario era ruido, y el ruido enseña a no leer el formulario.
+
+**Ahora** son 38 columnas para una de fábrica, 34 para una estabilización y **17 para una tarea**. El
+reparto es declarativo (`FORMULARIO_SOLICITUD` y `CAMPOS_SOLO_DE` en `Esquema.gs`) y lo resuelve el
+servidor: la pantalla no tiene su propia lista de campos, porque con dos listas, agregar una columna al
+esquema obliga a acordarse de dos sitios y el que se olvide deja un campo que no se puede diligenciar
+sin que nada avise.
+
+**La propiedad peligrosa de este cambio, y la prueba que la cubre.** Si guardar una tarea borrara los
+campos que su formulario ya no muestra, abrir una tarea y guardarla **vaciaría sus fechas de fase** —y
+con ellas su costo—. No pasa, porque `actualizarSolicitudCompleta` parte de una copia del registro
+actual y solo sobreescribe las claves recibidas; pero eso era un detalle de implementación del que
+ahora dependen 35 columnas, así que tiene prueba propia: se guarda una tarea y se verifica que sus
+fechas de desarrollo, su versión y su fase siguen ahí.
+
+**Lo que encontré de paso: se podía aprobar sin permiso de aprobar.** `Aprobada`, `Aprobada_Por` y
+`Fecha_Aprobacion` eran editables desde este formulario, que exige `Editar_Solicitud`. Quien tuviera
+ese permiso y **no** `Aprobar_Solicitud` podía aprobar escribiendo el campo, saltándose además la
+validación de que la fase pida aprobación. Verificado contra el código anterior: con solo el permiso de
+editar, `Aprobada` quedó en `SI` y `Aprobada_Por` en lo que se mandó. Y es el mismo campo que causó
+D-125, donde un «SI» que nadie escribió sacó solicitudes del costeo en silencio. Ahora son campos del
+sistema; el modal dice dónde se aprueba y cómo está. `Orden_Columna` también salió: se acomoda
+arrastrando, y su propia ayuda ya lo decía.
+
+**Una estabilización sí necesita las fechas de desarrollo y pruebas.** No recorre fases, así que la
+tentación era dejarle solo su diagnóstico; pero consume `ETA-DEV` y `ETA-QA`
+(`ETAPAS_DE_ESTABILIZACION`) y el costeo lee justo esas columnas. Sin ellas en el formulario, nadie
+podría diligenciar lo que el costo necesita y el costo saldría mal. Está en `CAMPOS_SOLO_DE` como
+`['fabrica', 'estabilizacion']`, con el motivo escrito al lado.
+
+**Ningún campo se pierde en el camino.** Un nombre mal escrito en el reparto no revienta: el campo
+simplemente no se dibuja, y nadie se entera. Así que `formularioDeSolicitud` devuelve `sinAcomodar`
+—lo que aplica y no quedó en ningún grupo ni paso—, el modal lo muestra en un bloque «Otros datos», y
+hay tres pruebas: que el formulario ofrezca **todo** lo aplicable, que no ofrezca nada que no aplique,
+y que el reparto no nombre columnas que ya no existen en el esquema.
+
+**La columna derecha** lleva un paso por fase, con el nombre tomado de `FASES` —no repetido en el
+layout, para que no quede viejo cuando alguien renombre el catálogo— y una marca de en qué va su
+información: **completo**, **a medias**, **sin fechas** o **no aplica**. La fase en la que está la
+solicitud llega abierta y marcada «está aquí»; las demás, plegadas.
+
+**El defecto que encontró la prueba:** un gobierno **sin embudo** no tiene «dónde estás», así que
+ningún paso coincidía con la fase actual y la columna derecha de una tarea llegaba **toda plegada**:
+quien la abría veía un panel en blanco y concluía que no había nada que diligenciar. Ahora, cuando los
+pasos no son fases sino secciones de lo mismo, llegan todos abiertos.
+
+**Dos aserciones laxas, el mismo día.** Una prueba daba por bueno que una tarea no mencionara la
+aprobación buscando el texto «tarjeta del tablero» en todo el modal —y ese texto también está en la
+ayuda del campo *Issue en Taiga*, así que falló sin que nada estuviera mal—. Otra esperaba «Gestión de
+la demanda» con tilde, cuando el catálogo `FASES` la escribe sin tilde. Las dos se arreglaron
+**atándolas a lo real**: la primera revisa un elemento con su propia clase, la segunda lee los nombres
+del catálogo. Una aserción que compara contra un literal que yo escribí prueba mi memoria, no el
+sistema.
+
+**Y una prueba ajena que este cambio rompió con razón:** `pruebaTaiga.js` verificaba que el campo del
+issue llegara al formulario **comparando el texto del código** (`...columnas.filter`) y la lista literal
+de campos no editables. Las dos cosas cambiaron. Su intención seguía siendo válida, así que se reescribió
+para que **corra el armado** y compruebe que `Link_Taiga` sale en los tres gobiernos. Una prueba atada a
+cómo está escrito el código se cae cuando el código mejora.
+
+**Nota de datos, no de código:** los nombres de las fases en el catálogo están sin tildes («Gestion de
+la demanda», «Analisis y diseno», «Produccion»). El modal los muestra tal como están, igual que el
+resto de la aplicación. Se corrigen editando la hoja `Fases` desde Administración; no hace falta tocar
+código.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

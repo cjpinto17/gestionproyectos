@@ -1561,9 +1561,6 @@ function crearSolicitud(datos) {
 }
 
 
-/** Campos que administra el sistema y no se editan a mano. */
-var CAMPOS_NO_EDITABLES = ['ID_Solicitud', 'Fecha_Ultimo_Cambio'];
-
 /**
  * Devuelve el formulario de edicion de una solicitud: sus columnas editables,
  * las listas desplegables resueltas y los valores actuales.
@@ -1576,13 +1573,22 @@ function getFormularioSolicitud(idSolicitud) {
   var s = buscarPorPk_('Solicitudes', idSolicitud);
   if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
 
-  var columnas = getDefinicionTabla('Solicitudes').def.columnas.filter(function (c) {
-    return CAMPOS_NO_EDITABLES.indexOf(c.campo) === -1;
-  });
-  var opciones = opcionesDeReferencia_(columnas);
+  /* Solo lo que aplica al tipo de la solicitud. Antes se mandaban las 52
+     columnas a todo el mundo: a una tarea se le pedian fechas de QA y a una de
+     fabrica la causa raiz de un incidente. Medio formulario era ruido, y el ruido
+     ensena a no leer el formulario (D-130). */
+  var f = formularioDeSolicitud(gobiernoDeTipo(s.Tipo_Solicitud));
+  var opciones = opcionesDeReferencia_(f.columnas);
   opciones.Version_Semantica = getVersionesDisponibles_(s.Plataforma_ID);
 
-  return { idSolicitud: idSolicitud, columnas: columnas, opciones: opciones, valores: s };
+  return { idSolicitud: idSolicitud, columnas: f.columnas, opciones: opciones, valores: s,
+           gobierno: f.gobierno, sueltos: f.sueltos, pasos: f.pasos,
+           sinAcomodar: f.sinAcomodar,
+           // La fase en la que esta: la pantalla abre ese paso y pliega los demas.
+           faseActual: s.Fase_Actual || '',
+           // Que pide aprobacion y que no se edita aqui, para poder decirlo en
+           // lugar de dejar un campo que la gente busca y no encuentra.
+           aprobada: s.Aprobada || '', seApruebaEnTablero: recorreEmbudo(s.Tipo_Solicitud) };
 }
 
 /**
@@ -1651,7 +1657,13 @@ function actualizarSolicitudCompleta(idSolicitud, datos) {
     var nuevo = {};
     Object.keys(actual).forEach(function (k) { if (k !== '_fila') nuevo[k] = actual[k]; });
     Object.keys(datos).forEach(function (k) {
-      if (CAMPOS_NO_EDITABLES.indexOf(k) === -1) nuevo[k] = datos[k];
+      /* CAMPOS_DEL_SISTEMA (Esquema.gs) se lee AQUI, dentro de la funcion, y no
+         en una constante de este archivo: Apps Script no garantiza en que orden
+         evalua los archivos, asi que una constante que al cargar lee una de otro
+         archivo puede quedar en undefined. Incluye los tres campos de aprobacion
+         desde D-130: quien tiene "Editar solicitud" pero no "Aprobar solicitud"
+         podia aprobar escribiendolos. */
+      if (CAMPOS_DEL_SISTEMA.indexOf(k) === -1) nuevo[k] = datos[k];
     });
 
     nuevo.Fecha_Registro = fechaRegistroEditada_(nuevo.Fecha_Registro, actual.Fecha_Registro);
