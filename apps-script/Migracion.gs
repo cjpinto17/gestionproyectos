@@ -126,7 +126,10 @@ function migrarSolicitud(datos, opciones) {
       correoUsuario: ctx.correo + ' (migracion)'
     });
 
-    if (op.notificar) avisos = avisos.concat(notificar_(registro, 'creacion'));
+    if (op.notificar) {
+      avisos = avisos.concat(notificar_(registro, 'creacion',
+          { quien: ctx.nombre, cuando: new Date() }));
+    }
 
     return { ok: true, idSolicitud: id, avisos: avisos };
   });

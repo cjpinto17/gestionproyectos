@@ -3120,6 +3120,99 @@ la demanda», «Analisis y diseno», «Produccion»). El modal los muestra tal c
 resto de la aplicación. Se corrigen editando la hoja `Fases` desde Administración; no hace falta tocar
 código.
 
+### D-131 · Los avisos dicen qué cambió, no cómo quedó
+
+Pedido del usuario: que los avisos de Chat y correo indiquen, **según el tipo**, cuál fue el cambio y
+sobre cuál solicitud. Antes de construir pidió ver el diseño, y escogió: a Chat **todo pero agrupado**,
+correo también al PO, al analista y al BO, avisar **solo las ediciones de campos relevantes**, y **los
+dos resúmenes** (diario a Chat, semanal por correo).
+
+**Lo que había, verificado rindiendo los mensajes del código anterior:**
+
+| | Antes |
+| --- | --- |
+| Eventos | **3** para los tres gobiernos: `creacion`, `cambio_fase`, `bloqueo` |
+| Una tarea terminada | Tarjeta titulada «Cambio de fase», campo «Fase / Estado» con el valor `" · Terminada"` — el separador huérfano de la fase vacía |
+| El correo de esa tarea | «La solicitud avanzo de fase.» |
+| Enlaces | **0**. Para saber de qué se trataba había que entrar y buscar la tarjeta |
+| Levantar un bloqueo | **Nada**: la rama era `bloqueada ? notificar_(...) : []` |
+| Aprobar | **Nada** |
+| Editar | **Nada** |
+| Una causal creada desde Administración | Salía como **`CB-99`** |
+| La respuesta del webhook | **No se miraba**: un webhook revocado devolvía 404 y la aplicación seguía como si hubiera publicado |
+
+Ahora son **14 eventos**, cada uno con su texto, su urgencia y sus destinatarios.
+
+**El cambio de fondo:** el aviso ya no describe el **estado** de la solicitud, describe el **cambio**.
+Por eso `notificar_` recibe un tercer argumento, `cambio`: de dónde a dónde, quién lo hizo, cuánto duró
+la fase que abandona y contra qué SLA. Sin ese dato lo único que se puede decir es «algo pasó», que es
+lo que decía antes. Un mismo objeto describe el cambio y lo usan las tres salidas —tarjeta, correo y
+línea del resumen— para que las tres digan lo mismo; antes el título de la tarjeta y el asunto del
+correo salían de dos mapas distintos y podían desincronizarse sin que nada avisara.
+
+**Las dos vías de salida.** A Chat sale al instante solo lo que alguien tiene que atender ahora
+(bloqueo, desbloqueo, devolución de fase, llegada a producción, indisponibilidad, incidente crítico o
+alto); el resto se encola y un disparador la vacía cada hora en **una sola tarjeta agrupada por tipo de
+cambio**. Si no hay nada pendiente **no publica nada**: un espacio con «0 cambios» cada hora es
+exactamente el ruido que este diseño existe para evitar. El correo sí sale siempre al instante, porque
+va dirigido a los implicados y no a un espacio común.
+
+**La cola es una HOJA, no memoria.** Si el disparador falla o no corre, los avisos siguen ahí y entran
+en la pasada siguiente; en `CacheService` se habrían perdido en silencio, y un aviso perdido es peor que
+uno tarde. Además se puede mirar: «esto es lo que está por salir». Se marcan **después** de publicar,
+nunca antes.
+
+**El defecto que encontró una falla de mi propio arnés.** La prueba del marcado falló porque no había
+simulado `getHoja_` —y al mirar por qué, el `catch (e) { return; }` de `marcarAvisosPublicados_` estaba
+tragándose el fallo. La consecuencia real: si el marcado fallara después de publicar, **el mismo resumen
+saldría cada hora para siempre**. Ahora propaga, y `publicarResumenAgrupado` devuelve que publicó pero
+no pudo marcar. Una falla del arnés que destapó un defecto del código, no al revés.
+
+**Lo que se guarda en la cola es la línea YA ARMADA**, no los datos crudos. Si se armara al publicar, el
+resumen describiría el estado de hoy y no el cambio de entonces, y dos movimientos de la misma hora se
+leerían como uno.
+
+**La causal se lee antes de borrarla.** Al liberar un bloqueo el sistema limpia `Causal_Bloqueo`, así que
+el aviso de desbloqueo no podría decir de qué se liberó. `marcarBloqueo` la guarda antes de escribir y la
+pasa en el cambio. Es el mismo hueco que D-127 encontró en el informe, resuelto aquí donde sí se puede.
+
+**Los catálogos se leen de la hoja.** `nombreDeCausal_` y `nombreDeCausaRaiz_` usan
+`getCausalesBloqueo_()` y `getCausasRaiz_()`, no las constantes del código: una causal agregada desde
+Administración salía como su código. Mismo defecto que D-101.
+
+**Las fechas, comparadas como fechas.** Las de la hoja llegan como `Date` y las del formulario como
+texto; comparándolas crudas, **toda** edición parecía mover la fecha de compromiso. `sonElMismoValor_`
+las normaliza antes de comparar.
+
+**Lo que a propósito NO avisa:** las doce columnas de fecha por fase. El equipo las está diligenciando
+hacia atrás y un aviso por celda es la forma más rápida de que se dejen de leer los avisos. Tampoco
+avisa retirar una aprobación: es la corrección de quien acaba de darla, no una noticia. Ni una edición
+que no tocó ningún campo relevante, que de otro modo mandaría «0 datos actualizados».
+
+**El Business Owner entra solo en lo que le afecta** —devoluciones, bloqueos, producción, incidentes
+graves— y en el resumen semanal. Ponerlo en cada avance serían decenas de correos al mes y acabaría
+filtrándolos, que es lo mismo que no avisarle. El analista entra cuando el movimiento **toca** su fase,
+de origen o de destino: se entera de que su análisis arrancó y de que salió, no de los seis movimientos
+siguientes.
+
+**`diagnosticoNotificaciones()`** dice a cuánta gente real llega hoy cada evento y por qué no llega al
+resto. Existe porque creer que se está avisando cuando no, es peor que no avisar: el correo corporativo
+sigue pendiente (S-12) y el PO está sin asignar en las 39 iniciativas (S-17), así que varias filas de la
+tabla de destinatarios hoy no le llegan a nadie.
+
+**Dos pruebas ajenas que este cambio rompió con razón:** `pruebaSinDrive.js` y `verCorreoCreacion.js`
+evaluaban `cuerpoCorreo_`, que se mudó y se renombró. Su intención —que el correo no lleve enlaces a
+Drive (D-76, D-77)— sigue valiendo, así que se reapuntaron al nuevo constructor y se les añadió lo que
+antes no podían revisar: que el **único** enlace del correo sea el de la aplicación, y que sin dirección
+aprendida el correo lo explique en vez de dejar un botón roto. `verCorreoCreacion.js` ahora rinde los
+siete correos nuevos y comprueba que ningún asunto sea genérico.
+
+**Operación:** `actualizarEstructura` crea la hoja `Avisos_Pendientes`, e `instalarResumenes()` programa
+los tres disparadores —agrupado cada hora, cierre del día 17:45, semanal lunes 7:40, en zona de Bogotá—.
+Las horas no son en punto a propósito: los disparadores que caen a la hora exacta compiten con los de
+todo el mundo y se atrasan. `limpiarAvisosPublicados()` borra lo publicado de más de treinta días: la
+hoja es una cola, no una bitácora.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

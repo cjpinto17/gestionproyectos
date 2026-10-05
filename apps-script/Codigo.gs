@@ -966,8 +966,12 @@ function cambiarEstadoTarea(idSolicitud, estadoDestino) {
       correoUsuario: ctx.correo
     });
 
+    /* Una tarea no tiene fases: su estado ES su avance. Mandar "cambio de fase"
+       dejaba el aviso con la fase vacia y el separador huerfano (D-131). */
     return { ok: true, idSolicitud: idSolicitud, estadoActual: estadoDestino,
-             avisos: notificar_(nuevo, 'cambio_fase') };
+             avisos: notificar_(nuevo, 'estado_tarea', {
+               estadoOrigen: s.Estado_Actual, estadoDestino: estadoDestino,
+               quien: ctx.nombre, cuando: ahora }) };
   });
 }
 
@@ -1117,8 +1121,15 @@ function cambiarEstadoEstabilizacion(idSolicitud, estadoDestino) {
       correoUsuario: ctx.correo
     });
 
+    /* Cerrar un incidente no es "un cambio de estado mas": es el aviso que lleva
+       la causa raiz y la version con la que se corrigio, que es lo que el
+       negocio pregunta (D-131). */
+    var eventoEst = estadoDestino === ESTADO_ESTABILIZACION_CERRADA
+        ? 'cierre_incidente' : 'estado_incidente';
     return { ok: true, idSolicitud: idSolicitud, estadoActual: estadoDestino,
-             avisos: notificar_(nuevo, 'cambio_fase') };
+             avisos: notificar_(nuevo, eventoEst, {
+               estadoOrigen: s.Estado_Actual, estadoDestino: estadoDestino,
+               quien: ctx.nombre, cuando: ahora }) };
   });
 }
 
@@ -1554,7 +1565,12 @@ function crearSolicitud(datos) {
       correoUsuario: ctx.correo
     });
 
-    avisos = avisos.concat(notificar_(registro, 'creacion'));
+    /* Un incidente registrado no es "una solicitud nueva": lleva su prioridad en
+       el titular y, si es critica o alta, sale al instante en vez de esperar el
+       resumen de la hora (D-131). */
+    avisos = avisos.concat(notificar_(registro,
+        esTipoEstabilizacion(registro.Tipo_Solicitud) ? 'incidente' : 'creacion',
+        { quien: ctx.nombre, cuando: new Date() }));
 
     return { ok: true, idSolicitud: id, avisos: avisos };
   });
@@ -1701,7 +1717,18 @@ function actualizarSolicitudCompleta(idSolicitud, datos) {
     }
     if (nuevo.Version_Semantica) sincronizarRoadmap_(nuevo);
 
-    return { ok: true, idSolicitud: idSolicitud, huboTransicion: cambioFase || cambioEstado };
+    /* Editar tampoco avisaba nada: alguien podia cambiar el responsable o subir
+       la prioridad a critica y alos interesados no les llegaba nada (D-131).
+       Solo se avisan los campos de CAMPOS_AVISAN_EDICION —lo que cambia el
+       trabajo de alguien— y NO las fechas por fase: el equipo las esta
+       diligenciando hacia atras y seria un aviso por cada celda. */
+    var avisos = notificar_(nuevo, 'edicion', {
+      quien: ctx.nombre, cuando: new Date(),
+      campos: camposQueCambiaron_(actual, nuevo)
+    });
+
+    return { ok: true, idSolicitud: idSolicitud, avisos: avisos,
+             huboTransicion: cambioFase || cambioEstado };
   });
 }
 
@@ -1786,7 +1813,22 @@ function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino, idAnalist
     });
 
     if (faseDestino === 'FAS-08') sincronizarRoadmap_(nuevo);
-    var avisos = notificar_(nuevo, 'cambio_fase');
+
+    /* Tres eventos distintos, no uno: llegar a produccion es el hito que el
+       negocio espera, y una devolucion es una mala noticia que alguien tiene que
+       atender. Mandar los tres como "cambio de fase" los igualaba (D-131). */
+    var evento = faseDestino === 'FAS-08' ? 'produccion'
+               : (ordenDeFase(faseDestino) < ordenDeFase(faseOrigen) ? 'devolucion' : 'avance');
+    var desdeCuando = aFecha_(s.Fecha_Ultimo_Cambio) || aFecha_(s.Fecha_Registro);
+    var avisos = notificar_(nuevo, evento, {
+      faseOrigen: faseOrigen, faseDestino: faseDestino,
+      estadoOrigen: estadoOrigen, estadoDestino: nuevoEstado,
+      quien: ctx.nombre, cuando: ahora,
+      // Cuanto estuvo en la fase que abandona, y contra que objetivo: es el dato
+      // que convierte "avanzo" en "avanzo bien" o "avanzo tarde".
+      diasEnFase: desdeCuando ? diasHabilesEntre(desdeCuando, ahora) : null,
+      slaFase: mapaSla_(leerTabla_('SLA_Fases'))[faseOrigen] || null
+    });
 
     return { ok: true, idSolicitud: idSolicitud, faseActual: faseDestino,
              estadoActual: nuevoEstado, avisos: avisos };
@@ -1966,9 +2008,16 @@ function aprobarSolicitud(idSolicitud, aprobar) {
 
     escribirFila_('Solicitudes', s._fila, nuevo);
 
+    /* Aprobar no avisaba nada: la compuerta se abria y quien esperaba para mover
+       la tarjeta no se enteraba. Retirar la aprobacion no avisa, a proposito: es
+       una correccion de quien acaba de darla, no una noticia (D-131). */
+    var avisos = aprobar
+        ? notificar_(nuevo, 'aprobacion', { quien: ctx.nombre, cuando: ahora })
+        : [];
+
     return { ok: true, idSolicitud: idSolicitud, aprobada: !!aprobar,
              aprobadaPor: nuevo.Aprobada_Por, fecha: nuevo.Fecha_Aprobacion,
-             fase: s.Fase_Actual };
+             fase: s.Fase_Actual, avisos: avisos };
   });
 }
 
@@ -2230,6 +2279,10 @@ function marcarBloqueo(idSolicitud, bloqueada, idCausal, observacion) {
     nuevo.Causal_Bloqueo = bloqueada ? idCausal : '';
     // Al levantar el bloqueo la observacion se limpia: describe una situacion
     // que ya termino, y dejarla haria creer que la solicitud sigue trabada.
+    /* La causal se LEE antes de borrarla: al liberar, el sistema la limpia, y sin
+       guardarla aqui el aviso de desbloqueo no podria decir de que se libero
+       (D-131, el mismo hueco que D-127 encontro en el informe). */
+    var causalQueTenia = s.Causal_Bloqueo || '';
     nuevo.Observacion_Bloqueo = bloqueada ? nota : '';
     nuevo.Estado_Actual = bloqueada ? 'EST-04' : 'EST-02';
     nuevo.Fecha_Ultimo_Cambio = ahora;
@@ -2248,7 +2301,17 @@ function marcarBloqueo(idSolicitud, bloqueada, idCausal, observacion) {
       correoUsuario: ctx.correo
     });
 
-    var avisos = bloqueada ? notificar_(nuevo, 'bloqueo') : [];
+    /* Liberar tambien avisa. Antes solo avisaba el bloqueo: a quien estaba
+       esperando le llegaba la mala noticia y nunca la buena, asi que tenia que
+       entrar a comprobar si ya podia seguir. */
+    var desdeBloqueo = aFecha_(s.Fecha_Ultimo_Cambio) || aFecha_(s.Fecha_Registro);
+    var avisos = notificar_(nuevo, bloqueada ? 'bloqueo' : 'desbloqueo', {
+      estadoOrigen: estadoOrigen, estadoDestino: nuevo.Estado_Actual,
+      quien: ctx.nombre, cuando: ahora,
+      causalQueTenia: causalQueTenia,
+      diasBloqueada: bloqueada || !desdeBloqueo
+          ? null : diasHabilesEntre(desdeBloqueo, ahora)
+    });
     return { ok: true, idSolicitud: idSolicitud, bloqueada: bloqueada, avisos: avisos };
   });
 }
@@ -2350,121 +2413,8 @@ function limpiarNombre_(texto) {
 /* 9. Notificaciones                                                   */
 /* ================================================================== */
 
-/**
- * Envia las notificaciones de un evento. Nunca interrumpe la operacion: si
- * Chat o Gmail fallan, devuelve el aviso y la solicitud queda guardada igual.
- *
- * @param {!Object} solicitud
- * @param {string} evento 'creacion' | 'cambio_fase' | 'bloqueo'
- * @return {!Array<string>} Avisos para mostrar al usuario.
- * @private
- */
-function notificar_(solicitud, evento) {
-  var avisos = [];
-  if (CONFIG.NOTIFICAR_CHAT && getChatWebhookUrl_()) {
-    try { notificarChat_(solicitud, evento); }
-    catch (e) { avisos.push('No se pudo publicar en Google Chat: ' + e.message); }
-  }
-  if (CONFIG.NOTIFICAR_CORREO) {
-    try { notificarCorreo_(solicitud, evento); }
-    catch (e) { avisos.push('No se pudo enviar el correo: ' + e.message); }
-  }
-  return avisos;
-}
 
-/**
- * Publica una tarjeta en el espacio de Google Chat.
- * @private
- */
-function notificarChat_(solicitud, evento) {
-  var titulos = {
-    creacion: 'Nueva solicitud registrada',
-    cambio_fase: 'Cambio de fase',
-    bloqueo: 'Solicitud bloqueada'
-  };
-  var plataforma = mapaPlataformas()[solicitud.Plataforma_ID] || '';
-  var fase = mapaFases()[solicitud.Fase_Actual] || solicitud.Fase_Actual;
-  var estado = mapaEstados()[solicitud.Estado_Actual] || solicitud.Estado_Actual;
 
-  var proyecto = solicitud.ID_Proyecto ? buscarPorPk_('Proyectos', solicitud.ID_Proyecto) : null;
-  var iniciativa = proyecto ? proyecto.Nombre_Proyecto : (solicitud.ID_Proyecto || 'Sin iniciativa');
-  var registro = aFecha_(solicitud.Fecha_Registro);
-  var registroTexto = registro
-      ? Utilities.formatDate(registro, CONFIG.ZONA_HORARIA, CONFIG.FORMATO_FECHA_HORA)
-      : 'sin fecha';
-
-  var campos = [
-    { decoratedText: { topLabel: 'Solicitud',
-                       text: solicitud.Nombre_Solicitud + ' (' + solicitud.ID_Solicitud + ')',
-                       wrapText: true } },
-    { decoratedText: { topLabel: 'Iniciativa', text: iniciativa, wrapText: true } },
-    { decoratedText: { topLabel: 'Registrada', text: registroTexto } },
-    { decoratedText: { topLabel: 'Fase / Estado', text: fase + ' · ' + estado } }
-  ];
-  if (String(solicitud.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0) {
-    var causal = solicitud.Causal_Bloqueo;
-    CAUSALES_BLOQUEO.forEach(function (c) { if (c.id === causal) causal = c.nombre; });
-    campos.push({ decoratedText: { topLabel: 'Causal del bloqueo', text: causal } });
-    if (solicitud.Observacion_Bloqueo) {
-      campos.push({ decoratedText: { topLabel: 'Observacion',
-                                     text: String(solicitud.Observacion_Bloqueo),
-                                     wrapText: true } });
-    }
-  }
-
-  // Sin botones de Drive: los enlaces viven en la solicitud dentro de la
-  // aplicacion, que es donde estan tambien su estado y su seguimiento (D-77).
-
-  var payload = {
-    cardsV2: [{
-      cardId: solicitud.ID_Solicitud + '-' + evento,
-      card: {
-        header: { title: titulos[evento] || 'Actualizacion',
-                  subtitle: iniciativa + (plataforma ? ' · ' + plataforma : '') },
-        sections: [{ widgets: campos }]
-      }
-    }]
-  };
-
-  UrlFetchApp.fetch(getChatWebhookUrl_(), {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true
-  });
-}
-
-/**
- * Envia el correo al solicitante y al responsable.
- * @private
- */
-function notificarCorreo_(solicitud, evento) {
-  var destinatarios = [];
-  [solicitud.Solicitante_ID, solicitud.Responsable_ID].forEach(function (idUsuario) {
-    if (!idUsuario) return;
-    var u = buscarPorPk_('Usuarios', idUsuario);
-    if (u && u.Correo_ID && destinatarios.indexOf(u.Correo_ID) === -1) {
-      destinatarios.push(u.Correo_ID);
-    }
-  });
-  if (!destinatarios.length) return;   // nadie tiene correo corporativo todavia
-
-  var asuntos = {
-    creacion: 'Solicitud registrada',
-    cambio_fase: 'Avance de solicitud',
-    bloqueo: 'Solicitud bloqueada'
-  };
-  // El asunto lleva el nombre de la solicitud: quien recibe varios correos al
-  // dia distingue de cual se trata sin abrirlos.
-  var asunto = (asuntos[evento] || 'Actualizacion') + ': ' +
-               solicitud.Nombre_Solicitud + ' (' + solicitud.ID_Solicitud + ')';
-
-  MailApp.sendEmail({
-    to: destinatarios.join(','),
-    subject: asunto,
-    htmlBody: cuerpoCorreo_(solicitud, evento)
-  });
-}
 
 /* ------------------------------------------------------------------ */
 /* Aviso de comentario nuevo                                           */
@@ -2615,52 +2565,6 @@ function escaparHtml_(valor) {
       .replace(/"/g, '&quot;');
 }
 
-/**
- * Arma el HTML del correo con la identidad corporativa.
- * @private
- */
-function cuerpoCorreo_(solicitud, evento) {
-  var fase = mapaFases()[solicitud.Fase_Actual] || solicitud.Fase_Actual;
-  var estado = mapaEstados()[solicitud.Estado_Actual] || solicitud.Estado_Actual;
-  var plataforma = mapaPlataformas()[solicitud.Plataforma_ID] || '';
-  var mensajes = {
-    creacion: 'Su solicitud quedo registrada en el sistema.',
-    cambio_fase: 'La solicitud avanzo de fase.',
-    bloqueo: 'La solicitud fue marcada con un bloqueo.'
-  };
-
-  var datos = [
-    ['Solicitud', solicitud.ID_Solicitud],
-    ['Nombre', solicitud.Nombre_Solicitud],
-    ['Plataforma', plataforma],
-    ['Fase actual', fase],
-    ['Estado', estado]
-  ];
-  if (String(solicitud.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0) {
-    var causal = solicitud.Causal_Bloqueo;
-    CAUSALES_BLOQUEO.forEach(function (c) { if (c.id === causal) causal = c.nombre; });
-    datos.push(['Causal del bloqueo', causal]);
-    if (solicitud.Observacion_Bloqueo) {
-      datos.push(['Observacion', String(solicitud.Observacion_Bloqueo)]);
-    }
-  }
-
-  var filas = datos.map(function (f) {
-    return '<tr><td style="padding:6px 12px;color:#5A6B8C;font-size:13px">' + f[0] +
-           '</td><td style="padding:6px 12px;font-size:13px"><b>' + f[1] + '</b></td></tr>';
-  }).join('');
-
-  return '<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;' +
-         'border:1px solid #EDF1F8;border-radius:12px;overflow:hidden">' +
-         '<div style="background:#00306E;color:#fff;padding:16px 20px">' +
-         '<div style="font-size:16px;font-weight:bold">' + CONFIG.APP_NOMBRE + '</div></div>' +
-         '<div style="padding:20px">' +
-         '<p style="font-size:14px;color:#0D1F3C">' + (mensajes[evento] || '') + '</p>' +
-         '<table style="width:100%;border-collapse:collapse">' + filas + '</table>' +
-         // Sin enlaces a Drive: viven en la solicitud dentro de la aplicacion,
-         // que es donde estan tambien su estado y su seguimiento (D-76).
-         '</div></div>';
-}
 
 /* ================================================================== */
 /* 10. CRUD de parametrizacion (pagina Admin)                          */

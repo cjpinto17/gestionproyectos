@@ -434,6 +434,118 @@ var VERTICALES = [
 ];
 
 /* ================================================================== */
+/* Notificaciones: que se avisa, a quien y con que urgencia (D-131)    */
+/* ================================================================== */
+
+/**
+ * Los eventos que generan aviso, uno por uno.
+ *
+ * Antes habia TRES eventos —creacion, cambio_fase, bloqueo— para los tres
+ * gobiernos juntos, asi que una tarea terminada llegaba titulada "Cambio de
+ * fase" con la fase vacia, y levantar un bloqueo no avisaba nada. Cada evento
+ * tiene ahora su propio texto, su propia urgencia y sus propios destinatarios.
+ *
+ * `urgencia` decide si sale al instante o espera el resumen de la hora:
+ *   'siempre'    - alguien tiene que hacer algo ahora
+ *   'nunca'      - se acumula y sale en el resumen agrupado
+ *   'siCritica'  - al instante solo si la prioridad es critica o alta
+ *
+ * `a` son los papeles que reciben el correo. El Business Owner entra solo en lo
+ * que le afecta —devoluciones, bloqueos, produccion, incidentes graves— y en el
+ * resumen semanal: ponerlo en cada avance serian decenas de correos al mes y
+ * acabaria filtrandolos, que es lo mismo que no avisarle.
+ *
+ * `analistaEnFases` agrega al analista cuando el movimiento TOCA una de esas
+ * fases, de origen o de destino: se entera de que su analisis arranco y de que
+ * salio, no de los seis movimientos siguientes.
+ *
+ * `grupo` es el encabezado bajo el cual se lista en el resumen agrupado.
+ */
+var EVENTOS_NOTIFICACION = {
+  creacion: {
+    titulo: 'Nueva solicitud', grupo: 'Solicitudes nuevas',
+    urgencia: 'nunca', a: ['solicitante', 'responsable', 'po']
+  },
+  avance: {
+    titulo: 'Avance de fase', grupo: 'Avanzaron de fase',
+    urgencia: 'nunca', a: ['solicitante', 'responsable', 'po'],
+    analistaEnFases: ['FAS-03']
+  },
+  devolucion: {
+    titulo: 'Devuelta a una fase anterior', grupo: 'Devueltas',
+    urgencia: 'siempre', a: ['solicitante', 'responsable', 'po', 'bo'],
+    analistaEnFases: ['FAS-03']
+  },
+  aprobacion: {
+    titulo: 'Aprobada en su fase', grupo: 'Aprobadas en su fase',
+    urgencia: 'nunca', a: ['solicitante', 'responsable', 'po']
+  },
+  bloqueo: {
+    titulo: 'Bloqueada', grupo: 'Se bloquearon',
+    urgencia: 'siempre', a: ['solicitante', 'responsable', 'po', 'bo']
+  },
+  desbloqueo: {
+    titulo: 'Bloqueo levantado', grupo: 'Se liberaron',
+    urgencia: 'siempre', a: ['solicitante', 'responsable', 'po', 'bo']
+  },
+  produccion: {
+    titulo: 'Llegó a producción', grupo: 'Llegaron a producción',
+    urgencia: 'siempre', a: ['solicitante', 'responsable', 'po', 'bo']
+  },
+  edicion: {
+    titulo: 'Datos actualizados', grupo: 'Ediciones',
+    urgencia: 'nunca', a: ['solicitante', 'responsable', 'po']
+  },
+  estado_tarea: {
+    titulo: 'Tarea', grupo: 'Tareas',
+    urgencia: 'nunca', a: ['solicitante', 'responsable', 'po']
+  },
+  compromiso: {
+    titulo: 'Cambió el compromiso', grupo: 'Compromisos movidos',
+    urgencia: 'nunca', a: ['solicitante', 'responsable', 'po']
+  },
+  incidente: {
+    titulo: 'Incidente registrado', grupo: 'Incidentes nuevos',
+    urgencia: 'siCritica', a: ['solicitante', 'responsable', 'po', 'bo']
+  },
+  estado_incidente: {
+    titulo: 'Incidente', grupo: 'Incidentes',
+    urgencia: 'nunca', a: ['solicitante', 'responsable', 'po']
+  },
+  cierre_incidente: {
+    titulo: 'Incidente cerrado', grupo: 'Incidentes cerrados',
+    urgencia: 'nunca', a: ['solicitante', 'responsable', 'po', 'bo']
+  },
+  indisponibilidad: {
+    titulo: 'Indisponibilidad registrada', grupo: 'Indisponibilidad',
+    urgencia: 'siempre', a: ['solicitante', 'responsable', 'po', 'bo']
+  }
+};
+
+/** Prioridades que hacen urgente un incidente. */
+var PRIORIDADES_URGENTES = ['PRI-01', 'PRI-02'];
+
+/**
+ * Campos cuyo cambio al editar merece aviso, con el nombre que se usa al
+ * contarlo.
+ *
+ * Deliberadamente NO estan las fechas por fase: el equipo las esta diligenciando
+ * hacia atras y avisar cada celda seria un aviso por cada dato que se llena, que
+ * es la forma mas rapida de que se dejen de leer los avisos. Lo que esta aqui es
+ * lo que cambia el trabajo de alguien.
+ */
+var CAMPOS_AVISAN_EDICION = [
+  { campo: 'Alcance', nombre: 'Alcance' },
+  { campo: 'Prioridad', nombre: 'Prioridad', catalogo: 'Prioridad' },
+  { campo: 'Responsable_ID', nombre: 'Responsable', catalogo: 'Usuarios' },
+  { campo: 'ID_Proyecto', nombre: 'Iniciativa', catalogo: 'Proyectos' },
+  { campo: 'Version_Semantica', nombre: 'Versión estimada' },
+  { campo: 'Fecha_Compromiso', nombre: 'Fecha de compromiso' },
+  { campo: 'Plataforma_ID', nombre: 'Plataforma', catalogo: 'Plataforma_Digital' },
+  { campo: 'Analista_ID', nombre: 'Analista', catalogo: 'Analistas' }
+];
+
+/* ================================================================== */
 /* El formulario de edicion de una solicitud (D-130)                   */
 /* ================================================================== */
 
@@ -1107,6 +1219,28 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Link_Taiga', etiqueta: 'Issue en Taiga', tipo: 'url' },
       // Lo escribe el proceso: queda el ID creado o el motivo del rechazo.
       { campo: 'Resultado', etiqueta: 'Resultado', tipo: 'text' }
+    ]
+  },
+  /**
+   * La cola de avisos que esperan el resumen agrupado.
+   *
+   * Es una HOJA y no memoria a proposito: si el disparador que la vacia falla o
+   * no corre, los avisos siguen ahi y entran en la pasada siguiente. En
+   * CacheService se habrian perdido en silencio, y un aviso perdido es peor que
+   * un aviso tarde. Ademas se puede mirar: "esto es lo que esta por salir".
+   */
+  Avisos_Pendientes: {
+    etiqueta: 'Avisos por publicar',
+    pk: 'ID_Aviso',
+    columnas: [
+      { campo: 'ID_Aviso', etiqueta: 'ID Aviso', tipo: 'text', requerido: true },
+      { campo: 'Fecha_Hora', etiqueta: 'Cuando ocurrio', tipo: 'datetime', requerido: true },
+      { campo: 'ID_Solicitud', etiqueta: 'Solicitud', tipo: 'text', requerido: true },
+      { campo: 'Evento', etiqueta: 'Evento', tipo: 'text', requerido: true },
+      { campo: 'Grupo', etiqueta: 'Grupo en el resumen', tipo: 'text' },
+      { campo: 'Resumen', etiqueta: 'Linea del resumen', tipo: 'longtext' },
+      { campo: 'Usuario', etiqueta: 'Quien lo hizo', tipo: 'text' },
+      { campo: 'Publicado', etiqueta: 'Ya se publico', tipo: 'boolSN' }
     ]
   },
   Roadmap_Versiones: {
