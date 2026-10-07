@@ -853,6 +853,60 @@
   .presentando .tarjetas-ini{grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
   .presentando .ti-nombre{font-size:16px}
 
+  /* La facturacion por fabrica (D-132): ocupa la pantalla y, al imprimir, cada
+     fabrica arranca en una pagina nueva. Son dos documentos que van a dos
+     proveedores distintos: la factura de una no puede terminar en la hoja de
+     la otra. */
+  .velo-factura{position:fixed;inset:0;z-index:60;background:var(--ground);
+    overflow-y:auto}
+  .fac-barra{position:sticky;top:0;z-index:2;display:flex;align-items:center;
+    gap:10px;padding:12px 20px;background:var(--navy);color:#fff}
+  .fac-barra-tit{font-weight:700;font-size:14px}
+  .fac-hojas{padding:20px;max-width:900px;margin:0 auto}
+  .fac-hoja{background:var(--surface);border:1px solid var(--line);
+    border-radius:10px;padding:26px 28px;margin-bottom:20px}
+  .fac-cab{display:flex;align-items:flex-start;gap:16px;
+    border-bottom:2px solid var(--navy);padding-bottom:12px;margin-bottom:18px}
+  .fac-cab h2{font-size:22px;font-weight:700;margin:2px 0;color:var(--navy)}
+  .fac-rot{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;
+    color:var(--ink-faint);font-weight:700}
+  .fac-dato{font-size:12px;color:var(--ink-muted)}
+  .fac-mes{margin-left:auto;text-align:right;font-size:14px;font-weight:600;
+    color:var(--ink)}
+  .fac-total{background:var(--line-soft);border-radius:8px;padding:14px 18px;
+    margin-bottom:6px}
+  .fac-total-rot{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;
+    color:var(--ink-muted);font-weight:700}
+  .fac-total-cifra{font-size:30px;font-weight:700;color:var(--navy);line-height:1.2}
+  .fac-seccion{font-size:11.5px;font-family:var(--display);font-weight:700;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--ink-faint);
+    margin:22px 0 8px}
+  /* La conciliacion NO hace parte del valor a facturar y se ve distinta a
+     proposito: un recuadro al lado del total se leeria como parte de la cuenta. */
+  .fac-concilia{border-left:3px solid var(--alerta-line);padding-left:14px;
+    margin-top:18px}
+  .fac-nofactura{font-weight:600;text-transform:none;letter-spacing:0;
+    color:var(--alerta);font-size:11px}
+  .fac-huerfanas{border-color:var(--alerta-line);border-width:2px}
+  @media print{
+    /* Con la facturacion abierta se imprime SOLO ella: el tablero detras no es
+       parte del documento que va al proveedor. */
+    body.con-factura>*:not(.velo-factura){display:none !important}
+    body.con-factura{background:#fff}
+    .velo-factura{position:static;overflow:visible;background:#fff}
+    .fac-barra{display:none !important}
+    .fac-hojas{padding:0;max-width:none}
+    .fac-hoja{border:0;border-radius:0;padding:0 0 10px;margin:0;
+      break-after:page;page-break-after:always}
+    .fac-hoja:last-child{break-after:auto;page-break-after:auto}
+    /* Una tabla partida a la mitad por un salto de pagina obliga a buscar el
+       encabezado en la hoja anterior. */
+    .fac-hoja table{break-inside:auto}
+    .fac-hoja thead{display:table-header-group}
+    .fac-hoja tr{break-inside:avoid}
+    .tabla-scroll{overflow:visible}
+  }
+
   /* Modo presentacion del Informe: un bloque a la vez, en grande, para
      proyectar en el comite. Las cifras crecen porque lo que se lee a 40 cm de
      un portatil no se lee a seis metros de un videobeam (D-127). */

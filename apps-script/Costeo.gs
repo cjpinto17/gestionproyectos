@@ -508,6 +508,7 @@ function calcularCostos_(desde, hasta, conDetalle) {
      Consecuencia conocida y aceptada: los dias que esa iniciativa ocupe en una
      etapa donde no tiene bolsa propia no cuestan nada, y la bolsa general de esa
      etapa se reparte entre las demas (D-124). */
+  var nombreFabrica = mapaFabricas();
   var conBolsaPropia = {};      // mes -> idProyecto -> true
   tarifas.forEach(function (t) {
     var ded = String(t.ID_Proyecto || '').trim();
@@ -527,9 +528,16 @@ function calcularCostos_(desde, hasta, conDetalle) {
     var valor = Number(t.Valor_Mensual) || 0;
     var dedicada = String(t.ID_Proyecto || '').trim();
     var vDesde = aFecha_(t.Vigencia_Desde), vHasta = aFecha_(t.Vigencia_Hasta);
+    var fabrica = String(t.ID_Fabrica || '').trim();
     var resumen = { id: t.ID_Costo, concepto: t.Concepto || t.ID_Costo, etapa: etapa,
                     etapaNombre: etapas[etapa] ? etapas[etapa].nombre : etapa,
                     dedicada: dedicada, mensual: valor,
+                    // A quien se le paga. Vacio NO se reparte entre las demas:
+                    // se informa aparte, porque colar una bolsa en la factura
+                    // equivocada es un pago mal hecho (D-132).
+                    fabrica: fabrica,
+                    fabricaNombre: fabrica ? (nombreFabrica[fabrica] || fabrica) : '',
+                    sinFabrica: !fabrica,
                     vigenciaDesde: vDesde ? claveDia_(vDesde) : '',
                     vigenciaHasta: vHasta ? claveDia_(vHasta) : '',
                     habiles: 0, habilesPosibles: 0,
@@ -971,4 +979,137 @@ function registrarFechasEtapa(idSolicitud, fechas) {
     pedidas.forEach(function (c) { guardadas[c] = nuevo[c]; });
     return { id: idSolicitud, fechas: guardadas };
   });
+}
+
+/* ================================================================== */
+/* La facturacion por fabrica (D-132)                                  */
+/* ================================================================== */
+
+/**
+ * Lo que hay que pagarle a cada fabrica de software en un mes.
+ *
+ * Decision del usuario: el monto a facturar es lo ATRIBUIDO a solicitudes, no la
+ * capacidad contratada. Se le advirtio la consecuencia —si falta una fecha, esa
+ * capacidad no entra en la factura— y la tomo asi. Por eso el documento lleva,
+ * fuera del total y claramente separada, una linea de conciliacion con lo
+ * contratado y la diferencia: quien autoriza el pago tiene que poder ver que
+ * esta pagando menos que el contrato, y la fabrica lo va a notar.
+ *
+ * Una bolsa sin fabrica asignada NO se reparte ni se suma a ninguna: va a un
+ * bloque aparte. Colarla en la factura equivocada es un pago mal hecho.
+ *
+ * @param {string} mes 'yyyy-MM'.
+ * @return {!Object}
+ */
+function getFacturacion(mes) {
+  exigirPermiso_('Ver_Costos', 'Su rol no puede ver los costos de la fabrica.');
+  var m = String(mes || '').trim();
+  if (!/^\d{4}-\d{2}$/.test(m)) {
+    throw new Error('Indique el mes a facturar en formato aaaa-mm.');
+  }
+  return conResultadoEnCache_('factura_' + m, function () {
+    return planoParaElNavegador_(calcularFacturacion_(m));
+  }, versionDatos_());
+}
+
+/**
+ * @param {string} mes
+ * @return {!Object}
+ * @private
+ */
+function calcularFacturacion_(mes) {
+  /* Se calcula CON detalle porque el anexo de cada factura es el reparto por
+     solicitud, y el reparto solo se arma cuando se pide el detalle. */
+  var r = calcularCostos_(mes, mes, true);
+  if (!r) throw new Error('El costeo no devolvió resultado.');
+  if (r.sinTarifas) return { sinTarifas: true, mensaje: r.mensaje, mes: mes };
+
+  var nombreFabrica = mapaFabricas();
+  var datosFabrica = {};
+  try {
+    leerTabla_('Fabricas').forEach(function (f) { datosFabrica[f.ID_Fabrica] = f; });
+  } catch (e) { /* la hoja se crea con actualizarEstructura */ }
+
+  var porBolsa = {};
+  (r.bolsas || []).forEach(function (b) { porBolsa[b.id] = b; });
+
+  var porId = {};
+  (r.actividades || []).forEach(function (a) { porId[a.id] = a; });
+
+  /* Las bolsas que de verdad cobraron algo este mes. Una vigente pero sin cobro
+     —vigencia que no alcanza un dia habil— no va en la factura. */
+  var vigentes = (r.bolsas || []).filter(function (b) { return b.total > 0; });
+
+  var grupos = {}, sinAsignar = [];
+  vigentes.forEach(function (b) {
+    if (b.sinFabrica) { sinAsignar.push(b); return; }
+    grupos[b.fabrica] = grupos[b.fabrica] || {
+      id: b.fabrica,
+      nombre: nombreFabrica[b.fabrica] || b.fabrica,
+      nit: (datosFabrica[b.fabrica] || {}).NIT || '',
+      contrato: (datosFabrica[b.fabrica] || {}).Contrato || '',
+      bolsas: [], aFacturar: 0, contratado: 0, sinAtribuir: 0, lineas: []
+    };
+    var g = grupos[b.fabrica];
+    g.bolsas.push(b);
+    // El monto a facturar es lo ATRIBUIDO, por decision del usuario.
+    g.aFacturar += b.atribuido;
+    g.contratado += b.total;
+    g.sinAtribuir += b.noAtribuido;
+  });
+
+  /* El anexo: cada solicitud con lo que cargo contra las bolsas de ESA fabrica.
+     Sale del reparto, que ya trae una fila por bolsa y por solicitud, asi que la
+     suma del anexo es exactamente el monto a facturar: no se recalcula nada. */
+  ((r.detalle || {}).reparto || []).forEach(function (x) {
+    var b = porBolsa[x.bolsa];
+    if (!b || b.sinFabrica || !grupos[b.fabrica]) return;
+    var a = porId[x.id] || {};
+    grupos[b.fabrica].lineas.push({
+      bolsa: x.bolsa, concepto: x.concepto,
+      etapa: x.etapa, etapaNombre: b.etapaNombre,
+      id: x.id, nombre: a.nombre || x.id,
+      iniciativa: a.iniciativa || 'Sin iniciativa',
+      tipoNombre: a.tipoNombre || '',
+      dias: red_(x.dias, 1), diasTotales: red_(x.diasTotales, 1),
+      costo: x.costo
+    });
+  });
+
+  var fabricas = Object.keys(grupos).map(function (k) { return grupos[k]; });
+  fabricas.forEach(function (g) {
+    // Dentro de cada factura, lo mas caro primero: es el orden en que alguien
+    // revisa una cuenta antes de autorizarla.
+    g.lineas.sort(function (a, b) { return b.costo - a.costo; });
+    g.bolsas.sort(function (a, b) { return b.atribuido - a.atribuido; });
+    g.actividades = Object.keys(g.lineas.reduce(function (acc, l) {
+      acc[l.id] = true; return acc;
+    }, {})).length;
+    /* La suma del anexo tiene que dar el monto a facturar. Si no cuadra es un
+       error del calculo y el documento lo dice en vez de presentar una cuenta
+       que no se sostiene: nadie deberia enterarse de esto en una reunion con el
+       proveedor. */
+    g.sumaAnexo = g.lineas.reduce(function (acc, l) { return acc + l.costo; }, 0);
+    g.cuadra = g.sumaAnexo === g.aFacturar;
+  });
+  fabricas.sort(function (a, b) { return b.aFacturar - a.aFacturar; });
+
+  return {
+    mes: mes,
+    moneda: r.moneda || 'COP',
+    generado: Utilities.formatDate(new Date(), CONFIG.ZONA_HORARIA,
+                                   CONFIG.FORMATO_FECHA_HORA),
+    fabricas: fabricas,
+    totalAFacturar: fabricas.reduce(function (a, g) { return a + g.aFacturar; }, 0),
+    totalContratado: fabricas.reduce(function (a, g) { return a + g.contratado; }, 0),
+    /* Las bolsas sin fabrica: nunca se suman a una factura. Si esta lista trae
+       algo, hay plata que nadie va a cobrar porque no se sabe a quien pagarle. */
+    sinAsignar: sinAsignar.map(function (b) {
+      return { id: b.id, concepto: b.concepto, etapaNombre: b.etapaNombre,
+               mensual: b.mensual, total: b.total, atribuido: b.atribuido };
+    }),
+    sinAsignarTotal: sinAsignar.reduce(function (a, b) { return a + b.atribuido; }, 0),
+    // Lo que falta por diligenciar cambia el monto a facturar: se dice.
+    actividadesSinFechas: r.incompletasTotal || 0
+  };
 }

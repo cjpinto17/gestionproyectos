@@ -3213,6 +3213,68 @@ Las horas no son en punto a propósito: los disparadores que caen a la hora exac
 todo el mundo y se atrasan. `limpiarAvisosPublicados()` borra lo publicado de más de treinta días: la
 hoja es una cola, no una bitácora.
 
+### D-132 · La factura de cada fábrica de software
+
+Pedido del usuario: poder indicar a qué fábrica corresponde cada costo —hoy son dos, **Hexa** y
+**Seti**— y, desde los cálculos detallados, imprimir el detalle separado por fábrica para facturar y
+pagar.
+
+**Lo que ya existía:** el motor reparte cada bolsa entre las solicitudes que la ocuparon y guarda, bolsa
+por bolsa, cuánto cobró el mes y cuánto de eso se atribuyó. La aritmética de la factura ya estaba; lo
+que faltaba era decir **a quién se le paga cada bolsa**. Antes la hoja de costos tenía siete columnas y
+ninguna era la fábrica: con dos proveedores en la misma hoja, todo salía en un solo total.
+
+**Lo nuevo:** catálogo `Fabricas` (ampliable, sembrado con Hexa y Seti, con NIT y contrato opcionales),
+una columna `ID_Fabrica` en cada bolsa, y `getFacturacion(mes)` que arma un documento por fábrica.
+
+**La decisión del usuario, y su consecuencia.** Se le preguntó qué monto debe llevar la factura:
+la **capacidad contratada** o **solo lo atribuido** a solicitudes. Escogió lo atribuido, advertido de
+que si falta una fecha esa capacidad no entra en la factura. Queda registrado así porque es su decisión
+sobre su dinero, no un detalle de implementación. En el ensayo con datos de prueba se ve el efecto:
+Hexa facturaría **$140.547.737 de $191.845.366 contratados** porque faltan las fechas de análisis.
+
+**Lo único que añadí sin que lo pidiera:** una **línea de conciliación** —capacidad contratada,
+atribuido, y la diferencia— **fuera del total y marcada como «no hace parte del valor a facturar»**.
+Quien autoriza el pago tiene que poder ver que está pagando menos que el contrato, y la fábrica lo va a
+notar. Está en el anexo, que es la sección que el usuario sí aceptó, y se quita en un cambio si no la
+quiere. El usuario había declinado la opción «muéstrame las dos cifras y yo decido», así que la decisión
+sigue siendo la suya: el **total** es lo atribuido; esto es un renglón de control, no parte de la cuenta.
+
+**Una bolsa sin fábrica NO se suma a ninguna factura.** Va a su propia hoja, al final, marcada, con el
+monto que nadie va a cobrar y dónde se asigna. Colarla en la factura equivocada es un pago mal hecho, y
+repartirla «a partes iguales» sería inventarse una deuda. Las siete bolsas actuales van a aparecer ahí
+hasta que se les asigne la fábrica, que es exactamente lo que hay que ver.
+
+**No corrí a adivinar de quién es cada bolsa.** Los nombres `CF-DEV-SETI` y `CF-QA-SETI` lo sugieren,
+pero asignar una bolsa de 51 millones a la fábrica equivocada por deducir de un nombre es un pago mal
+hecho. Se asigna desde Administración, que es además lo que el usuario pidió.
+
+**La suma del anexo tiene que dar el monto.** El anexo sale del reparto que ya calculó el motor —una
+fila por bolsa y por solicitud—, así que no se recalcula nada y la suma cuadra por construcción. Aun
+así se comprueba (`cuadra`) y, si no cuadrara, el documento lo dice en rojo y pide no usarlo: nadie
+debería enterarse de un descuadre frente al proveedor.
+
+**Al imprimir, cada fábrica arranca en página nueva** y no se imprime nada de lo que quedó detrás: son
+dos documentos que van a dos proveedores distintos, y la factura de una no puede terminar en la hoja de
+la otra. El encabezado de las tablas se repite en cada página, porque una tabla partida obliga a buscar
+el encabezado en la hoja anterior. La última hoja no lleva salto, que dejaría una página en blanco.
+
+**Sin IVA**, por decisión del usuario: los valores están guardados sin impuesto y la fábrica emite su
+factura con él. El documento lo dice.
+
+**Una corrección que le debía al usuario.** Al proponerle esto le dije que «en septiembre el 21,8 % de
+la capacidad quedó sin atribuir». Ese número salió de `generarInforme.js`, un archivo de prueba mío, no
+de su hoja. No tengo acceso a sus cifras reales. La consecuencia de facturar solo lo atribuido sigue
+siendo real, pero no puedo dimensionarla, y presentarle un porcentaje inventado como si fuera su dato
+es peor que no dar ninguno.
+
+**Tres revisiones mías que fallaron leyendo el texto del CSS.** Comprobaban el salto de página y el
+ocultado del tablero comparando cadenas de `cssText`, y el navegador normaliza las propiedades
+(`page-break-after` termina como `break-after`), así que fallaban sin que nada estuviera mal. Se
+reescribieron **emulando el medio de impresión** y mirando los estilos calculados: se comprueba el
+efecto, no la redacción. Es la tercera vez en esta semana que una aserción atada a un literal me
+engaña; medir el comportamiento es la única forma que no se cae.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

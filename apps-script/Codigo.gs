@@ -3096,6 +3096,7 @@ var METODOS_PUBLICOS = {
   cambiarEstadoHistorias: true,
   getCostos: true,
   getCostosDetalle: true,
+  getFacturacion: true,
   registrarFechasEtapa: true,
   getPortafolio: true,
   getInforme: true,

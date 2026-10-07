@@ -345,6 +345,19 @@ var TIPOS_INICIATIVA = [
   { id: 'TIN-05', nombre: 'Innovacion con proposito' }
 ];
 
+/**
+ * Las fabricas de software a las que se les paga (D-132).
+ *
+ * Cada bolsa de capacidad pertenece a una, y de ahi sale la factura de cada una.
+ * Es un catalogo ampliable: hoy son dos, y contratar una tercera no debe exigir
+ * un cambio de codigo (es la leccion de D-101, donde las causas raiz quedaron
+ * amarradas a la constante y nadie podia agregarlas).
+ */
+var FABRICAS = [
+  { id: 'FAB-01', nombre: 'Hexa' },
+  { id: 'FAB-02', nombre: 'Seti' }
+];
+
 var PRIORIDADES = [
   { id: 'PRI-01', nombre: 'Critica' },
   { id: 'PRI-02', nombre: 'Alta' },
@@ -942,6 +955,21 @@ var ESQUEMA_PARAMETRIZACION = {
    * Vive como dato y no en el codigo porque un contrato cambia: el mes que
    * cambie la tarifa se edita aqui, sin desplegar nada.
    */
+  Fabricas: {
+    etiqueta: 'Fábricas de software',
+    pk: 'ID_Fabrica',
+    columnas: [
+      { campo: 'ID_Fabrica', etiqueta: 'ID Fábrica', tipo: 'text', requerido: true },
+      { campo: 'Nombre_Fabrica', etiqueta: 'Fábrica', tipo: 'text', requerido: true },
+      // Opcionales: solo salen en el documento impreso si estan llenos. Una
+      // factura los pide, pero exigirlos aqui bloquearia el uso por un dato
+      // administrativo que puede llegar despues.
+      { campo: 'NIT', etiqueta: 'NIT', tipo: 'text',
+        ayuda: 'Opcional. Si está, aparece en el documento de facturación.' },
+      { campo: 'Contrato', etiqueta: 'Contrato u orden de compra', tipo: 'text',
+        ayuda: 'Opcional. Si está, aparece en el documento de facturación.' }
+    ]
+  },
   Costos_Fabrica: {
     etiqueta: 'Costos de la fábrica',
     pk: 'ID_Costo',
@@ -956,7 +984,13 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'Vigencia_Desde', etiqueta: 'Vigente desde', tipo: 'date', requerido: true },
       { campo: 'Vigencia_Hasta', etiqueta: 'Vigente hasta', tipo: 'date', requerido: true },
       { campo: 'ID_Proyecto', etiqueta: 'Iniciativa dedicada', tipo: 'enum', fk: 'Proyectos',
-        ayuda: 'Solo para capacidad dedicada a una iniciativa. Vacío = se reparte entre todas.' }
+        ayuda: 'Solo para capacidad dedicada a una iniciativa. Vacío = se reparte entre todas.' },
+      /* A quien se le paga esta bolsa. Sin esto no se puede armar la factura de
+         cada fabrica, y una bolsa sin fabrica NUNCA se suma a ninguna: se
+         muestra aparte, porque colarla en la factura equivocada es un pago mal
+         hecho (D-132). */
+      { campo: 'ID_Fabrica', etiqueta: 'Fábrica que la factura', tipo: 'enum', fk: 'Fabricas',
+        ayuda: 'A qué fábrica de software se le paga esta bolsa. Hace falta para poder facturar.' }
     ]
   },
   Analistas: {
@@ -1332,6 +1366,9 @@ function mapaVersiones_() {
 /** @return {!Object<string,string>} Mapa ID_LEN -> Nombre_LEN. */
 function mapaLineasEstrategicas() { return mapaCatalogo_(getLineasEstrategicas_()); }
 
+/** @return {!Object<string,string>} Mapa ID_Fabrica -> Nombre_Fabrica. */
+function mapaFabricas() { return mapaCatalogo_(getFabricas_()); }
+
 /** @return {!Object<string,string>} Mapa ID_Vertical -> Nombre_Vertical. */
 function mapaVerticales() { return mapaCatalogo_(getVerticales_()); }
 
@@ -1363,7 +1400,8 @@ var CATALOGOS_AMPLIABLES = {
   Causas_Raiz: function () { return CAUSAS_RAIZ; },
   Analistas: function () { return ANALISTAS; },
   Tipos_Solicitud: function () { return TIPOS_SOLICITUD; },
-  Tipos_Iniciativa: function () { return TIPOS_INICIATIVA; }
+  Tipos_Iniciativa: function () { return TIPOS_INICIATIVA; },
+  Fabricas: function () { return FABRICAS; }
 };
 
 /**
@@ -1422,3 +1460,5 @@ function getCausalesBloqueo_() { return catalogoVigente('Causales_Bloqueo'); }
 function getTiposSolicitud_() { return catalogoVigente('Tipos_Solicitud'); }
 /** @return {!Array} Tipos de iniciativa vigentes. */
 function getTiposIniciativa_() { return catalogoVigente('Tipos_Iniciativa'); }
+/** @return {!Array} Fabricas de software vigentes. */
+function getFabricas_() { return catalogoVigente('Fabricas'); }

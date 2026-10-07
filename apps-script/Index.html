@@ -103,6 +103,17 @@
     </div>
   </div>
 
+  <!-- La facturacion por fabrica: ocupa la pantalla completa porque va a
+       imprimirse, y al imprimir se esconde todo lo demas (D-132). -->
+  <div class="velo-factura" id="veloFactura" hidden>
+    <div class="fac-barra">
+      <div class="fac-barra-tit" id="facTitulo">Facturaci&oacute;n por f&aacute;brica</div>
+      <button class="btn-primario ml-auto" id="btnFacImprimir">Imprimir</button>
+      <button class="btn-sec" id="btnFacCerrar">Cerrar</button>
+    </div>
+    <div class="fac-hojas" id="facHojas"></div>
+  </div>
+
   <div class="toast" id="toast" hidden></div>
 
   <script>var PAGINA_INICIAL = '<?= paginaInicial ?>';

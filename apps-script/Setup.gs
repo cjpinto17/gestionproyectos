@@ -395,6 +395,11 @@ function sembrarCatalogos_(libro) {
     return [c.id, c.nombre];
   }));
 
+  sembrarSiVacio_(libro, 'Fabricas', FABRICAS.map(function (f) {
+    // Solo ID y nombre: el NIT y el contrato son datos administrativos que el
+    // negocio llena cuando los tenga, y sembrarlos vacios no estorba.
+    return [f.id, f.nombre, '', ''];
+  }));
   sembrarSiVacio_(libro, 'Causales_Bloqueo', CAUSALES_BLOQUEO.map(function (c) {
     return [c.id, c.nombre];
   }));
@@ -638,6 +643,7 @@ function sincronizarCatalogos() {
     { hoja: 'Tipos_Solicitud', lista: TIPOS_SOLICITUD, fila: function (x) { return [x.id, x.nombre]; } },
     { hoja: 'Tipos_Iniciativa', lista: TIPOS_INICIATIVA, fila: function (x) { return [x.id, x.nombre]; } },
     { hoja: 'Prioridad', lista: PRIORIDADES, fila: function (x) { return [x.id, x.nombre]; } },
+    { hoja: 'Fabricas', lista: FABRICAS, fila: function (x) { return [x.id, x.nombre, '', '']; } },
     { hoja: 'Causales_Bloqueo', lista: CAUSALES_BLOQUEO, fila: function (x) { return [x.id, x.nombre]; } },
     { hoja: 'Lineas_Estrategicas', lista: LINEAS_ESTRATEGICAS, fila: function (x) { return [x.id, x.nombre, x.orden]; } },
     { hoja: 'Verticales', lista: VERTICALES, fila: function (x) { return [x.id, x.nombre, x.orden]; } }
