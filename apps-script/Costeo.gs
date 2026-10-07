@@ -1048,7 +1048,9 @@ function calcularFacturacion_(mes) {
       nombre: nombreFabrica[b.fabrica] || b.fabrica,
       nit: (datosFabrica[b.fabrica] || {}).NIT || '',
       contrato: (datosFabrica[b.fabrica] || {}).Contrato || '',
-      bolsas: [], aFacturar: 0, contratado: 0, sinAtribuir: 0, lineas: []
+      bolsas: [], aFacturar: 0, contratado: 0, sinAtribuir: 0,
+      // El anexo se arma por iniciativa y por etapa, no como una lista plana.
+      porIniciativa: {}, etapasVistas: {}, porEtapa: {}
     };
     var g = grupos[b.fabrica];
     g.bolsas.push(b);
@@ -1058,39 +1060,110 @@ function calcularFacturacion_(mes) {
     g.sinAtribuir += b.noAtribuido;
   });
 
-  /* El anexo: cada solicitud con lo que cargo contra las bolsas de ESA fabrica.
-     Sale del reparto, que ya trae una fila por bolsa y por solicitud, asi que la
-     suma del anexo es exactamente el monto a facturar: no se recalcula nada. */
+  /* El anexo: una fila por SOLICITUD, con una columna por etapa, igual que la
+     tabla de calculos detallados de la pagina de Costos. Sale del reparto —que
+     trae una fila por bolsa y por solicitud— agregando por solicitud y etapa,
+     asi que la suma del anexo es exactamente el monto a facturar: no se
+     recalcula nada (D-133).
+
+     CUIDADO con los dias: el reparto repite los MISMOS dias de la solicitud en
+     esa etapa una vez por cada bolsa que cobra ahi. Sumarlos contaria doble
+     cuando una etapa tiene dos bolsas de la misma fabrica —es el defecto que
+     D-113 arreglo en el costo por dia—. Los dias se toman UNA vez por etapa; la
+     plata si se suma, porque cada bolsa aporta la suya. */
   ((r.detalle || {}).reparto || []).forEach(function (x) {
     var b = porBolsa[x.bolsa];
     if (!b || b.sinFabrica || !grupos[b.fabrica]) return;
+    var g = grupos[b.fabrica];
     var a = porId[x.id] || {};
-    grupos[b.fabrica].lineas.push({
-      bolsa: x.bolsa, concepto: x.concepto,
-      etapa: x.etapa, etapaNombre: b.etapaNombre,
+    var idProy = a.idProyecto || 'SIN_INICIATIVA';
+
+    g.porIniciativa[idProy] = g.porIniciativa[idProy] || {
+      idProyecto: idProy, nombre: a.iniciativa || 'Sin iniciativa',
+      costo: 0, porEtapa: {}, diasPorEtapa: {}, actividades: {}
+    };
+    var ini = g.porIniciativa[idProy];
+
+    ini.actividades[x.id] = ini.actividades[x.id] || {
       id: x.id, nombre: a.nombre || x.id,
-      iniciativa: a.iniciativa || 'Sin iniciativa',
-      tipoNombre: a.tipoNombre || '',
-      dias: red_(x.dias, 1), diasTotales: red_(x.diasTotales, 1),
-      costo: x.costo
-    });
+      tipo: a.tipo || '', tipoNombre: a.tipoNombre || '',
+      costo: 0, porEtapa: {}, diasPorEtapa: {}, rangos: a.rangos || {}
+    };
+    var act = ini.actividades[x.id];
+
+    act.costo += x.costo;
+    act.porEtapa[x.etapa] = (act.porEtapa[x.etapa] || 0) + x.costo;
+    // Los dias NO se acumulan: se fijan una vez por etapa.
+    act.diasPorEtapa[x.etapa] = x.dias;
+
+    ini.costo += x.costo;
+    ini.porEtapa[x.etapa] = (ini.porEtapa[x.etapa] || 0) + x.costo;
+
+    g.etapasVistas[x.etapa] = b.etapaNombre;
+    g.porEtapa[x.etapa] = (g.porEtapa[x.etapa] || 0) + x.costo;
   });
 
   var fabricas = Object.keys(grupos).map(function (k) { return grupos[k]; });
   fabricas.forEach(function (g) {
     // Dentro de cada factura, lo mas caro primero: es el orden en que alguien
     // revisa una cuenta antes de autorizarla.
-    g.lineas.sort(function (a, b) { return b.costo - a.costo; });
     g.bolsas.sort(function (a, b) { return b.atribuido - a.atribuido; });
-    g.actividades = Object.keys(g.lineas.reduce(function (acc, l) {
-      acc[l.id] = true; return acc;
-    }, {})).length;
+
+    /* Las columnas del anexo: solo las etapas donde ESTA fabrica cobro algo. Una
+       columna vacia en un documento de pago invita a preguntar por que esta. Los
+       dias de la columna se cuentan una sola vez por solicitud y etapa, por la
+       misma razon de arriba. */
+    g.etapas = ETAPAS_COSTO.filter(function (e) {
+      return g.etapasVistas[e.id] !== undefined;
+    }).map(function (e) {
+      var dias = 0;
+      Object.keys(g.porIniciativa).forEach(function (k) {
+        var ini = g.porIniciativa[k];
+        Object.keys(ini.actividades).forEach(function (id) {
+          dias += ini.actividades[id].diasPorEtapa[e.id] || 0;
+        });
+      });
+      return { etapa: e.id, nombre: e.nombre,
+               costo: g.porEtapa[e.id] || 0, dias: red_(dias, 1) };
+    });
+
+    g.iniciativas = Object.keys(g.porIniciativa).map(function (k) {
+      var ini = g.porIniciativa[k];
+      var acts = Object.keys(ini.actividades).map(function (id) {
+        var a = ini.actividades[id];
+        a.costo = Math.round(a.costo);
+        Object.keys(a.diasPorEtapa).forEach(function (e) {
+          a.diasPorEtapa[e] = red_(a.diasPorEtapa[e], 1);
+        });
+        return a;
+      }).sort(function (a, b) { return b.costo - a.costo; });
+      // Los dias del subtotal de la iniciativa: suma de sus actividades, una vez
+      // por etapa.
+      var diasIni = {};
+      acts.forEach(function (a) {
+        Object.keys(a.diasPorEtapa).forEach(function (e) {
+          diasIni[e] = red_((diasIni[e] || 0) + a.diasPorEtapa[e], 1);
+        });
+      });
+      return { idProyecto: ini.idProyecto, nombre: ini.nombre,
+               costo: Math.round(ini.costo), porEtapa: ini.porEtapa,
+               diasPorEtapa: diasIni, actividades: acts };
+    }).sort(function (a, b) { return b.costo - a.costo; });
+
+    g.actividades = g.iniciativas.reduce(function (acc, i) {
+      return acc + i.actividades.length;
+    }, 0);
+
     /* La suma del anexo tiene que dar el monto a facturar. Si no cuadra es un
        error del calculo y el documento lo dice en vez de presentar una cuenta
        que no se sostiene: nadie deberia enterarse de esto en una reunion con el
        proveedor. */
-    g.sumaAnexo = g.lineas.reduce(function (acc, l) { return acc + l.costo; }, 0);
+    g.sumaAnexo = g.iniciativas.reduce(function (acc, i) { return acc + i.costo; }, 0);
     g.cuadra = g.sumaAnexo === g.aFacturar;
+
+    // Los mapas de trabajo no viajan: el navegador recibe ya las listas.
+    delete g.porIniciativa;
+    delete g.etapasVistas;
   });
   fabricas.sort(function (a, b) { return b.aFacturar - a.aFacturar; });
 

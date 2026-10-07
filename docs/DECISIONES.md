@@ -3275,6 +3275,50 @@ reescribieron **emulando el medio de impresión** y mirando los estilos calculad
 efecto, no la redacción. Es la tercera vez en esta semana que una aserción atada a un literal me
 engaña; medir el comportamiento es la única forma que no se cae.
 
+### D-133 · El anexo de la factura se lee como los cálculos detallados
+
+Cinco ajustes al documento de facturación, pedidos después de verlo impreso. Todos apuntan a lo
+mismo: que quien firma la cuenta la pueda cotejar sin traducir nada.
+
+**La columna de etapa sale de conceptos.** En esa tabla cada renglón es una bolsa de capacidad, y la
+etapa no cambia la decisión de pagar. Quedan bolsa, concepto, vigencia en el mes y valor.
+
+**El anexo se llama «actividades detalladas del mes».** El título anterior —«de dónde sale cada
+peso»— explicaba la intención; el nuevo dice qué hay en la tabla.
+
+**La iniciativa pasó de columna a renglón.** Como columna repetía el mismo nombre en cada fila y
+gastaba ancho en papel. Ahora es un renglón de encabezado antes de sus solicitudes, con su subtotal en
+la misma línea: en un documento impreso no se puede desplegar nada, así que todo tiene que leerse de
+corrido.
+
+**Las columnas del anexo son las de la tabla de cálculos detallados**: solicitud, tipo, el valor
+desglosado por etapa con sus días, el total de cada fila y, abajo, el total de cada columna más el
+total de todo. Dos tablas que hablan de la misma plata ya no se leen distinto. Las columnas son
+**solo las etapas donde esa fábrica cobró**: una bolsa contratada que nadie ocupó no genera una
+columna en ceros, su plata se ve en la conciliación contra el contrato.
+
+**El botón pregunta primero de qué fábrica.** No se facturan todas el mismo día. El escogedor muestra
+el monto de cada una antes de abrir el documento, para decidir viendo la cifra y no de memoria, y
+separa las bolsas sin fábrica asignada, que no entran en ninguna factura. Con una sola fábrica y sin
+bolsas huérfanas no pregunta nada.
+
+**Un error que la reestructura corrigió sin que nadie lo hubiera pedido.** El anexo anterior salía del
+reparto, que trae una fila por bolsa **y** por solicitud. Si una fábrica tiene dos bolsas en la misma
+etapa —capacidad base y un refuerzo, algo normal— la misma solicitud salía dos veces y los días se
+repetían en cada fila: una solicitud que ocupó 11 días hábiles mostraba 22 para quien sumara la
+columna. La plata siempre estuvo bien; los días no. Ahora hay una fila por solicitud, el dinero se
+suma y los días se fijan **una vez por etapa**. Queda una revisión con ese caso exacto.
+
+**Una aserción mía que decía una cosa y comprobaba otra.** Se llamaba «las columnas son solo las
+etapas donde ESTA fábrica cobró» y comparába contra una lista escrita a mano que incluía una etapa
+donde no había cobrado nada. El motor estaba bien y la revisión fallaba. Se reescribió como la regla:
+las columnas tienen que ser exactamente las etapas con plata en las filas, calculadas desde las
+propias filas. Es la cuarta vez esta semana que un literal en una revisión me engaña.
+
+**Los días se escriben igual en toda la tabla.** El renglón de la iniciativa y el de totales decían
+«28 d» mientras los de solicitud decían «12 días». En la misma columna, dos formas de escribir la
+unidad hacen dudar de si son la misma. Hay una revisión que exige una sola unidad en el anexo.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

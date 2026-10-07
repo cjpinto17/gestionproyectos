@@ -4009,9 +4009,11 @@ function abrirFacturacion() {
   var antes = b.textContent;
   b.textContent = 'Armando…';
   api('getFacturacion', mes).then(function (f) {
-    pintarFacturacion(f);
-    $('veloFactura').hidden = false;
-    document.body.classList.add('con-factura');
+    /* Se escoge la fabrica ANTES de abrir el documento: no se generan todas al
+       mismo tiempo, se imprime la de quien se va a pagar hoy. El escogedor
+       muestra el monto de cada una, asi que la decision se toma viendo la
+       cifra y no de memoria (D-133). */
+    elegirFabricaParaImprimir(f);
   }).catch(function (e) {
     fallo(e);
     $('avisoDetalle').innerHTML = '<b style="color:var(--rojo)">No se pudo armar la ' +
@@ -4019,6 +4021,67 @@ function abrirFacturacion() {
   }).then(function () { b.disabled = false; b.textContent = antes; });
 }
 $('btnFacturar').addEventListener('click', abrirFacturacion);
+
+/**
+ * Pregunta de que fabrica se imprime, con el monto de cada una a la vista.
+ *
+ * Si solo hay una, no pregunta: un escogedor de una sola opcion es un clic de
+ * mas. Las bolsas sin fabrica aparecen como una opcion aparte, porque son lo que
+ * hay que corregir y no un proveedor al que se le pague.
+ */
+function elegirFabricaParaImprimir(f) {
+  if (f.sinTarifas) { abrirHojaFacturacion(f, null); return; }
+  var opciones = (f.fabricas || []).slice();
+  var hayHuerfanas = (f.sinAsignar || []).length > 0;
+
+  if (!opciones.length && !hayHuerfanas) {
+    $('avisoDetalle').innerHTML = '<b>No hay nada que facturar en ' +
+        esc(etiquetaMes(f.mes)) + ':</b> ninguna bolsa de capacidad estuvo vigente.';
+    return;
+  }
+  if (opciones.length === 1 && !hayHuerfanas) {
+    abrirHojaFacturacion(f, opciones[0].id);
+    return;
+  }
+
+  var botones = opciones.map(function (g) {
+    return '<button type="button" class="elige-fab" data-fab="' + esc(g.id) + '">' +
+      '<span class="elige-nombre">' + esc(g.nombre) + '</span>' +
+      '<span class="elige-monto num">' + pesos(g.aFacturar) + '</span>' +
+      '<span class="elige-pie">' + g.bolsas.length + ' bolsa(s) · ' +
+      g.actividades + ' actividad(es)' +
+      (g.sinAtribuir ? ' · ' + pesos(g.sinAtribuir) + ' sin atribuir' : '') +
+      '</span></button>';
+  }).join('');
+
+  if (hayHuerfanas) {
+    botones += '<button type="button" class="elige-fab elige-aviso" data-fab="SIN">' +
+      '<span class="elige-nombre">Bolsas sin fábrica asignada</span>' +
+      '<span class="elige-monto num">' + pesos(f.sinAsignarTotal) + '</span>' +
+      '<span class="elige-pie">' + f.sinAsignar.length + ' bolsa(s) que no entran en ' +
+      'ninguna factura</span></button>';
+  }
+
+  abrirModal('Imprimir por fábrica', etiquetaMes(f.mes),
+    '<p class="nota" style="margin:0 0 12px">Escoja de quién se imprime. Se genera un ' +
+    'documento a la vez: el de la fábrica a la que le va a pagar.</p>' +
+    '<div class="elige-fabs">' + botones + '</div>', null);
+
+  Array.prototype.forEach.call(
+    document.querySelectorAll('#modalCuerpo .elige-fab'), function (b) {
+      b.addEventListener('click', function () {
+        cerrarModal();
+        abrirHojaFacturacion(f, b.dataset.fab);
+      });
+    });
+}
+
+/** Abre el documento de una sola fabrica. */
+function abrirHojaFacturacion(f, idFabrica) {
+  pintarFacturacion(f, idFabrica);
+  $('veloFactura').hidden = false;
+  document.body.classList.add('con-factura');
+}
 
 function cerrarFacturacion() {
   $('veloFactura').hidden = true;
@@ -4030,47 +4093,51 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape' && !$('veloFactura').hidden) cerrarFacturacion();
 });
 
-function pintarFacturacion(f) {
-  $('facTitulo').textContent = 'Facturación por fábrica · ' + etiquetaMes(f.mes);
+function pintarFacturacion(f, idFabrica) {
+  $('facTitulo').textContent = 'Facturación · ' + etiquetaMes(f.mes);
 
   if (f.sinTarifas) {
     $('facHojas').innerHTML = '<div class="fac-hoja"><p class="nota"><b>' +
         esc(f.mensaje) + '</b></p></div>';
     return;
   }
-  if (!f.fabricas.length && !f.sinAsignar.length) {
-    $('facHojas').innerHTML = '<div class="fac-hoja"><p class="nota">No hay ninguna bolsa ' +
-        'de capacidad vigente en ' + esc(etiquetaMes(f.mes)) + ', así que no hay nada que ' +
-        'facturar.</p></div>';
+
+  /* Un documento a la vez: el de la fabrica escogida. Imprimir las dos juntas
+     obligaba a separar hojas a mano antes de enviarlas (D-133). */
+  if (idFabrica === 'SIN') {
+    $('facTitulo').textContent = 'Bolsas sin fábrica · ' + etiquetaMes(f.mes);
+    $('facHojas').innerHTML = hojaSinFabrica(f);
     return;
   }
-
-  var hojas = f.fabricas.map(function (g) { return hojaDeFactura(g, f); }).join('');
-
-  /* Las bolsas sin fabrica van en su propia hoja y al final. No se suman a
-     ninguna factura: una bolsa en la factura equivocada es un pago mal hecho, y
-     callarla seria plata que nadie cobra sin que nadie se entere. */
-  if (f.sinAsignar.length) {
-    hojas += '<div class="fac-hoja fac-huerfanas">' +
-      '<div class="fac-cab"><div><div class="fac-rot">Pendiente de asignar</div>' +
-      '<h2>Bolsas sin fábrica</h2></div>' +
-      '<div class="fac-mes">' + esc(etiquetaMes(f.mes)) + '</div></div>' +
-      '<p class="nota"><b>Estas bolsas no están en ninguna factura</b> porque no tienen ' +
-      'fábrica asignada. Se asigna en <b>Administración → Costos de la fábrica</b>, en la ' +
-      'columna «Fábrica que la factura». Mientras falte, son ' +
-      pesos(f.sinAsignarTotal) + ' que nadie va a cobrar.</p>' +
-      '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr>' +
-      '<th>Bolsa</th><th>Concepto</th><th>Etapa</th>' +
-      '<th class="num">Atribuido</th></tr></thead><tbody>' +
-      f.sinAsignar.map(function (b) {
-        return '<tr><td>' + esc(b.id) + '</td><td>' + esc(b.concepto) + '</td><td>' +
-          esc(b.etapaNombre) + '</td><td class="num">' + pesos(b.atribuido) + '</td></tr>';
-      }).join('') +
-      '<tr class="cst-total"><td colspan="3">Total sin asignar</td>' +
-      '<td class="num">' + pesos(f.sinAsignarTotal) + '</td></tr>' +
-      '</tbody></table></div></div>';
+  var g = (f.fabricas || []).filter(function (x) { return x.id === idFabrica; })[0];
+  if (!g) {
+    $('facHojas').innerHTML = '<div class="fac-hoja"><p class="nota">No hay nada que ' +
+        'facturar para esa fábrica en ' + esc(etiquetaMes(f.mes)) + '.</p></div>';
+    return;
   }
-  $('facHojas').innerHTML = hojas;
+  $('facTitulo').textContent = g.nombre + ' · ' + etiquetaMes(f.mes);
+  $('facHojas').innerHTML = hojaDeFactura(g, f);
+}
+
+/** La hoja de lo que no se puede facturar porque no tiene fabrica. */
+function hojaSinFabrica(f) {
+  return '<div class="fac-hoja fac-huerfanas">' +
+    '<div class="fac-cab"><div><div class="fac-rot">Pendiente de asignar</div>' +
+    '<h2>Bolsas sin fábrica</h2></div>' +
+    '<div class="fac-mes">' + esc(etiquetaMes(f.mes)) + '</div></div>' +
+    '<p class="nota"><b>Estas bolsas no están en ninguna factura</b> porque no tienen ' +
+    'fábrica asignada. Se asigna en <b>Administración → Costos de la fábrica</b>, en la ' +
+    'columna «Fábrica que la factura». Mientras falte, son ' +
+    pesos(f.sinAsignarTotal) + ' que nadie va a cobrar.</p>' +
+    '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr>' +
+    '<th>Bolsa</th><th>Concepto</th><th class="num">Atribuido</th></tr></thead><tbody>' +
+    f.sinAsignar.map(function (b) {
+      return '<tr><td>' + esc(b.id) + '</td><td>' + esc(b.concepto) + '</td>' +
+        '<td class="num">' + pesos(b.atribuido) + '</td></tr>';
+    }).join('') +
+    '<tr class="cst-total"><td colspan="2">Total sin asignar</td>' +
+    '<td class="num">' + pesos(f.sinAsignarTotal) + '</td></tr>' +
+    '</tbody></table></div></div>';
 }
 
 /** Una hoja: la factura de una fabrica y su anexo. */
@@ -4091,9 +4158,11 @@ function hojaDeFactura(g, f) {
     '<div class="fac-dato">' + esc(f.moneda || 'COP') + ' · sin IVA · ' +
     g.actividades + ' actividad(es) en ' + g.bolsas.length + ' bolsa(s) de capacidad</div></div>';
 
+  // Sin columna de etapa: para pagar da igual de que etapa es la bolsa, y una
+  // columna que nadie mira ocupa el ancho que necesitan las demas.
   h += '<div class="fac-seccion">Conceptos</div>' +
     '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr>' +
-    '<th>Bolsa</th><th>Concepto</th><th>Etapa</th><th>Vigencia en el mes</th>' +
+    '<th>Bolsa</th><th>Concepto</th><th>Vigencia en el mes</th>' +
     '<th class="num">A facturar</th></tr></thead><tbody>' +
     g.bolsas.map(function (b) {
       // Una bolsa que no estuvo vigente todo el mes cobra proporcional: sin
@@ -4104,10 +4173,10 @@ function hojaDeFactura(g, f) {
       return '<tr><td>' + esc(b.id) + '</td><td>' + esc(b.concepto) +
         (b.dedicada ? '<div style="color:var(--ink-faint);font-size:11px">dedicada a ' +
           esc(b.dedicadaNombre || b.dedicada) + '</div>' : '') +
-        '</td><td>' + esc(b.etapaNombre) + '</td><td>' + esc(vig) + '</td>' +
+        '</td><td>' + esc(vig) + '</td>' +
         '<td class="num">' + pesos(b.atribuido) + '</td></tr>';
     }).join('') +
-    '<tr class="cst-total"><td colspan="4">Total a facturar</td>' +
+    '<tr class="cst-total"><td colspan="3">Total a facturar</td>' +
     '<td class="num">' + pesos(g.aFacturar) + '</td></tr>' +
     '</tbody></table></div>';
 
@@ -4134,35 +4203,91 @@ function hojaDeFactura(g, f) {
         : '.') + '</p></div>';
   }
 
-  /* El anexo. Si no cuadra con el total es un error del calculo, y el documento
-     lo dice: nadie deberia enterarse de eso frente al proveedor. */
-  h += '<div class="fac-seccion">Anexo · de dónde sale cada peso</div>';
+  h += '<div class="fac-seccion">Anexo · actividades detalladas del mes</div>';
   if (!g.cuadra) {
     h += '<p class="nota" style="color:var(--rojo)"><b>Atención:</b> la suma del anexo (' +
       pesos(g.sumaAnexo) + ') no coincide con el valor a facturar (' + pesos(g.aFacturar) +
       '). Es un error de cálculo: no use este documento y repórtelo.</p>';
   }
-  h += '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr>' +
-    '<th>Solicitud</th><th>Iniciativa</th><th>Etapa</th><th>Bolsa</th>' +
-    '<th class="num">Días</th><th class="num">De</th><th class="num">Costo</th>' +
-    '</tr></thead><tbody>' +
-    g.lineas.map(function (l) {
-      return '<tr><td>' + esc(l.id) + '<div style="color:var(--ink-faint);font-size:11px">' +
-        esc(l.nombre) + '</div></td>' +
-        '<td>' + esc(l.iniciativa) + '</td><td>' + esc(l.etapaNombre) + '</td>' +
-        '<td>' + esc(l.bolsa) + '</td>' +
-        '<td class="num">' + diasInforme(l.dias) + '</td>' +
-        '<td class="num">' + diasInforme(l.diasTotales) + '</td>' +
-        '<td class="num">' + pesos(l.costo) + '</td></tr>';
-    }).join('') +
-    '<tr class="cst-total"><td colspan="6">Total del anexo</td>' +
-    '<td class="num">' + pesos(g.sumaAnexo) + '</td></tr>' +
-    '</tbody></table></div>' +
-    '<p class="nota">«Días» son los días hábiles que esa solicitud ocupó la etapa en el mes, ' +
-    'y «De» los días totales que se reparten en esa bolsa: el costo es la parte proporcional. ' +
-    'Las fechas salen de las columnas registradas en cada solicitud.</p>';
-
+  h += tablaAnexoFactura(g);
   return h + '</div>';
+}
+
+/**
+ * El anexo, con las mismas columnas que los calculos detallados de Costos: una
+ * fila por solicitud, una columna por etapa con su plata y sus dias, el total de
+ * cada fila a la derecha y el de cada columna abajo.
+ *
+ * La iniciativa es un RENGLON antes de sus solicitudes y no una columna: como
+ * columna repetia el mismo nombre en cada fila y se comia el ancho que necesitan
+ * las etapas (D-133).
+ *
+ * Las columnas son solo las etapas donde esta fabrica cobro algo: una columna
+ * vacia en un documento de pago invita a preguntar por que esta.
+ */
+function tablaAnexoFactura(g) {
+  var etapas = g.etapas || [];
+  if (!etapas.length || !(g.iniciativas || []).length) {
+    return '<p class="nota">Ninguna actividad cargó contra las bolsas de esta fábrica en ' +
+      'el mes.</p>';
+  }
+  // Una sola forma de escribir los dias en toda la tabla: si el renglon de la
+  // iniciativa dice "28 d" y el de la solicitud "12 dias", quien firma la
+  // factura se pregunta si son dos unidades distintas.
+  var dia = function (n) {
+    var x = Math.round((n || 0) * 10) / 10;
+    return x.toString().replace('.', ',') + (x === 1 ? ' día' : ' días');
+  };
+  var celda = function (costo, dias) {
+    if (!costo && !dias) return '<td class="fac-nada">—</td>';
+    return '<td class="num"><b>' + pesos(costo) + '</b>' +
+      '<div class="fac-dias">' + dia(dias) + '</div></td>';
+  };
+
+  var cab = '<tr><th>Solicitud</th><th>Tipo</th>' +
+    etapas.map(function (e) {
+      return '<th class="num">' + esc(e.nombre) + '</th>';
+    }).join('') + '<th class="num">Total</th></tr>';
+
+  var cuerpo = g.iniciativas.map(function (ini) {
+    // El renglon de la iniciativa trae su subtotal en la misma linea: en un
+    // documento impreso no se puede desplegar nada, asi que todo tiene que
+    // leerse de corrido.
+    var fila = '<tr class="fac-ini"><td colspan="2">' + esc(ini.nombre) +
+      ' <span class="fac-cuenta">' + ini.actividades.length +
+      (ini.actividades.length === 1 ? ' actividad' : ' actividades') + '</span></td>' +
+      etapas.map(function (e) {
+        return '<td class="num">' +
+          (ini.porEtapa[e.etapa] ? pesos(ini.porEtapa[e.etapa]) : '—') +
+          '<div class="fac-dias">' + dia(ini.diasPorEtapa[e.etapa] || 0) + '</div></td>';
+      }).join('') +
+      '<td class="num">' + pesos(ini.costo) + '</td></tr>';
+
+    return fila + ini.actividades.map(function (a) {
+      return '<tr><td><b>' + esc(a.id) + '</b> · ' + esc(a.nombre) + '</td>' +
+        '<td><span class="rm-tipo ' + (CLASE_TIPO[a.tipo] || '') + '">' +
+        esc(a.tipoNombre) + '</span></td>' +
+        etapas.map(function (e) {
+          return celda(a.porEtapa[e.etapa] || 0, a.diasPorEtapa[e.etapa] || 0);
+        }).join('') +
+        '<td class="num" style="font-weight:700">' + pesos(a.costo) + '</td></tr>';
+    }).join('');
+  }).join('');
+
+  // El total por columna y el total de todo: es lo que se coteja contra la
+  // factura que manda la fabrica.
+  var total = '<tr class="cst-total"><td colspan="2">TOTAL</td>' +
+    etapas.map(function (e) {
+      return '<td class="num">' + pesos(e.costo) +
+        '<div class="fac-dias">' + dia(e.dias) + '</div></td>';
+    }).join('') +
+    '<td class="num">' + pesos(g.sumaAnexo) + '</td></tr>';
+
+  return '<div class="tabla-scroll"><table class="tabla-compacta fac-anexo"><thead>' +
+    cab + '</thead><tbody>' + cuerpo + total + '</tbody></table></div>' +
+    '<p class="nota">Los días son días hábiles que la actividad ocupó esa etapa en el mes, ' +
+    'y el valor es la parte proporcional de las bolsas de esta fábrica en esa etapa. Las ' +
+    'fechas salen de las columnas registradas en cada solicitud.</p>';
 }
 
 
