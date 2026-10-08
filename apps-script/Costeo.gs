@@ -330,6 +330,79 @@ function getCostos(desde, hasta, forzar) {
 }
 
 /**
+ * Lo facturado del periodo, agrupado por fabrica.
+ *
+ * Sale de las MISMAS bolsas que ya calculo el costeo, asi que la base de cada
+ * fabrica es exactamente la que lleva su documento de facturacion: no se
+ * recalcula nada. Encima va la liquidacion —AIU e IVA segun lo que tenga
+ * configurado cada una— y, si el mes esta cerrado, mandan las cifras
+ * congeladas.
+ *
+ * El cierre solo se aplica cuando el periodo es UN mes: cerrar es una decision
+ * mensual, y aplicarle a un rango de cuatro meses el cierre de uno solo seria
+ * mezclar lo congelado con lo vivo sin que se note.
+ *
+ * @param {!Array<!Object>} bolsas Las bolsas ya redondeadas.
+ * @param {!Array<string>} meses Los meses del periodo.
+ * @return {!Array<!Object>} De mayor a menor por lo que se paga.
+ * @private
+ */
+function resumenPorFabrica_(bolsas, meses) {
+  var nombreFabrica = mapaFabricas();
+  var datosFabrica = {};
+  try {
+    leerTabla_('Fabricas').forEach(function (f) { datosFabrica[f.ID_Fabrica] = f; });
+  } catch (e) { /* la hoja se crea con actualizarEstructura */ }
+
+  var cierre = (meses.length === 1) ? cierreDelMes_(meses[0])
+                                    : { cerrado: false, porFabrica: {} };
+
+  var grupos = {};
+  bolsas.forEach(function (b) {
+    /* Una bolsa sin fabrica no se le cobra a nadie: va en su propia fila, al
+       final y marcada, igual que en el escogedor del documento. Esconderla
+       haria que la tabla no sumara el total del periodo. */
+    var id = b.sinFabrica ? '' : b.fabrica;
+    grupos[id] = grupos[id] || {
+      id: id,
+      nombre: b.sinFabrica ? 'Sin fábrica asignada' : (nombreFabrica[id] || id),
+      sinFabrica: !!b.sinFabrica,
+      bolsas: 0, base: 0, contratado: 0, sinAtribuir: 0
+    };
+    var g = grupos[id];
+    g.bolsas++;
+    g.base += b.atribuido;
+    g.contratado += b.total;
+    g.sinAtribuir += b.noAtribuido;
+  });
+
+  return Object.keys(grupos).map(function (id) {
+    var g = grupos[id];
+    // Lo que no tiene fabrica no se liquida: no hay a quien cobrarle AIU ni IVA.
+    g.liquidacion = g.sinFabrica
+        ? { base: g.base, aplicaAIU: false, pctAIU: 0, valorAIU: 0,
+            subtotal: g.base, aplicaIVA: false, pctIVA: 0, valorIVA: 0, total: g.base }
+        : liquidarFactura_(g.base, datosFabrica[id]);
+    var c = cierre.porFabrica[id];
+    if (c) {
+      g.cerrado = true;
+      g.difCierre = g.base - c.base;
+      g.liquidacion = { base: c.base,
+                        aplicaAIU: c.pctAIU > 0, pctAIU: c.pctAIU, valorAIU: c.valorAIU,
+                        subtotal: c.base + c.valorAIU,
+                        aplicaIVA: c.pctIVA > 0, pctIVA: c.pctIVA, valorIVA: c.valorIVA,
+                        total: c.total };
+    }
+    return g;
+  }).sort(function (a, b) {
+    // Lo que no tiene fabrica, de ultimo: no es un proveedor, es lo que falta
+    // por asignar.
+    if (a.sinFabrica !== b.sinFabrica) return a.sinFabrica ? 1 : -1;
+    return b.liquidacion.total - a.liquidacion.total;
+  });
+}
+
+/**
  * La liquidacion de una factura: base, AIU, IVA y total.
  *
  * El AIU se SUMA al valor facturado y el IVA grava todo lo facturado, AIU
@@ -736,6 +809,17 @@ function calcularCostos_(desde, hasta, conDetalle) {
     });
   });
 
+  /* Las bolsas se redondean AQUI y no dentro del return: la tabla por fabrica
+     suma estas mismas cifras, y redondear despues dejaria las dos tablas
+     separadas por unos pesos. */
+  bolsas.forEach(function (b) {
+    b.total = Math.round(b.total);
+    b.atribuido = Math.round(b.atribuido);
+    b.noAtribuido = Math.round(b.noAtribuido);
+    b.dedicadaNombre = b.dedicada ? (nombreProyecto[b.dedicada] || b.dedicada) : '';
+    b.sinIniciativa = !!b.dedicada && !nombreProyecto[b.dedicada];
+  });
+
   var contrato = bolsas.reduce(function (a, b) { return a + b.total; }, 0);
   var atribuido = bolsas.reduce(function (a, b) { return a + b.atribuido; }, 0);
 
@@ -797,14 +881,10 @@ function calcularCostos_(desde, hasta, conDetalle) {
         return b.total - a.total;
       });
     }()),
-    bolsas: bolsas.map(function (b) {
-      b.total = Math.round(b.total);
-      b.atribuido = Math.round(b.atribuido);
-      b.noAtribuido = Math.round(b.noAtribuido);
-      b.dedicadaNombre = b.dedicada ? (nombreProyecto[b.dedicada] || b.dedicada) : '';
-      b.sinIniciativa = !!b.dedicada && !nombreProyecto[b.dedicada];
-      return b;
-    }),
+    bolsas: bolsas,
+    /* Lo facturado del mes, por fabrica: la misma liquidacion del documento de
+       facturacion, para poder verla sin tener que abrir e imprimir cada uno. */
+    porFabrica: resumenPorFabrica_(bolsas, meses),
     actividades: actividades.sort(function (a, b) { return b.costo - a.costo; }),
     // La bitacora del calculo. Pesa, asi que solo viaja cuando la piden para
     // exportarla: la pagina no la necesita para pintar.

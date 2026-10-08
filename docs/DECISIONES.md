@@ -3567,6 +3567,42 @@ agregar solicitudes ni acortar sus días mueve el total atribuido. Lo que lo mue
 quede **sin ocupación**. La prueba estaba mal, no el cálculo, y queda escrito en el comentario para
 no volver a razonarlo al revés.
 
+### D-140 · Lo facturado del mes, por fábrica, en la página de Costos
+
+Una tabla más en Costos con lo que lleva el documento de cada fábrica —base, AIU, IVA y total a
+pagar— junto, para verlo sin abrir e imprimir cada uno.
+
+**Sale de las mismas bolsas que ya calculó la página**, no de un recorrido aparte: la base de cada
+fábrica es exactamente la que lleva su documento. Queda una revisión que corre los dos caminos y exige
+que coincidan fábrica por fábrica: dos pantallas de la misma aplicación no pueden dar dos cifras para
+el mismo pago.
+
+**Las bolsas se redondean una sola vez**, antes de armar el resultado, y no dentro del `return`.
+Redondear después habría dejado esta tabla y la de bolsas separadas por unos pesos, que en una tabla
+de plata es un error aunque sea pequeño.
+
+**Lo que no tiene fábrica asignada tiene su propia fila**, de última y marcada, y en la columna del
+total dice «no se factura» en vez de una cifra: no se le paga a nadie. El total de esa columna lo
+**excluye** —sumarlo daría un desembolso que nadie va a hacer— mientras que el de la base sí lo
+incluye, porque la suma de bases tiene que dar lo atribuido del período. Las dos reglas tienen su
+revisión, porque son fáciles de confundir.
+
+**Una fábrica que no cobra IVA muestra raya, no cero.** Un cero diría «lo cobra y dio cero», que es
+otra cosa. Y las columnas de AIU e IVA solo se dibujan si alguna fábrica los cobra: dos columnas en
+raya para todos no dicen nada.
+
+**El cierre del mes manda aquí también**, y la fila lo marca: si no, alguien cambiaría un porcentaje
+sin saber que ese mes ya no se mueve. **Pero solo cuando el período es un mes**: cerrar es una decisión
+mensual, y aplicarle a un rango de varios meses el cierre de uno solo mezclaría lo congelado con lo
+vivo sin que se note. Hay revisión para los dos casos.
+
+**Y otra vez la pecera no probaba nada hasta arreglarla.** El ensayo de Costos no tenía ni fábricas
+con impuestos ni bolsas huérfanas, así que la tabla salía entera en rayas y las revisiones habrían
+pasado sin mirar lo que importa. Ahora trae una fábrica con AIU e IVA y el mes cerrado, otra sin nada,
+y la fila huérfana. Las diez revisiones nuevas fallan contra el código anterior; también hubo que
+blindarlas para que **reporten** la falla en vez de reventar con la tabla vacía, que es la misma
+corrección de D-136 y de D-138.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

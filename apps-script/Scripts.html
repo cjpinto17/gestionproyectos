@@ -3600,7 +3600,7 @@ function pintarCostos(r) {
     $('kpisCostos').innerHTML = '';
     $('notaCostos').innerHTML = '<b>' + esc(r.mensaje) + '</b>';
     ['tablaCostoIni', 'graficoCostoTipo', 'tablaCostoEtapa', 'graficoCostoMes',
-     'tablaCostoPlataforma', 'tablaBolsas',
+     'tablaCostoPlataforma', 'tablaCostoFabrica', 'tablaBolsas',
      'tablaCostoActividades'].forEach(function (id) { $(id).innerHTML = ''; });
     return;
   }
@@ -3677,6 +3677,9 @@ function pintarCostos(r) {
         '<b>Estabilización</b> es lo que costó sostener y corregir, no construir.</p>'
       : '<p style="color:var(--ink-muted);font-size:13px">Sin datos en el período.</p>';
 
+  /* --- lo facturado por fabrica --- */
+  $('tablaCostoFabrica').innerHTML = pintarCostoPorFabrica(r);
+
   /* --- por plataforma digital, mes a mes ---
      Una fila por plataforma y una columna por mes del periodo. El total de la
      esquina es lo ATRIBUIDO, el mismo numero del panel de arriba: si alguna vez
@@ -3740,6 +3743,90 @@ function pintarCostos(r) {
   /* --- actividades: el detalle que alguien va a sumar con la calculadora --- */
   pintarDetalleCostos(r);
   pintarFaltaInfoCostos(r);
+}
+
+/**
+ * Lo facturado en el periodo, por fabrica.
+ *
+ * Es la misma liquidacion que lleva el documento de cada fabrica —base, AIU,
+ * IVA y total— puesta en una sola tabla, para poder verla sin abrir e imprimir
+ * cada documento. Las columnas de AIU y de IVA solo se dibujan si alguna fabrica
+ * los cobra: un par de columnas en raya para todos no dice nada.
+ *
+ * @param {!Object} r La respuesta de getCostos.
+ * @return {string}
+ */
+function pintarCostoPorFabrica(r) {
+  var filas = r.porFabrica || [];
+  if (!filas.length) {
+    return '<p style="color:var(--ink-muted);font-size:13px">Ninguna bolsa de capacidad ' +
+           'estuvo vigente en este período.</p>';
+  }
+  var hayAIU = filas.some(function (g) { return g.liquidacion.aplicaAIU; });
+  var hayIVA = filas.some(function (g) { return g.liquidacion.aplicaIVA; });
+  var suma = function (campo) {
+    return filas.reduce(function (a, g) { return a + g.liquidacion[campo]; }, 0);
+  };
+
+  var cab = '<tr><th>Fábrica</th><th class="num">Base facturada</th>' +
+    (hayAIU ? '<th class="num">AIU</th>' : '') +
+    (hayIVA ? '<th class="num">IVA</th>' : '') +
+    '<th class="num">Total a pagar</th>' +
+    '<th class="num">Sin atribuir</th></tr>';
+
+  /* Una celda en raya dice "esta fábrica no lo cobra"; un cero diría "lo cobra y
+     dio cero", que es otra cosa. */
+  var cuanto = function (aplica, valor, pct) {
+    if (!aplica) return '<td class="num cst-nada">—</td>';
+    return '<td class="num">' + pesos(valor) +
+      '<div class="cst-dias">' + formatoPorcentaje(pct) + '</div></td>';
+  };
+
+  var cuerpo = filas.map(function (g) {
+    var l = g.liquidacion;
+    return '<tr><td>' +
+      (g.sinFabrica
+        ? '<span style="color:var(--ink-faint)">Sin fábrica asignada</span>'
+        : esc(g.nombre)) +
+      (g.cerrado ? ' <span class="elige-sello">cerrado</span>' : '') +
+      '<div style="color:var(--ink-faint);font-size:11px">' + g.bolsas +
+      (g.bolsas === 1 ? ' bolsa' : ' bolsas') + '</div></td>' +
+      '<td class="num">' + pesos(l.base) + '</td>' +
+      (hayAIU ? cuanto(l.aplicaAIU, l.valorAIU, l.pctAIU) : '') +
+      (hayIVA ? cuanto(l.aplicaIVA, l.valorIVA, l.pctIVA) : '') +
+      '<td class="num" style="font-weight:700">' +
+      (g.sinFabrica ? '<span class="cst-nada">no se factura</span>' : pesos(l.total)) +
+      '</td>' +
+      '<td class="num">' + (g.sinAtribuir ? pesos(g.sinAtribuir) : '—') + '</td></tr>';
+  }).join('');
+
+  /* El total de la columna "a pagar" NO incluye lo que no tiene fabrica: eso no
+     se le paga a nadie. Sumarlo ahi daría una cifra que nadie va a desembolsar. */
+  var aPagar = filas.filter(function (g) { return !g.sinFabrica; })
+      .reduce(function (a, g) { return a + g.liquidacion.total; }, 0);
+  var total = '<tr class="cst-total"><td>Total</td>' +
+    '<td class="num">' + pesos(suma('base')) + '</td>' +
+    (hayAIU ? '<td class="num">' + pesos(suma('valorAIU')) + '</td>' : '') +
+    (hayIVA ? '<td class="num">' + pesos(suma('valorIVA')) + '</td>' : '') +
+    '<td class="num">' + pesos(aPagar) + '</td>' +
+    '<td class="num">' + pesos(filas.reduce(function (a, g) {
+      return a + g.sinAtribuir; }, 0)) + '</td></tr>';
+
+  var huerfana = filas.filter(function (g) { return g.sinFabrica; })[0];
+  return '<div class="tabla-scroll"><table class="tabla-compacta"><thead>' + cab +
+    '</thead><tbody>' + cuerpo + total + '</tbody></table></div>' +
+    '<p class="nota"><b>Base facturada</b> es lo atribuido a actividades, que es lo que se ' +
+    'cobra. <b>Sin atribuir</b> es capacidad contratada que ninguna actividad ocupó según ' +
+    'las fechas registradas: no se factura, y aparece en la conciliación de cada documento.' +
+    (huerfana
+      ? ' <b style="color:var(--rojo)">Hay ' + pesos(huerfana.base) + ' en bolsas sin ' +
+        'fábrica asignada</b>, que no entran en ninguna factura: asígneles fábrica en ' +
+        'Administración → Costos de la fábrica.'
+      : '') +
+    (hayAIU || hayIVA
+      ? ' El <b>AIU</b> se suma a la base y el <b>IVA</b> grava la base más el AIU.'
+      : ' Ninguna fábrica tiene AIU ni IVA configurados.') +
+    '</p>';
 }
 
 /**
