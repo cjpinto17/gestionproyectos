@@ -4175,6 +4175,7 @@ function abrirFacturacion() {
        mismo tiempo, se imprime la de quien se va a pagar hoy. El escogedor
        muestra el monto de cada una, asi que la decision se toma viendo la
        cifra y no de memoria (D-133). */
+    pintarBotonCierre(f);
     elegirFabricaParaImprimir(f);
   }).catch(function (e) {
     fallo(e);
@@ -4183,6 +4184,60 @@ function abrirFacturacion() {
   }).then(function () { b.disabled = false; b.textContent = antes; });
 }
 $('btnFacturar').addEventListener('click', abrirFacturacion);
+
+/**
+ * Cerrar el mes: congela lo que se le paga a cada fabrica.
+ *
+ * Solo el administrador, y solo despues de ver el documento: cerrar es decir
+ * "esta informacion ya esta lista", y eso no se afirma sin haberla mirado. El
+ * boton se esconde para los demas roles —el servidor lo vuelve a comprobar,
+ * porque esconder un boton no es seguridad—.
+ */
+function pintarBotonCierre(f) {
+  var b = $('btnCerrarMes');
+  if (!b) return;
+  b.hidden = !CTX.esAdmin;
+  if (!CTX.esAdmin) return;
+  CIERRE_VISTO = f;
+  b.textContent = f.cerrado ? 'Reabrir el mes' : 'Cerrar el mes';
+  b.title = f.cerrado
+    ? 'El mes está cerrado: las cifras no cambian aunque cambien el AIU o el IVA'
+    : 'Congela lo que se le paga a cada fábrica en este mes';
+}
+/** La ultima facturacion mirada, para saber que mes se esta cerrando. */
+var CIERRE_VISTO = null;
+
+if ($('btnCerrarMes')) {
+  $('btnCerrarMes').addEventListener('click', function () {
+    var f = CIERRE_VISTO;
+    if (!f) { toast('Abra primero la facturación del mes.'); return; }
+    var abrir = !!f.cerrado;
+    var cuerpo = abrir
+      ? '<p>El mes <b>' + esc(etiquetaMes(f.mes)) + '</b> quedará abierto otra vez: las ' +
+        'cifras volverán a recalcularse y podrán cambiar si cambia el AIU, el IVA o ' +
+        'alguna fecha.</p><p class="nota">El cierre no se borra: queda registrado que ' +
+        'existió y que se reabrió.</p>'
+      : '<p>Se congela lo que se le paga a <b>' + f.fabricas.length +
+        ' fábrica(s)</b> en <b>' + esc(etiquetaMes(f.mes)) + '</b>, por un total de <b>' +
+        pesos(f.totalAPagar) + '</b>.</p>' +
+        '<p class="nota">Después de cerrar, cambiar el porcentaje de AIU o de IVA ya no ' +
+        'toca este mes. Si alguien registra fechas más tarde, el documento seguirá ' +
+        'pagando lo cerrado y avisará de la diferencia.</p>';
+    abrirModal(abrir ? 'Reabrir el mes' : 'Cerrar el mes', etiquetaMes(f.mes),
+      cuerpo +
+      '<label class="campo"><span>Nota (opcional)</span>' +
+      '<input type="text" id="notaCierre" maxlength="200" placeholder="Por qué, si hace falta"></label>',
+      function () {
+        return api(abrir ? 'reabrirMesFacturacion' : 'cerrarMesFacturacion',
+                   f.mes, $('notaCierre').value).then(function () {
+          toast(abrir ? 'Mes reabierto.' : 'Mes cerrado.');
+          invalidarCacheCliente();
+          CIERRE_VISTO = null;
+          cargarCostos(true);
+        });
+      });
+  });
+}
 
 /**
  * Pregunta de que fabrica se imprime, con el monto de cada una a la vista.
@@ -4207,11 +4262,19 @@ function elegirFabricaParaImprimir(f) {
   }
 
   var botones = opciones.map(function (g) {
+    // La cifra que se escoge es la que se DESEMBOLSA: con una fabrica que cobra
+    // AIU y otra que no, decidir por la base lleva a comparar peras con manzanas.
+    var l = g.liquidacion || { total: g.aFacturar, aplicaAIU: false, aplicaIVA: false };
+    var extras = [];
+    if (l.aplicaAIU) extras.push('AIU ' + formatoPorcentaje(l.pctAIU));
+    if (l.aplicaIVA) extras.push('IVA ' + formatoPorcentaje(l.pctIVA));
     return '<button type="button" class="elige-fab" data-fab="' + esc(g.id) + '">' +
-      '<span class="elige-nombre">' + esc(g.nombre) + '</span>' +
-      '<span class="elige-monto num">' + pesos(g.aFacturar) + '</span>' +
+      '<span class="elige-nombre">' + esc(g.nombre) +
+      (g.cerrado ? ' <span class="elige-sello">cerrado</span>' : '') + '</span>' +
+      '<span class="elige-monto num">' + pesos(l.total) + '</span>' +
       '<span class="elige-pie">' + g.bolsas.length + ' bolsa(s) · ' +
       g.actividades + ' actividad(es)' +
+      (extras.length ? ' · base ' + pesos(l.base) + ' + ' + extras.join(' + ') : '') +
       (g.sinAtribuir ? ' · ' + pesos(g.sinAtribuir) + ' sin atribuir' : '') +
       '</span></button>';
   }).join('');
@@ -4314,11 +4377,54 @@ function hojaDeFactura(g, f) {
     '</div><div class="fac-mes">' + esc(etiquetaMes(f.mes)) +
     '<div class="fac-dato">Generado ' + esc(f.generado) + '</div></div></div>';
 
-  /* El total, grande y primero: es lo que alguien busca al abrir el documento. */
-  h += '<div class="fac-total"><div class="fac-total-rot">Valor a facturar</div>' +
-    '<div class="fac-total-cifra num">' + pesos(g.aFacturar) + '</div>' +
-    '<div class="fac-dato">' + esc(f.moneda || 'COP') + ' · sin IVA · ' +
-    g.actividades + ' actividad(es) en ' + g.bolsas.length + ' bolsa(s) de capacidad</div></div>';
+  /* El total GRANDE es lo que se desembolsa, con AIU e IVA incluidos: es lo que
+     alguien busca al abrir el documento y lo que firma. El desglose va justo
+     debajo para que se vea de donde sale, no en otra pagina. */
+  var l = g.liquidacion || { base: g.aFacturar, subtotal: g.aFacturar,
+                             total: g.aFacturar, aplicaAIU: false, aplicaIVA: false };
+  var escalera = '';
+  if (l.aplicaAIU || l.aplicaIVA) {
+    escalera = '<table class="tabla-compacta fac-escalera"><tbody>' +
+      '<tr><td>Base · capacidad atribuida del mes</td>' +
+      '<td class="num">' + pesos(l.base) + '</td></tr>' +
+      (l.aplicaAIU
+        ? '<tr><td>AIU ' + formatoPorcentaje(l.pctAIU) + '</td>' +
+          '<td class="num">' + pesos(l.valorAIU) + '</td></tr>' +
+          '<tr><td>Subtotal</td><td class="num">' + pesos(l.subtotal) + '</td></tr>'
+        : '') +
+      (l.aplicaIVA
+        ? '<tr><td>IVA ' + formatoPorcentaje(l.pctIVA) +
+          (l.aplicaAIU ? ' <span class="fac-nota-linea">sobre base más AIU</span>' : '') +
+          '</td><td class="num">' + pesos(l.valorIVA) + '</td></tr>'
+        : '') +
+      '<tr class="cst-total"><td>Total a pagar</td>' +
+      '<td class="num">' + pesos(l.total) + '</td></tr>' +
+      '</tbody></table>';
+  }
+  h += '<div class="fac-total"><div class="fac-total-rot">' +
+    (escalera ? 'Total a pagar' : 'Valor a facturar') + '</div>' +
+    '<div class="fac-total-cifra num">' + pesos(l.total) + '</div>' +
+    '<div class="fac-dato">' + esc(f.moneda || 'COP') +
+    (escalera ? '' : ' · sin AIU ni IVA') + ' · ' +
+    g.actividades + ' actividad(es) en ' + g.bolsas.length + ' bolsa(s) de capacidad</div>' +
+    escalera + '</div>';
+
+  /* Un mes cerrado paga lo que se congelo, no lo que da el recalculo de hoy. Si
+     los dos se separaron, se dice: alguien corrigio fechas despues de cerrar y
+     quien autoriza el pago tiene que enterarse aqui, no en una conciliacion. */
+  if (g.cerrado) {
+    h += '<div class="fac-cerrado"><b>Mes cerrado</b> el ' + esc(g.cierre.fecha) +
+      (g.cierre.usuario ? ' por ' + esc(g.cierre.usuario) : '') +
+      '. Las cifras son las que quedaron al cerrar: cambiar el AIU o el IVA ya no ' +
+      'las toca.' +
+      (g.difCierre
+        ? ' <b style="color:var(--rojo)">Ojo:</b> al recalcular hoy la base daría ' +
+          pesos(g.aFacturar) + ', ' + pesos(Math.abs(g.difCierre)) +
+          (g.difCierre > 0 ? ' más' : ' menos') + ' que lo cerrado. Se registraron ' +
+          'fechas después del cierre.'
+        : '') +
+      '</div>';
+  }
 
   // Sin columna de etapa: para pagar da igual de que etapa es la bolsa, y una
   // columna que nadie mira ocupa el ancho que necesitan las demas.
@@ -4338,7 +4444,7 @@ function hojaDeFactura(g, f) {
         '</td><td>' + esc(vig) + '</td>' +
         '<td class="num">' + pesos(b.atribuido) + '</td></tr>';
     }).join('') +
-    '<tr class="cst-total"><td colspan="3">Total a facturar</td>' +
+    '<tr class="cst-total"><td colspan="3">Base facturada</td>' +
     '<td class="num">' + pesos(g.aFacturar) + '</td></tr>' +
     '</tbody></table></div>';
 

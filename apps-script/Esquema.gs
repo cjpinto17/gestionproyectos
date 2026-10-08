@@ -979,9 +979,22 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'NIT', etiqueta: 'NIT', tipo: 'text',
         ayuda: 'Opcional. Si está, aparece en el documento de facturación.' },
       { campo: 'Contrato', etiqueta: 'Contrato u orden de compra', tipo: 'text',
-        ayuda: 'Opcional. Si está, aparece en el documento de facturación.' }
+        ayuda: 'Opcional. Si está, aparece en el documento de facturación.' },
+      /* AIU e IVA: no los cobran todas las fabricas, asi que son configuracion y
+         no codigo. Las dos arrancan en NO a proposito: encender el IVA de
+         fabrica le habria sumado un 19% a lo que alguien paga sin que nadie lo
+         decidiera. El porcentaje solo se usa cuando la casilla dice SI. */
+      { campo: 'Aplica_AIU', etiqueta: 'Cobra AIU', tipo: 'boolSN', predeterminado: 'NO',
+        ayuda: 'Administración, imprevistos y utilidad. Si es SÍ, se suma al valor facturado.' },
+      { campo: 'Porcentaje_AIU', etiqueta: 'Porcentaje de AIU', tipo: 'decimal',
+        ayuda: 'Sobre la base del mes. Normalmente 20. Solo se usa si "Cobra AIU" dice SÍ.' },
+      { campo: 'Aplica_IVA', etiqueta: 'Cobra IVA', tipo: 'boolSN', predeterminado: 'NO',
+        ayuda: 'Si es SÍ, el IVA se liquida sobre todo lo facturado: base más AIU.' },
+      { campo: 'Porcentaje_IVA', etiqueta: 'Porcentaje de IVA', tipo: 'decimal',
+        ayuda: 'Normalmente 19. Solo se usa si "Cobra IVA" dice SÍ.' }
     ]
   },
+
   Costos_Fabrica: {
     etiqueta: 'Costos de la fábrica',
     pk: 'ID_Costo',
@@ -1223,6 +1236,41 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Usuario_ID', etiqueta: 'Usuario', tipo: 'text', requerido: true },
       { campo: 'Correo_Usuario', etiqueta: 'Correo del usuario', tipo: 'text' },
       { campo: 'Observacion', etiqueta: 'Observacion', tipo: 'longtext', requerido: true }
+    ]
+  },
+
+  /**
+   * El cierre de un mes de facturacion.
+   *
+   * Una fila por fabrica y por mes con la liquidacion CONGELADA: la base, los
+   * porcentajes que estaban vigentes y los valores que salieron de ellos. Sin
+   * esto, cambiar el porcentaje de AIU o de IVA cambiaba tambien lo que decia el
+   * documento de un mes ya pagado, y un soporte de pago que cambia solo no
+   * sirve como soporte.
+   *
+   * Lo que se congela son las CIFRAS, no el anexo: el anexo se sigue armando
+   * del reparto. Si al recalcular la base ya no coincide con la congelada, el
+   * documento lo dice en vez de esconderlo —alguien corrigio fechas despues de
+   * cerrar— que es la misma regla de la conciliacion contra el contrato.
+   */
+  Cierres_Facturacion: {
+    etiqueta: 'Cierres de facturación',
+    pk: 'ID_Cierre',
+    columnas: [
+      { campo: 'ID_Cierre', etiqueta: 'ID Cierre', tipo: 'text', requerido: true },
+      { campo: 'Mes', etiqueta: 'Mes facturado', tipo: 'text', requerido: true },
+      { campo: 'ID_Fabrica', etiqueta: 'Fábrica', tipo: 'enum', fk: 'Fabricas', requerido: true },
+      { campo: 'Estado_Cierre', etiqueta: 'Estado', tipo: 'text', requerido: true,
+        ayuda: 'CERRADO o REABIERTO. Vale el último movimiento de cada mes y fábrica.' },
+      { campo: 'Base', etiqueta: 'Base facturada', tipo: 'number', requerido: true },
+      { campo: 'Porcentaje_AIU', etiqueta: 'Porcentaje de AIU', tipo: 'decimal' },
+      { campo: 'Valor_AIU', etiqueta: 'Valor del AIU', tipo: 'number' },
+      { campo: 'Porcentaje_IVA', etiqueta: 'Porcentaje de IVA', tipo: 'decimal' },
+      { campo: 'Valor_IVA', etiqueta: 'Valor del IVA', tipo: 'number' },
+      { campo: 'Total', etiqueta: 'Total a pagar', tipo: 'number', requerido: true },
+      { campo: 'Fecha_Cierre', etiqueta: 'Fecha y hora', tipo: 'datetime', requerido: true },
+      { campo: 'Usuario_Cierre', etiqueta: 'Quién lo cerró', tipo: 'text', requerido: true },
+      { campo: 'Nota', etiqueta: 'Nota', tipo: 'longtext' }
     ]
   },
 

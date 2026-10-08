@@ -3261,6 +3261,8 @@ var METODOS_PUBLICOS = {
   getCostos: true,
   getCostosDetalle: true,
   getFacturacion: true,
+  cerrarMesFacturacion: true,
+  reabrirMesFacturacion: true,
   registrarFechasEtapa: true,
   getPortafolio: true,
   getInforme: true,

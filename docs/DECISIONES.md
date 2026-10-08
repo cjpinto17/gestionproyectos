@@ -3509,6 +3509,64 @@ La regla, para no repetirla: **todo lo que se devuelva al navegador va en texto,
 dato sale de la hoja, `leerTabla_` ya lo hizo; si se arma en el servidor, hay que hacerlo a mano o
 pasarlo por `planoParaElNavegador_`.
 
+### D-139 · AIU, IVA y el cierre del mes de facturación
+
+**El AIU y el IVA son configuración, no código.** Cada fábrica lleva en su ficha *Cobra AIU*,
+*% AIU*, *Cobra IVA* y *% IVA*, porque no todas los cobran y los porcentajes no son iguales. La
+casilla manda sobre el número: un 20 escrito con la casilla en NO no cobra nada, así que apagar el
+AIU no obliga además a borrar el porcentaje.
+
+**Las dos arrancan en NO.** Dejarlas en SI de fábrica le habría sumado un 19% a lo que alguien paga
+sin que nadie lo decidiera. Después de actualizar la estructura, el documento sigue diciendo
+exactamente lo que decía hasta que se configure.
+
+**La cuenta, confirmada por el usuario:** el AIU **se suma** al valor facturado y el IVA grava **todo
+lo facturado, AIU incluido**. Sobre una base de un millón: AIU 200.000, subtotal 1.200.000, IVA
+228.000, total 1.428.000. Si el IVA gravara solo la base serían 1.390.000 — 38.000 menos. Hay una
+revisión con esos números exactos, porque es la diferencia que se le preguntó y confirmó.
+
+**La base no se toca y el anexo tampoco.** El AIU y el IVA son del documento, no de cada solicitud:
+repartirlos entre las filas habría roto el amarre del anexo con la tabla de cálculos detallados de
+Costos, que es justo lo que lo hace verificable. La tabla de conceptos cierra en **base facturada**.
+
+**La cifra grande pasó a ser el total a pagar**, con el desglose debajo y dentro del mismo recuadro:
+quien firma busca una sola cifra, y de dónde sale tiene que estar al lado, no en otra página. El
+escogedor también ordena y muestra por el **total**: con una fábrica que cobra AIU y otra que no,
+decidir por la base es comparar peras con manzanas. Queda una revisión con ese caso —la fábrica de
+mayor base no es la de mayor pago—.
+
+**El cierre del mes, en vez de vigencias en los porcentajes.** El usuario lo pidió así: una opción en
+Costos, **solo para el administrador**, que diga que la información del mes ya está lista y guarde el
+histórico. Al cerrar se congela la liquidación de cada fábrica —base, porcentajes y valores— con
+fecha y autor. Después de eso, cambiar el AIU o el IVA ya no toca ese mes: un soporte de pago que
+cambia solo no sirve como soporte.
+
+**Lo que se congela son las cifras, no el anexo**, y por eso el documento compara. Si alguien corrige
+fechas después de cerrar, la base recalculada se separa de la congelada: se **paga la congelada** y el
+documento dice en cuánto difiere y por qué. Esconder cualquiera de las dos sería elegir por quien
+autoriza el pago. Comprobado con una solicitud a la que se le borran las fechas después del cierre.
+
+**Reabrir no borra.** La hoja es un registro de movimientos y vale el último de cada mes y fábrica:
+cerrar escribe CERRADO, reabrir escribe REABIERTO, y volver a cerrar congela los porcentajes nuevos.
+Un cierre equivocado se deshace sin perder la constancia de que ocurrió.
+
+**Tres revisiones mías que la mejora dejó obsoletas**, repuntadas en vez de borradas: la que exigía
+que el documento dijera «sin IVA» (era la decisión D-132, ahora revocada), la que compraba la cifra
+grande contra la base, y la que buscaba la tabla de conceptos como «la primera tabla» —que desde el
+desglose ya no lo es, y ahora se busca por ser la primera **con encabezado**—.
+
+**Y una que contaba en vez de medir.** Exigía «máximo una tabla sin contenedor de desplazamiento»,
+con la de conciliación como excepción escrita a mano; agregar el desglose la rompía y la tentación
+era subir el número a dos. Ahora mide el efecto: una tabla suelta solo es un defecto si **se
+desborda**. Es la misma corrección que ya había hecho en las revisiones de móvil, y volví a
+escribirla mal.
+
+**Un error mío al probar el desfase del cierre.** Supuse que agregar una solicitud subía la base. No:
+la bolsa de un mes se reparte **completa** entre las solicitudes que estén en esa etapa, así que ni
+agregar solicitudes ni acortar sus días mueve el total atribuido. Lo que lo mueve es que la etapa
+quede **sin ocupación**. La prueba estaba mal, no el cálculo, y queda escrito en el comentario para
+no volver a razonarlo al revés.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

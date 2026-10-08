@@ -911,6 +911,16 @@
   .elige-nombre{font-weight:700;font-size:14px}
   .elige-monto{font-weight:700;font-size:15px;color:var(--navy);text-align:right}
   .elige-pie{grid-column:1/-1;font-size:11.5px;color:var(--ink-muted)}
+  /* La escalera del documento: base, AIU, IVA y total a pagar. Va dentro del
+     recuadro del total para que el desglose y la cifra grande no se separen. */
+  .fac-escalera{margin-top:10px;background:#fff;border-radius:6px}
+  .fac-escalera td{padding:4px 8px}
+  .fac-nota-linea{color:var(--ink-faint);font-size:11px;font-weight:400}
+  .fac-cerrado{margin:12px 0;padding:9px 12px;border-radius:6px;
+    background:#EEF2F9;color:var(--ink-muted);font-size:12px;line-height:1.45}
+  .elige-sello{font-size:10px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.05em;background:#E8EDF7;color:#42557A;padding:1px 6px;
+    border-radius:999px;vertical-align:middle}
   .elige-aviso{border-color:var(--alerta-line)}
   .elige-aviso .elige-monto{color:var(--alerta)}
   @media print{

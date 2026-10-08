@@ -330,6 +330,48 @@ function getCostos(desde, hasta, forzar) {
 }
 
 /**
+ * La liquidacion de una factura: base, AIU, IVA y total.
+ *
+ * El AIU se SUMA al valor facturado y el IVA grava todo lo facturado, AIU
+ * incluido. Las dos cosas son configuracion de cada fabrica (hoja Fabricas) y
+ * no reglas del codigo: no todas las cobran.
+ *
+ * Vive en una funcion propia porque la usan dos caminos —el documento del mes
+ * abierto y el cierre que lo congela— y dos copias de esta aritmetica
+ * terminarian pagando cifras distintas segun por donde se mirara.
+ *
+ * @param {number} base Lo atribuido a solicitudes, que es lo que se factura.
+ * @param {!Object} fabrica Fila de Fabricas (puede venir vacia).
+ * @return {!Object}
+ */
+function liquidarFactura_(base, fabrica) {
+  var f = fabrica || {};
+  var si = function (v) { return String(v || '').trim().toUpperCase() === 'SI'; };
+  var pct = function (v) {
+    var n = Number(v);
+    return isFinite(n) && n > 0 ? n : 0;
+  };
+
+  var aplicaAIU = si(f.Aplica_AIU);
+  var pctAIU = aplicaAIU ? pct(f.Porcentaje_AIU) : 0;
+  var valorAIU = Math.round(base * pctAIU / 100);
+
+  // El IVA grava la base MAS el AIU: es todo lo que la fabrica esta cobrando.
+  var subtotal = base + valorAIU;
+  var aplicaIVA = si(f.Aplica_IVA);
+  var pctIVA = aplicaIVA ? pct(f.Porcentaje_IVA) : 0;
+  var valorIVA = Math.round(subtotal * pctIVA / 100);
+
+  return {
+    base: base,
+    aplicaAIU: aplicaAIU, pctAIU: pctAIU, valorAIU: valorAIU,
+    subtotal: subtotal,
+    aplicaIVA: aplicaIVA, pctIVA: pctIVA, valorIVA: valorIVA,
+    total: subtotal + valorIVA
+  };
+}
+
+/**
  * Deja el resultado en JSON puro antes de mandarlo al navegador (D-122).
  *
  * El camino con cache pasa por JSON para guardarse, asi que el navegador siempre
@@ -1057,13 +1099,151 @@ function registrarFechasEtapa(idSolicitud, fechas) {
  */
 function getFacturacion(mes) {
   exigirPermiso_('Ver_Costos', 'Su rol no puede ver los costos de la fabrica.');
+  var m = mesDeFacturacion_(mes);
+  return conResultadoEnCache_('factura_' + m, function () {
+    return planoParaElNavegador_(calcularFacturacion_(m));
+  }, versionDatos_());
+}
+
+/**
+ * Normaliza y valida un mes de facturacion.
+ * @private
+ */
+function mesDeFacturacion_(mes) {
   var m = String(mes || '').trim();
   if (!/^\d{4}-\d{2}$/.test(m)) {
     throw new Error('Indique el mes a facturar en formato aaaa-mm.');
   }
-  return conResultadoEnCache_('factura_' + m, function () {
-    return planoParaElNavegador_(calcularFacturacion_(m));
-  }, versionDatos_());
+  return m;
+}
+
+/**
+ * El cierre vigente de un mes, si lo hay.
+ *
+ * La hoja es un registro de movimientos: cerrar y reabrir dejan filas, y vale
+ * el ULTIMO movimiento de cada mes y fabrica. Asi un cierre equivocado se puede
+ * deshacer sin borrar la historia de que ocurrio.
+ *
+ * @param {string} mes
+ * @return {!Object} { cerrado, fecha, usuario, nota, cuantas, porFabrica }
+ * @private
+ */
+function cierreDelMes_(mes) {
+  var filas;
+  try {
+    filas = leerTabla_('Cierres_Facturacion');
+  } catch (e) {
+    return { cerrado: false, porFabrica: {} };   // la hoja aun no existe
+  }
+
+  var ultimo = {};
+  filas.filter(function (f) { return String(f.Mes) === mes; })
+       .forEach(function (f) {
+         var previo = ultimo[f.ID_Fabrica];
+         if (!previo || String(f.Fecha_Cierre) >= String(previo.Fecha_Cierre)) {
+           ultimo[f.ID_Fabrica] = f;
+         }
+       });
+
+  var porFabrica = {}, fecha = '', usuario = '', nota = '', cuantas = 0;
+  Object.keys(ultimo).forEach(function (id) {
+    var f = ultimo[id];
+    if (String(f.Estado_Cierre).toUpperCase() !== 'CERRADO') return;
+    porFabrica[id] = {
+      base: Number(f.Base) || 0,
+      pctAIU: Number(f.Porcentaje_AIU) || 0, valorAIU: Number(f.Valor_AIU) || 0,
+      pctIVA: Number(f.Porcentaje_IVA) || 0, valorIVA: Number(f.Valor_IVA) || 0,
+      total: Number(f.Total) || 0,
+      fecha: f.Fecha_Cierre, usuario: f.Usuario_Cierre
+    };
+    cuantas++;
+    // El cierre se hace de una sola vez, asi que todas las filas comparten
+    // fecha y autor; se toma el mas reciente por si alguna se rehizo.
+    if (String(f.Fecha_Cierre) >= String(fecha)) {
+      fecha = f.Fecha_Cierre; usuario = f.Usuario_Cierre; nota = f.Nota || '';
+    }
+  });
+
+  return { cerrado: cuantas > 0, fecha: fecha, usuario: usuario, nota: nota,
+           cuantas: cuantas, porFabrica: porFabrica };
+}
+
+/**
+ * Cierra un mes de facturacion: congela lo que se le paga a cada fabrica.
+ *
+ * Solo el administrador. Despues de cerrar, cambiar el porcentaje de AIU o de
+ * IVA ya no toca ese mes: el documento sigue diciendo lo que se pago.
+ *
+ * @param {string} mes 'yyyy-MM'.
+ * @param {string=} nota Para que quede por que se cerro, si hace falta.
+ * @return {!Object}
+ */
+function cerrarMesFacturacion(mes, nota) {
+  var ctx = exigirAdministrador_();
+  var m = mesDeFacturacion_(mes);
+
+  return conBloqueo_(function () {
+    if (cierreDelMes_(m).cerrado) {
+      throw new Error('El mes ' + m + ' ya está cerrado. Reábralo si necesita rehacerlo.');
+    }
+    var f = calcularFacturacion_(m);
+    if (f.sinTarifas || !f.fabricas.length) {
+      throw new Error('No hay nada que cerrar en ' + m + ': ninguna fábrica facturó.');
+    }
+    var ahora = new Date();
+    f.fabricas.forEach(function (g, i) {
+      var l = g.liquidacion;
+      agregarFila_('Cierres_Facturacion', {
+        ID_Cierre: 'CIE-' + ahora.getTime() + '-' + i,
+        Mes: m, ID_Fabrica: g.id, Estado_Cierre: 'CERRADO',
+        Base: l.base,
+        Porcentaje_AIU: l.pctAIU, Valor_AIU: l.valorAIU,
+        Porcentaje_IVA: l.pctIVA, Valor_IVA: l.valorIVA,
+        Total: l.total,
+        Fecha_Cierre: ahora, Usuario_Cierre: ctx.correo || '',
+        Nota: String(nota || '').trim()
+      });
+    });
+    invalidarTabla_('Cierres_Facturacion');
+    return { ok: true, mes: m, fabricas: f.fabricas.length,
+             total: f.fabricas.reduce(function (a, g) { return a + g.liquidacion.total; }, 0) };
+  });
+}
+
+/**
+ * Reabre un mes cerrado. Solo el administrador.
+ *
+ * No borra el cierre: escribe el movimiento contrario. Lo que se pago queda en
+ * la hoja aunque el mes vuelva a quedar abierto.
+ *
+ * @param {string} mes
+ * @param {string=} nota Por que se reabre.
+ * @return {!Object}
+ */
+function reabrirMesFacturacion(mes, nota) {
+  var ctx = exigirAdministrador_();
+  var m = mesDeFacturacion_(mes);
+
+  return conBloqueo_(function () {
+    var c = cierreDelMes_(m);
+    if (!c.cerrado) throw new Error('El mes ' + m + ' no está cerrado.');
+    var ahora = new Date();
+    Object.keys(c.porFabrica).forEach(function (id, i) {
+      var x = c.porFabrica[id];
+      agregarFila_('Cierres_Facturacion', {
+        ID_Cierre: 'CIE-' + ahora.getTime() + '-R' + i,
+        Mes: m, ID_Fabrica: id, Estado_Cierre: 'REABIERTO',
+        Base: x.base,
+        Porcentaje_AIU: x.pctAIU, Valor_AIU: x.valorAIU,
+        Porcentaje_IVA: x.pctIVA, Valor_IVA: x.valorIVA,
+        Total: x.total,
+        Fecha_Cierre: ahora, Usuario_Cierre: ctx.correo || '',
+        Nota: String(nota || '').trim()
+      });
+    });
+    invalidarTabla_('Cierres_Facturacion');
+    return { ok: true, mes: m };
+  });
 }
 
 /**
@@ -1218,11 +1398,40 @@ function calcularFacturacion_(mes) {
     g.sumaAnexo = g.iniciativas.reduce(function (acc, i) { return acc + i.costo; }, 0);
     g.cuadra = g.sumaAnexo === g.aFacturar;
 
+    /* La liquidacion: lo que de verdad se paga. La base no cambia —sigue siendo
+       lo atribuido— y el AIU y el IVA se suman encima segun lo que tenga
+       configurado ESTA fabrica. El anexo y los conceptos se quedan en la base:
+       repartir el AIU entre las solicitudes romperia el amarre del anexo con la
+       tabla de calculos detallados, que es lo que lo hace verificable. */
+    g.liquidacion = liquidarFactura_(g.aFacturar, datosFabrica[g.id]);
+
     // Los mapas de trabajo no viajan: el navegador recibe ya las listas.
     delete g.porIniciativa;
     delete g.etapasVistas;
   });
-  fabricas.sort(function (a, b) { return b.aFacturar - a.aFacturar; });
+  /* Se ordenan por el TOTAL que se paga, no por la base: con una fabrica que
+     cobra AIU y otra que no, la mas cara por base puede no ser la mas cara a
+     pagar, y el escogedor las muestra en este orden. */
+  fabricas.sort(function (a, b) { return b.liquidacion.total - a.liquidacion.total; });
+
+  /* El cierre del mes, si ya se hizo. Lo que manda entonces son las cifras
+     congeladas; el recalculo sigue a la vista para poder compararlo. */
+  var cierre = cierreDelMes_(mes);
+  fabricas.forEach(function (g) {
+    var c = cierre.porFabrica[g.id];
+    if (!c) return;
+    g.cerrado = true;
+    g.cierre = c;
+    /* Si despues de cerrar alguien corrigio fechas, la base recalculada ya no
+       coincide con la que se pago. No se esconde ninguna de las dos: manda la
+       congelada y el documento avisa de la diferencia. */
+    g.difCierre = g.aFacturar - c.base;
+    g.liquidacion = { base: c.base,
+                      aplicaAIU: c.pctAIU > 0, pctAIU: c.pctAIU, valorAIU: c.valorAIU,
+                      subtotal: c.base + c.valorAIU,
+                      aplicaIVA: c.pctIVA > 0, pctIVA: c.pctIVA, valorIVA: c.valorIVA,
+                      total: c.total };
+  });
 
   return {
     mes: mes,
@@ -1231,7 +1440,12 @@ function calcularFacturacion_(mes) {
                                    CONFIG.FORMATO_FECHA_HORA),
     fabricas: fabricas,
     totalAFacturar: fabricas.reduce(function (a, g) { return a + g.aFacturar; }, 0),
+    // El total que de verdad se desembolsa, con AIU e IVA de cada una.
+    totalAPagar: fabricas.reduce(function (a, g) { return a + g.liquidacion.total; }, 0),
     totalContratado: fabricas.reduce(function (a, g) { return a + g.contratado; }, 0),
+    cerrado: cierre.cerrado,
+    cierre: cierre.cerrado ? { fecha: cierre.fecha, usuario: cierre.usuario,
+                               nota: cierre.nota, fabricas: cierre.cuantas } : null,
     /* Las bolsas sin fabrica: nunca se suman a una factura. Si esta lista trae
        algo, hay plata que nadie va a cobrar porque no se sabe a quien pagarle. */
     sinAsignar: sinAsignar.map(function (b) {
