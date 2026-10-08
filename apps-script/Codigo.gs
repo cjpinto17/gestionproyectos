@@ -871,9 +871,16 @@ function getDetalleSolicitud(idSolicitud) {
      como la misma fase repetida dos veces (D-137). */
   var nombreCausal = mapaCatalogo_(getCausalesBloqueo_());
   var ahoraBloq = new Date();
+  /* Las fechas salen como texto ISO, igual que todas las demas de la aplicacion
+     (ver normalizarValor_). Un Date de verdad NO sobrevive a google.script.run:
+     el navegador recibe null por toda la respuesta y se cae al pintar, sin
+     ningun error del servidor que lo explique. Es el mismo golpe de D-122, y
+     aqui se colo porque estas dos fechas no vienen de la hoja —que ya las
+     convierte— sino que se arman en el servidor. */
+  var iso = function (d) { return d ? d.toISOString() : null; };
   s.Bloqueos = episodiosDeBloqueo_(auditoria).reverse().map(function (e) {
     return {
-      desde: e.desde, hasta: e.hasta, sigueAbierto: e.abierto,
+      desde: iso(e.desde), hasta: iso(e.hasta), sigueAbierto: e.abierto,
       // La causal del episodio, no la que la solicitud tenga hoy. Un episodio
       // cerrado sin causal es uno anterior a que la bitacora la guardara.
       causal: e.causal,

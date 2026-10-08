@@ -3478,6 +3478,37 @@ reemplazaron por un ensayo de la pantalla real (`armarDetalleSol.py` + `verDetal
 con la salida de verdad de `getDetalleSolicitud` y mira el DOM. Ese ensayo destapó de inmediato un
 «13,8 d d háb.»: `diasInforme` ya trae su unidad y yo le estaba agregando otra.
 
+### D-138 · Un `Date` en la respuesta tumba la pantalla sin dejar error
+
+Abrir una tarjeta en Gestión fallaba con «Cannot read properties of null (reading 'Tiene_Bloqueo')».
+Lo rompió D-137: los dos campos de fecha de cada bloqueo (`desde` y `hasta`) viajaban como objetos
+`Date` de verdad.
+
+**Un `Date` no sobrevive a `google.script.run`.** El navegador recibe **null por toda la respuesta** y
+se cae al pintar, **sin ningún error del servidor** que lo explique: por eso el síntoma apareció como
+un error de JavaScript en una propiedad que nada tenía que ver. Es el mismo golpe de D-122, donde la
+página de Costos recibía null al oprimir Calcular.
+
+La aplicación ya tenía la regla y yo la salté sin darme cuenta: `leerTabla_` convierte **toda** fecha
+de la hoja a texto ISO (`normalizarValor_`, con su comentario diciendo exactamente por qué), y los
+cálculos grandes salen por `planoParaElNavegador_`. Estas dos fechas se colaron porque **no vienen de
+la hoja**: se arman en el servidor al emparejar la bitácora. Ahora salen en ISO, igual que las demás.
+
+**Por qué las pruebas no lo cazaron, que es lo que de verdad hay que arreglar.** El ensayo de la
+pantalla se pinta desde un archivo JSON, y `JSON.stringify` convierte los `Date` a texto: la pecera
+hacía sola lo que el servidor NO estaba haciendo, y tapaba justo el fallo. Queda una revisión que
+recorre la respuesta completa de `getDetalleSolicitud` y falla si encuentra un `Date` en cualquier
+nivel, nombrando la ruta (`respuesta.Bloqueos.0.desde`). Comprobada contra el código que fallaba: lo
+caza y lo señala.
+
+**Y el doble de escritura de esa prueba mentía.** Guardaba el registro tal como se lo pasaban, mientras
+la aplicación lo relee de la hoja y al releerlo normaliza las fechas. Con el doble arreglado, el
+detector deja de quejarse de algo que en producción no pasa, y se queja solo de lo que sí.
+
+La regla, para no repetirla: **todo lo que se devuelva al navegador va en texto, no en `Date`**. Si el
+dato sale de la hoja, `leerTabla_` ya lo hizo; si se arma en el servidor, hay que hacerlo a mano o
+pasarlo por `planoParaElNavegador_`.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
