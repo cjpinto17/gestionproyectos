@@ -642,6 +642,10 @@ function calcularCostos_(desde, hasta, conDetalle) {
   var nombreProyecto = {};
   datos.proyectos.forEach(function (p) { nombreProyecto[p.ID_Proyecto] = p.Nombre_Proyecto; });
   var nombreTipo = mapaCatalogo_(getTiposSolicitud_());
+  /* La plataforma sale de la SOLICITUD y no de su iniciativa: una iniciativa
+     puede tocar varias, y lo que se esta costeando es el trabajo de cada
+     solicitud. */
+  var nombrePlataforma = mapaPlataformas();
 
   var iniciativas = {}, tipos = {};
   var actividades = [];
@@ -668,6 +672,8 @@ function calcularCostos_(desde, hasta, conDetalle) {
       id: id, nombre: s.Nombre_Solicitud,
       idProyecto: idProy, iniciativa: nombreProyecto[idProy] || 'Sin iniciativa',
       tipo: s.Tipo_Solicitud, tipoNombre: nombreTipo[s.Tipo_Solicitud] || s.Tipo_Solicitud,
+      plataformaId: s.Plataforma_ID || '',
+      plataforma: nombrePlataforma[s.Plataforma_ID] || (s.Plataforma_ID || ''),
       fase: s.Fase_Actual || '', estado: s.Estado_Actual || '',
       dias: red_(diasDeSolicitud[id] || 0, 1),
       costo: c.total,                      // ya es entero y la suma cuadra
@@ -822,13 +828,13 @@ function getCostosDetalle(desde, hasta) {
   escribirHoja_(libro, 'Reparto', reparto, 1);
 
   /* --- 3. Resumen: lo que muestra la pagina --- */
-  var resumen = [['ID', 'Actividad', 'Iniciativa', 'Tipo']];
+  var resumen = [['ID', 'Actividad', 'Iniciativa', 'Plataforma', 'Tipo']];
   ETAPAS_COSTO.forEach(function (e) {
     resumen[0].push('Días ' + e.nombre, 'Costo ' + e.nombre);
   });
   resumen[0].push('Días totales', 'Costo total');
   r.actividades.forEach(function (a) {
-    var fila = [a.id, a.nombre, a.iniciativa, a.tipoNombre];
+    var fila = [a.id, a.nombre, a.iniciativa, a.plataforma || '', a.tipoNombre];
     ETAPAS_COSTO.forEach(function (e) {
       fila.push(Math.round((a.diasPorEtapa[e.id] || 0) * 100) / 100,
                 a.porEtapa[e.id] || 0);
@@ -1087,6 +1093,9 @@ function calcularFacturacion_(mes) {
     ini.actividades[x.id] = ini.actividades[x.id] || {
       id: x.id, nombre: a.nombre || x.id,
       tipo: a.tipo || '', tipoNombre: a.tipoNombre || '',
+      // La misma plataforma que muestra la tabla de calculos detallados: el
+      // anexo y esa tabla hablan de la misma plata, y se cotejan una contra otra.
+      plataformaId: a.plataformaId || '', plataforma: a.plataforma || '',
       costo: 0, porEtapa: {}, diasPorEtapa: {}, rangos: a.rangos || {}
     };
     var act = ini.actividades[x.id];

@@ -3728,7 +3728,13 @@ function pintarDetalleCostos(r) {
   });
 
   var etapas = r.porEtapa;
-  var dia = function (n) { return (Math.round(n * 10) / 10).toString().replace('.', ','); };
+  // Una sola forma de escribir los dias en toda la tabla: si el renglon de la
+  // iniciativa dice "103,4 d" y el de la actividad "19,5 dias", quien revisa la
+  // cuenta se pregunta si son dos unidades distintas.
+  var dia = function (n) {
+    var x = Math.round((n || 0) * 10) / 10;
+    return x.toString().replace('.', ',') + (x === 1 ? ' día' : ' días');
+  };
 
   /** Una celda de etapa: dias, plata y las fechas de donde salen. */
   function celda(dias, costo, rango) {
@@ -3741,11 +3747,14 @@ function pintarDetalleCostos(r) {
             : fecha(rango.hasta))
         : '<i>sin fechas</i>';
     return '<td class="cst-etapa"><b>' + pesos(costo) + '</b>' +
-           '<div class="cst-dias">' + dia(dias) + (dias === 1 ? ' día' : ' días') + '</div>' +
+           '<div class="cst-dias">' + dia(dias) + '</div>' +
            '<div class="cst-fechas">' + fechas + '</div></td>';
   }
 
-  var cab = '<tr><th>Actividad</th><th>Tipo</th>' +
+  /* La plataforma sale de la SOLICITUD, no de su iniciativa: una iniciativa
+     puede tocar varias y lo que se cobra es el trabajo de cada solicitud. Por
+     eso va en la fila de la actividad y no en el renglon del grupo. */
+  var cab = '<tr><th>Actividad</th><th>Plataforma</th><th>Tipo</th>' +
       etapas.map(function (e) {
         return '<th class="num" style="text-align:right">' + esc(e.nombre) + '</th>';
       }).join('') +
@@ -3770,12 +3779,12 @@ function pintarDetalleCostos(r) {
     // El grupo trae su subtotal en la misma linea: se lee cerrado o abierto.
     var cabGrupo = '<tr class="cst-grupo' + (abierta ? ' abierta' : '') +
         '" data-ini="' + esc(k) + '">' +
-      '<td colspan="2"><span class="cst-flecha">▸</span> ' + esc(g.nombre) +
+      '<td colspan="3"><span class="cst-flecha">▸</span> ' + esc(g.nombre) +
         ' <span class="cst-cuenta">' + filas.length +
         (filas.length === 1 ? ' actividad' : ' actividades') + '</span></td>' +
       etapas.map(function (e) {
         return '<td class="num">' + (subCosto[e.etapa] ? pesos(subCosto[e.etapa]) : '—') +
-               '<div class="cst-dias">' + dia(subDias[e.etapa] || 0) + ' d</div></td>';
+               '<div class="cst-dias">' + dia(subDias[e.etapa] || 0) + '</div></td>';
       }).join('') +
       '<td class="num">' + pesos(g.costo) + '</td></tr>';
 
@@ -3783,6 +3792,9 @@ function pintarDetalleCostos(r) {
         return '<tr class="cst-fila" data-de="' + esc(k) + '"' +
           (abierta ? '' : ' hidden') + '>' +
           '<td><b>' + esc(a.id) + '</b> · ' + esc(a.nombre) + '</td>' +
+          '<td>' + (a.plataforma
+            ? esc(a.plataforma)
+            : '<span class="cst-nada">sin plataforma</span>') + '</td>' +
           '<td><span class="rm-tipo ' + (CLASE_TIPO[a.tipo] || '') + '">' +
             esc(a.tipoNombre) + '</span></td>' +
           etapas.map(function (e) {
@@ -3793,10 +3805,10 @@ function pintarDetalleCostos(r) {
       }).join('');
   }).join('');
 
-  var total = '<tr class="cst-total"><td colspan="2">TOTAL REPARTIDO</td>' +
+  var total = '<tr class="cst-total"><td colspan="3">TOTAL REPARTIDO</td>' +
       etapas.map(function (e) {
         return '<td class="num">' + pesos(e.costo) +
-               '<div class="cst-dias">' + dia(e.dias) + ' d</div></td>';
+               '<div class="cst-dias">' + dia(e.dias) + '</div></td>';
       }).join('') +
       '<td class="num">' + pesos(r.total.atribuido) + '</td></tr>';
 
@@ -4285,7 +4297,7 @@ function tablaAnexoFactura(g) {
       '<div class="fac-dias">' + dia(dias) + '</div></td>';
   };
 
-  var cab = '<tr><th>Solicitud</th><th>Tipo</th>' +
+  var cab = '<tr><th>Solicitud</th><th>Plataforma</th><th>Tipo</th>' +
     etapas.map(function (e) {
       return '<th class="num">' + esc(e.nombre) + '</th>';
     }).join('') + '<th class="num">Total</th></tr>';
@@ -4294,7 +4306,7 @@ function tablaAnexoFactura(g) {
     // El renglon de la iniciativa trae su subtotal en la misma linea: en un
     // documento impreso no se puede desplegar nada, asi que todo tiene que
     // leerse de corrido.
-    var fila = '<tr class="fac-ini"><td colspan="2">' + esc(ini.nombre) +
+    var fila = '<tr class="fac-ini"><td colspan="3">' + esc(ini.nombre) +
       ' <span class="fac-cuenta">' + ini.actividades.length +
       (ini.actividades.length === 1 ? ' actividad' : ' actividades') + '</span></td>' +
       etapas.map(function (e) {
@@ -4306,6 +4318,9 @@ function tablaAnexoFactura(g) {
 
     return fila + ini.actividades.map(function (a) {
       return '<tr><td><b>' + esc(a.id) + '</b> · ' + esc(a.nombre) + '</td>' +
+        '<td>' + (a.plataforma
+          ? esc(a.plataforma)
+          : '<span class="fac-nada">sin plataforma</span>') + '</td>' +
         '<td><span class="rm-tipo ' + (CLASE_TIPO[a.tipo] || '') + '">' +
         esc(a.tipoNombre) + '</span></td>' +
         etapas.map(function (e) {
@@ -4317,7 +4332,7 @@ function tablaAnexoFactura(g) {
 
   // El total por columna y el total de todo: es lo que se coteja contra la
   // factura que manda la fabrica.
-  var total = '<tr class="cst-total"><td colspan="2">TOTAL</td>' +
+  var total = '<tr class="cst-total"><td colspan="3">TOTAL</td>' +
     etapas.map(function (e) {
       return '<td class="num">' + pesos(e.costo) +
         '<div class="fac-dias">' + dia(e.dias) + '</div></td>';

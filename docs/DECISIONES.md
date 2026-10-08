@@ -3369,6 +3369,37 @@ indicadores del Home. Vino desde D-129. La del Portafolio se llama ahora `kpisPf
 estático revisa que ningún identificador se repita entre páginas; comprobado contra el código
 anterior, donde lo caza.
 
+### D-135 · La plataforma, al lado de cada actividad costeada
+
+La tabla de **cálculos detallados** de Costos y el **anexo** del soporte de facturación llevan ahora una
+columna de **plataforma digital**, entre la actividad y su tipo. Son las dos tablas que hablan de la
+misma plata, y se cotejan una contra otra: lo que lleva una tiene que llevarlo la otra. La descarga de
+auditoría, que es la misma tabla en Excel, también la lleva.
+
+**La plataforma sale de la SOLICITUD, no de su iniciativa.** Una iniciativa puede tocar varias
+plataformas —el portafolio ya lo muestra así, con la plataforma deducida en cursiva— y lo que se está
+costeando es el trabajo de cada solicitud. Por eso va en la fila de la actividad y no en el renglón del
+grupo. Queda una revisión con dos solicitudes de la **misma** iniciativa en plataformas distintas: si
+el dato saliera de la iniciativa, las dos dirían lo mismo.
+
+**La que no tiene plataforma lo dice.** Sale rotulada «sin plataforma» y no en blanco: una celda vacía
+en una tabla de plata se lee como un error de la tabla, no como un campo sin diligenciar.
+
+**Dos revisiones que ya no dependen de un número escrito a mano.** La que contaba las columnas de la
+tabla las contaba contra un 6 fijo; ahora las cuenta contra la regla —las fijas, una por etapa y el
+total— derivada de los propios datos. Y se agregó una que suma el `colspan` de cada fila y exige que
+todas ocupen lo mismo que el encabezado: un `colspan` que no cuadra desalinea la tabla entera y en
+papel se lee como una columna corrida, que es justo lo que esta columna nueva podía provocar.
+
+**Una pecera que no probaba nada.** El ensayo de la pantalla de Costos no tenía plataformas, así que la
+columna salía entera en «sin plataforma» y la revisión pasaba igual. Ahora reparte tres plataformas
+entre las actividades y deja una de cada doce sin plataforma, y la revisión exige ver al menos dos
+distintas **y** el rótulo de la que no tiene.
+
+**La misma unidad en toda la tabla.** Igual que en el anexo (D-133), el renglón de la iniciativa y el
+de totales decían «103,4 d» mientras los de actividad decían «19,5 días». En la misma columna, dos
+formas de escribir la unidad hacen dudar de si son la misma. Hay una revisión que exige una sola.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
