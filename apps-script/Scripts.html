@@ -3561,7 +3561,8 @@ function pintarCostos(r) {
     $('kpisCostos').innerHTML = '';
     $('notaCostos').innerHTML = '<b>' + esc(r.mensaje) + '</b>';
     ['tablaCostoIni', 'graficoCostoTipo', 'tablaCostoEtapa', 'graficoCostoMes',
-     'tablaBolsas', 'tablaCostoActividades'].forEach(function (id) { $(id).innerHTML = ''; });
+     'tablaCostoPlataforma', 'tablaBolsas',
+     'tablaCostoActividades'].forEach(function (id) { $(id).innerHTML = ''; });
     return;
   }
 
@@ -3637,6 +3638,12 @@ function pintarCostos(r) {
         '<b>Estabilización</b> es lo que costó sostener y corregir, no construir.</p>'
       : '<p style="color:var(--ink-muted);font-size:13px">Sin datos en el período.</p>';
 
+  /* --- por plataforma digital, mes a mes ---
+     Una fila por plataforma y una columna por mes del periodo. El total de la
+     esquina es lo ATRIBUIDO, el mismo numero del panel de arriba: si alguna vez
+     deja de coincidir es que un peso se conto dos veces o ninguna. */
+  $('tablaCostoPlataforma').innerHTML = pintarCostoPorPlataforma(r);
+
   /* --- por etapa --- */
   $('tablaCostoEtapa').innerHTML =
     '<div class="tabla-scroll"><table class="tabla-compacta"><thead><tr><th>Etapa</th>' +
@@ -3694,6 +3701,69 @@ function pintarCostos(r) {
   /* --- actividades: el detalle que alguien va a sumar con la calculadora --- */
   pintarDetalleCostos(r);
   pintarFaltaInfoCostos(r);
+}
+
+/**
+ * Cuanto costo cada plataforma digital, mes a mes.
+ *
+ * Una fila por plataforma, una columna por mes del periodo y el total de cada
+ * una. Responde dos preguntas de una sola lectura: en que plataforma se esta
+ * gastando, y como se mueve de un mes a otro.
+ *
+ * Los meses salen del servidor aunque una plataforma no haya costado nada ese
+ * mes, y entonces la celda va en raya: un mes que desaparece de la tabla se lee
+ * como un mes sin datos, no como un mes sin trabajo en esa plataforma.
+ *
+ * @param {!Object} r La respuesta de getCostos.
+ * @return {string}
+ */
+function pintarCostoPorPlataforma(r) {
+  var filas = r.porPlataforma || [];
+  if (!filas.length) {
+    return '<p style="color:var(--ink-muted);font-size:13px">Ninguna actividad ocupó la ' +
+           'fábrica en este período, así que no hay nada que repartir entre plataformas.</p>';
+  }
+  var meses = r.porMes.map(function (m) { return m.mes; });
+  var unMes = meses.length === 1;
+
+  var cab = '<tr><th>Plataforma</th>' +
+    meses.map(function (m) {
+      return '<th class="num">' + esc(etiquetaMes(m)) + '</th>';
+    }).join('') +
+    // Con un solo mes la columna del total repetiria la del mes: dos columnas
+    // identicas lado a lado hacen dudar de si dicen lo mismo.
+    (unMes ? '' : '<th class="num">Total</th>') +
+    '<th class="num">% del período</th></tr>';
+
+  var cuerpo = filas.map(function (f) {
+    return '<tr><td>' +
+      (f.sinPlataforma
+        ? '<span style="color:var(--ink-faint)">Sin plataforma</span>'
+        : esc(f.nombre)) + '</td>' +
+      f.porMes.map(function (x) {
+        return '<td class="num">' + (x.costo ? pesos(x.costo) : '—') + '</td>';
+      }).join('') +
+      (unMes ? '' : '<td class="num" style="font-weight:700">' + pesos(f.total) + '</td>') +
+      '<td class="num">' + (f.pct === null ? '—' : formatoPorcentaje(f.pct)) + '</td></tr>';
+  }).join('');
+
+  /* El total de cada mes y el de todo. El de la esquina es lo ATRIBUIDO, el
+     mismo numero que ya muestran los indicadores de arriba: si alguna vez deja
+     de coincidir, un peso se conto dos veces o ninguna. */
+  var total = '<tr class="cst-total"><td>Total</td>' +
+    meses.map(function (m, i) {
+      return '<td class="num">' + pesos(filas.reduce(function (a, f) {
+        return a + f.porMes[i].costo;
+      }, 0)) + '</td>';
+    }).join('') +
+    (unMes ? '' : '<td class="num">' + pesos(r.total.atribuido) + '</td>') +
+    '<td class="num">' + formatoPorcentaje(r.total.pctAtribuido) + '</td></tr>';
+
+  return '<div class="tabla-scroll"><table class="tabla-compacta"><thead>' + cab +
+    '</thead><tbody>' + cuerpo + total + '</tbody></table></div>' +
+    '<p class="nota">El porcentaje es sobre <b>todo lo facturado</b> en el período, no sobre ' +
+    'lo repartido: lo que falta para el 100% es capacidad que nadie ocupó. La plataforma es ' +
+    'la de cada <b>solicitud</b>, no la de su iniciativa.</p>';
 }
 
 /**

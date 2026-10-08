@@ -3400,6 +3400,45 @@ distintas **y** el rótulo de la que no tiene.
 de totales decían «103,4 d» mientras los de actividad decían «19,5 días». En la misma columna, dos
 formas de escribir la unidad hacen dudar de si son la misma. Hay una revisión que exige una sola.
 
+### D-136 · Cuánto costó cada plataforma digital, mes a mes
+
+Una tabla nueva en Costos: una fila por plataforma, una columna por mes del período, el total de cada
+una y su porcentaje. Responde dos preguntas de una sola lectura —en qué plataforma se está gastando, y
+cómo se mueve de un mes a otro— que ninguna de las tablas que ya había contestaba: la de iniciativa
+cruza por iniciativa, la de mes solo da el total. La descarga de auditoría lleva la misma tabla.
+
+**Se acumula dentro del reparto, no se recalcula después.** Cada peso entra una sola vez y por el mismo
+camino que el resto de la página, así que la tabla no puede decir un total distinto del que ya está
+arriba. También tenía que ser ahí porque la bitácora del reparto solo viaja cuando se pide la
+exportación: calcularla desde la lista de actividades habría dejado la tabla sin meses.
+
+**Los meses salen del período, no de lo que costó.** Toda fila trae una celda por cada mes, aunque esa
+plataforma no haya costado nada ese mes, y entonces va **en raya**. Un mes que desaparece de una fila
+se lee como un mes sin datos, no como un mes sin trabajo en esa plataforma; y una celda vacía en una
+tabla de plata se lee como un error de la tabla.
+
+**«Sin plataforma» va al final.** No es una plataforma: es lo que falta por diligenciar, y ordenarla
+por monto la habría puesto entre las demás como si lo fuera.
+
+**Con un solo mes no se repite la columna.** El total sería idéntico a la única columna de mes, y dos
+columnas iguales lado a lado hacen dudar de si dicen lo mismo.
+
+**El porcentaje es sobre lo CONTRATADO**, igual que en la tabla por iniciativa: sobre lo repartido
+sumaría siempre 100 y la capacidad que nadie ocupó desaparecería de la lectura. La revisión que lo
+comprueba necesitó una bolsa que nadie ocupara: con todo atribuido las dos bases dan el mismo número y
+no distinguiría una de otra. Mi primera versión fallaba justamente por eso —era la aserción la que
+estaba mal, no el cálculo—.
+
+**Tres aserciones que pasaban en vacío.** Las que suman filas y columnas usaban `every()`, que es cierto
+sobre cero filas: contra el código anterior, con la tabla sin pintar, pasaban sin mirar nada. Ahora
+exigen que haya filas, y la revisión reporta la falla en vez de reventar a mitad del archivo. Con eso,
+las diez revisiones nuevas fallan contra el código anterior.
+
+**La pecera del ensayo tenía sus propias cuentas.** Los totales por mes estaban escritos a mano y no
+correspondían a las actividades. Ahora la matriz de plataforma por mes se arma desde las actividades y
+los totales por mes se recalculan desde ella: un ensayo cuyas filas no suman lo que dice su total no
+sirve para revisar una tabla cuyo punto es justamente que cuadre.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

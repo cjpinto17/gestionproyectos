@@ -500,6 +500,12 @@ function calcularCostos_(desde, hasta, conDetalle) {
   var pagados = {};              // mes -> etapa -> id -> true si alguna bolsa le pago
   var bolsas = [];
   var reparto = [];              // cada peso, con la bolsa y el mes de donde salio
+  /* Plataforma -> mes -> costo. Se acumula DENTRO del reparto y no se recalcula
+     despues sobre la lista de actividades: asi cada peso entra una sola vez y
+     por el mismo camino que el resto de la pagina, y la tabla no puede decir un
+     total distinto del que ya esta arriba. Tambien tiene que ser aqui porque la
+     bitacora del reparto solo viaja cuando se pide la exportacion. */
+  var porPlataformaMes = {};
 
   /* Que iniciativas tienen bolsa PROPIA en cada mes.
      Una iniciativa con capacidad dedicada se paga UNICAMENTE con sus bolsas y no
@@ -614,6 +620,11 @@ function calcularCostos_(desde, hasta, conDetalle) {
         var c = costoDeSolicitud[id] = costoDeSolicitud[id] || { total: 0, porEtapa: {} };
         c.total += parte;
         c.porEtapa[etapa] = (c.porEtapa[etapa] || 0) + parte;
+        // La plataforma es la de la SOLICITUD: una iniciativa puede tocar varias.
+        var plat = (porId[id] || {}).Plataforma_ID || '';
+        porPlataformaMes[plat] = porPlataformaMes[plat] || {};
+        porPlataformaMes[plat][mes] = (porPlataformaMes[plat][mes] || 0) + parte;
+
         reparto.push({ mes: mes, etapa: etapa, bolsa: t.ID_Costo,
                        concepto: resumen.concepto, valorBolsa: valorMes,
                        mensual: valor,
@@ -719,6 +730,31 @@ function calcularCostos_(desde, hasta, conDetalle) {
       return { mes: m, contrato: Math.round(x.contrato), atribuido: Math.round(x.atribuido),
                noAtribuido: Math.round(x.contrato - x.atribuido) };
     }),
+    /* Cuanto costo cada plataforma, mes a mes. Una fila por plataforma y una
+       columna por mes del periodo; los meses se repiten de 'meses' para que la
+       tabla tenga columna aunque una plataforma no haya costado nada ese mes
+       —un mes que desaparece de la tabla se lee como un mes sin datos, no como
+       un mes sin trabajo en esa plataforma—. */
+    porPlataforma: (function () {
+      var filas = Object.keys(porPlataformaMes).map(function (k) {
+        var pm = porPlataformaMes[k];
+        var total = meses.reduce(function (a, m) { return a + (pm[m] || 0); }, 0);
+        return {
+          plataformaId: k,
+          nombre: k ? (nombrePlataforma[k] || k) : 'Sin plataforma',
+          sinPlataforma: !k,
+          porMes: meses.map(function (m) { return { mes: m, costo: pm[m] || 0 }; }),
+          total: total,
+          pct: porcentaje(total)
+        };
+      });
+      // Lo mas caro primero, pero "Sin plataforma" siempre al final: no es una
+      // plataforma, es lo que falta por diligenciar.
+      return filas.sort(function (a, b) {
+        if (a.sinPlataforma !== b.sinPlataforma) return a.sinPlataforma ? 1 : -1;
+        return b.total - a.total;
+      });
+    }()),
     bolsas: bolsas.map(function (b) {
       b.total = Math.round(b.total);
       b.atribuido = Math.round(b.atribuido);
@@ -868,6 +904,18 @@ function getCostosDetalle(desde, hasta) {
                  nombreEtapa(f.etapa), f.rango, f.falta, f.campo]);
   });
   escribirHoja_(libro, 'Información faltante', faltan, 4);
+
+  /* --- 6. Plataforma por mes: la misma tabla de la pagina --- */
+  var plat = [['Plataforma'].concat(r.porMes.map(function (m) { return m.mes; }))
+              .concat(['Total', '% del período'])];
+  r.porPlataforma.forEach(function (f) {
+    plat.push([f.nombre].concat(f.porMes.map(function (x) { return x.costo; }))
+              .concat([f.total, f.pct]));
+  });
+  plat.push(['TOTAL'].concat(r.porMes.map(function (m, i) {
+    return r.porPlataforma.reduce(function (a, f) { return a + f.porMes[i].costo; }, 0);
+  })).concat([r.total.atribuido, r.total.pctAtribuido]));
+  escribirHoja_(libro, 'Plataforma por mes', plat, 5);
 
   var sobra = libro.getSheetByName('Hoja 1') || libro.getSheetByName('Sheet1');
   if (sobra) libro.deleteSheet(sobra);
