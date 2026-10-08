@@ -656,7 +656,15 @@ function soloIdYNombre_(filas, campoId, campoNombre) {
  */
 function armarCatalogos_() {
   return {
-    proyectos: soloIdYNombre_(leerTabla_('Proyectos'), 'ID_Proyecto', 'Nombre_Proyecto'),
+    /* Van TODAS, activas e inactivas, con su marca: esta lista resuelve
+       nombres ademas de llenar combos, y filtrarla aqui habria dejado a las
+       solicitudes de una iniciativa inactiva mostrando "INI-007" en vez de su
+       nombre. Quien arma un combo filtra por 'Activo'; quien resuelve un
+       nombre, no. */
+    proyectos: leerTabla_('Proyectos').map(function (p) {
+      return { ID_Proyecto: p.ID_Proyecto, Nombre_Proyecto: p.Nombre_Proyecto,
+               Activo: iniciativaActiva(p) ? 'SI' : 'NO' };
+    }),
     plataformas: getPlataformas_(),
     usuarios: soloIdYNombre_(leerTabla_('Usuarios'), 'ID_Usuario', 'Nombre_Completo'),
     fases: FASES,
@@ -1530,9 +1538,19 @@ function crearSolicitud(datos) {
     validarRegistro_('Solicitudes', registro, true);
     validarVersionRoadmap_(registro.Version_Semantica, registro.Plataforma_ID);
 
-    // La iniciativa debe existir: toda solicitud es hija de una iniciativa.
-    if (!buscarPorPk_('Proyectos', registro.ID_Proyecto)) {
+    /* La iniciativa debe existir y estar activa: toda solicitud es hija de una
+       iniciativa, y una inactiva ya no recibe trabajo nuevo. La lista de la
+       pantalla ya no la ofrece, pero la regla vive aqui: la pantalla pudo
+       quedar abierta desde antes de que alguien la desactivara, y la carga
+       masiva no pasa por ningun desplegable. */
+    var iniciativa = buscarPorPk_('Proyectos', registro.ID_Proyecto);
+    if (!iniciativa) {
       throw new Error('La iniciativa ' + registro.ID_Proyecto + ' no existe.');
+    }
+    if (!iniciativaActiva(iniciativa)) {
+      throw new Error('La iniciativa ' + (iniciativa.Nombre_Proyecto || registro.ID_Proyecto) +
+                      ' está inactiva y no recibe solicitudes nuevas. Si hay ' +
+                      'que reabrirla, márquela como activa desde su ficha.');
     }
 
     if (registro.Doc_Requerimiento_URL &&
@@ -1594,7 +1612,7 @@ function getFormularioSolicitud(idSolicitud) {
      fabrica la causa raiz de un incidente. Medio formulario era ruido, y el ruido
      ensena a no leer el formulario (D-130). */
   var f = formularioDeSolicitud(gobiernoDeTipo(s.Tipo_Solicitud));
-  var opciones = opcionesDeReferencia_(f.columnas);
+  var opciones = opcionesDeReferencia_(f.columnas, s);
   opciones.Version_Semantica = getVersionesDisponibles_(s.Plataforma_ID);
 
   return { idSolicitud: idSolicitud, columnas: f.columnas, opciones: opciones, valores: s,
@@ -2584,7 +2602,9 @@ function adminCargarTabla(tabla) {
     etiqueta: info.def.etiqueta,
     pk: info.def.pk,
     columnas: info.def.columnas,
-    opciones: opcionesDeReferencia_(info.def.columnas),
+    // Se le pasan las filas: una que apunte a una iniciativa inactiva tiene
+    // que seguir encontrandola en su desplegable, o guardarla la moveria a otra.
+    opciones: opcionesDeReferencia_(info.def.columnas, leerTabla_(tabla)),
     filas: leerTabla_(tabla)
   };
 }
@@ -2614,7 +2634,43 @@ function opcionesDeVersiones_() {
       .sort(function (a, b) { return a.texto.localeCompare(b.texto, 'es'); });
 }
 
-function opcionesDeReferencia_(columnas) {
+/**
+ * Las iniciativas que se pueden escoger.
+ *
+ * Solo las activas, mas la que el registro YA tiene. Esa excepcion no es un
+ * adorno: el desplegable que se arma sin la opcion que el registro trae marca
+ * la primera de la lista, y guardar sin tocar nada habria movido la solicitud a
+ * otra iniciativa en silencio. Se marca como inactiva para que quien edita
+ * entienda por que esta ahi.
+ *
+ * @param {(string|!Array<string>)=} enUso Lo que los registros traen hoy.
+ * @param {boolean=} todas true ofrece tambien las inactivas.
+ * @return {!Array<{valor: string, texto: string}>}
+ * @private
+ */
+function opcionesDeIniciativas_(enUso, todas) {
+  var usados = {};
+  [].concat(enUso || []).forEach(function (v) {
+    if (v) usados[String(v)] = true;
+  });
+  return leerTabla_('Proyectos')
+      .filter(function (p) {
+        return todas || iniciativaActiva(p) || usados[String(p.ID_Proyecto)];
+      })
+      .map(function (p) {
+        var nombre = p.Nombre_Proyecto || p.ID_Proyecto;
+        return { valor: p.ID_Proyecto,
+                 texto: iniciativaActiva(p) ? nombre : nombre + ' (inactiva)' };
+      });
+}
+
+/**
+ * @param {!Array<!Object>} columnas
+ * @param {(!Object|!Array<!Object>)=} valores El registro que se esta editando,
+ *     o todas las filas de la tabla cuando el formulario las edita juntas.
+ */
+function opcionesDeReferencia_(columnas, valores) {
+  var registros = [].concat(valores || []);
   // Los catalogos ampliables salen de la hoja, no de la lista del codigo: si
   // alguien agrego una plataforma desde Administracion, tiene que aparecer aqui.
   var catalogos = {
@@ -2635,6 +2691,13 @@ function opcionesDeReferencia_(columnas) {
     // plataforma, asi que el desplegable habria mostrado "PL-03" en vez de "3.4".
     if (col.fk === 'Roadmap_Versiones') {
       opciones[col.campo] = opcionesDeVersiones_();
+      return;
+    }
+    // Una iniciativa inactiva no se ofrece para colgarle trabajo nuevo.
+    if (col.fk === 'Proyectos') {
+      opciones[col.campo] = opcionesDeIniciativas_(registros.map(function (r) {
+        return r[col.campo];
+      }));
       return;
     }
     if (catalogos[col.fk]) {
@@ -3254,7 +3317,7 @@ function getFormularioVersion(idVersion) {
   return {
     idVersion: idVersion || '',
     columnas: columnas,
-    opciones: opcionesDeReferencia_(columnas),
+    opciones: opcionesDeReferencia_(columnas, valores),
     valores: valores
   };
 }
@@ -3346,7 +3409,7 @@ function getFormularioIniciativa(idProyecto) {
   return {
     idProyecto: idProyecto,
     columnas: columnas,
-    opciones: opcionesDeReferencia_(columnas),
+    opciones: opcionesDeReferencia_(columnas, actual),
     valores: actual
   };
 }

@@ -27,6 +27,11 @@ function getFormularioMigracion() {
     return CAMPOS_NO_MIGRABLES.indexOf(c.campo) === -1;
   });
   var opciones = opcionesDeReferencia_(columnas);
+  /* Aqui SI se ofrecen las iniciativas inactivas, al reves que al crear una
+     solicitud nueva. Esto carga historia: una solicitud de hace dos anos
+     pertenece a la iniciativa que la tuvo, que es justamente de las que ya se
+     cerraron. Van rotuladas "(inactiva)" para que se vea cual se esta eligiendo. */
+  opciones.ID_Proyecto = opcionesDeIniciativas_('', true);
   // Misma regla que al crear o editar: la version se elige del roadmap, no se
   // escribe. Aqui todavia no se sabe la plataforma (se elige en el mismo
   // formulario), asi que se ofrecen todas y cada opcion viene rotulada con su

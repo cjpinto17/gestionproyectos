@@ -3319,6 +3319,56 @@ propias filas. Es la cuarta vez esta semana que un literal en una revisión me e
 «28 d» mientras los de solicitud decían «12 días». En la misma columna, dos formas de escribir la
 unidad hacen dudar de si son la misma. Hay una revisión que exige una sola unidad en el anexo.
 
+### D-134 · La iniciativa inactiva no se ofrece ni se lista
+
+La iniciativa gana una columna **Activo** (SÍ/NO), editable desde su propia ficha y desde
+Administración. En NO, la iniciativa deja de ofrecerse donde se escoge una y deja de listarse en el
+portafolio. **No borra nada**: sus solicitudes, sus costos y lo entregado en cada mes siguen igual.
+
+**El vacío cuenta como activa**, igual que en `Usuarios`: solo el NO explícito desactiva. Es lo que
+permite agregar la columna sin que las 39 iniciativas desaparezcan de todas las pantallas mientras
+alguien la llena, y lo que protege de una fila escrita a mano en la hoja.
+
+**La columna se llena sola al agregarse.** Un SÍ/NO vacío se muestra como NO (D-125), así que la
+columna recién creada habría dejado todas las iniciativas en NO a los ojos del formulario y la
+primera edición las habría desactivado sin que nadie lo pidiera. Ahora una columna puede declarar su
+`predeterminado` en el esquema, y `actualizarEstructura` lo escribe en las filas que ya existen, sin
+pisar lo que alguien hubiera puesto a mano. El mismo dato marca SÍ al **crear** una iniciativa nueva.
+
+**La trampa que esto habría abierto, y cómo se cierra.** Un desplegable que se arma sin la opción que
+el registro trae deja marcada la primera de la lista, y guardar sin tocar nada **mueve el registro a
+otra iniciativa en silencio**. Pasaba con cualquier solicitud o bolsa de costos que ya colgara de una
+iniciativa desactivada. La regla es: se ofrecen las activas **más la que el registro ya tiene**,
+rotulada «(inactiva)». Queda comprobado corriendo el motor con y sin esa regla: sin ella, una
+solicitud de la iniciativa cerrada se guardaba contra la primera de la lista.
+
+**La regla vive en el servidor, no en la pantalla.** `crearSolicitud` y la carga masiva rechazan una
+iniciativa inactiva con su propio mensaje: la pantalla pudo quedar abierta desde antes de que alguien
+la desactivara, y la carga masiva no pasa por ningún desplegable.
+
+**Una excepción declarada: migrar historia.** El formulario de migración SÍ ofrece las inactivas.
+Carga solicitudes de años anteriores, que pertenecen justamente a las iniciativas ya cerradas.
+
+**Se pueden ver cuando se piden.** El Portafolio y el listado de Iniciativas traen una casilla «ver
+inactivas», y las que aparecen van marcadas. No es un adorno: la ficha de una iniciativa se abre
+desde su tarjeta o su fila, así que escondidas sin remedio una iniciativa desactivada por error no
+tendría desde dónde volver a activarse, salvo para un administrador.
+
+**Dónde SÍ cambian los números y dónde no.** El Home, el Portafolio y el volumen de iniciativas del
+informe cuentan el portafolio **activo**: dos pantallas abiertas al tiempo no pueden decir dos
+números distintos de iniciativas. Lo que se mide sobre el **trabajo** del mes —versiones entregadas,
+embudo, bloqueos, cycle time y costos— no se toca: esas cifras salen de las solicitudes, que siguen
+existiendo aunque su iniciativa se haya cerrado. El informe dice cuántas dejó fuera, para que un total
+que baja tenga explicación a la vista.
+
+**Un defecto viejo que apareció de paso.** `kpisPortafolio` era el identificador de la caja de
+indicadores en el Home **y** en el Portafolio. Todas las páginas viven en el mismo documento, así que
+no eran dos elementos: `getElementById` devolvía siempre el primero —el del Home, que se incluye
+antes— y por eso la caja del Portafolio se quedaba vacía y abrir esa página reescribía los
+indicadores del Home. Vino desde D-129. La del Portafolio se llama ahora `kpisPf`, y el verificador
+estático revisa que ningún identificador se repita entre páginas; comprobado contra el código
+anterior, donde lo caza.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

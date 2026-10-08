@@ -179,6 +179,12 @@ function actualizarEstructura() {
       faltantes.forEach(function (c) {
         resumen.columnasAgregadas.push(nombreHoja + '.' + c);
       });
+      // Una columna nueva nace vacia en las filas que ya existen, y hay campos
+      // donde el vacio NO es neutro: un boolSN vacio se muestra como NO
+      // (D-125), asi que agregar "Activo" habria dejado todas las iniciativas
+      // en NO a los ojos del formulario. Las columnas que declaran un
+      // predeterminado se llenan aqui, una sola vez, al agregarse.
+      llenarColumnasNuevas_(hoja, par[1][nombreHoja], faltantes, resumen);
     });
   });
 
@@ -197,6 +203,47 @@ function actualizarEstructura() {
 
   Logger.log(JSON.stringify(resumen, null, 2));
   return resumen;
+}
+
+/**
+ * Escribe el valor predeterminado de las columnas recien agregadas.
+ *
+ * Solo toca las celdas VACIAS de las columnas que vienen en 'faltantes': si
+ * alguien ya habia creado la columna a mano y la lleno, lo que escribio manda.
+ *
+ * @param {!Sheet} hoja
+ * @param {!Object} def Definicion de la tabla en el esquema.
+ * @param {!Array<string>} faltantes Campos recien agregados.
+ * @param {!Object} resumen Se le anota cada columna llenada.
+ * @private
+ */
+function llenarColumnasNuevas_(hoja, def, faltantes, resumen) {
+  var filas = hoja.getLastRow() - 1;
+  if (filas < 1) return;                       // hoja sin datos: nada que llenar
+
+  var encabezados = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0]
+      .map(function (v) { return String(v || ''); });
+
+  def.columnas.forEach(function (c) {
+    if (c.predeterminado === undefined) return;
+    if (faltantes.indexOf(c.campo) === -1) return;
+    var col = encabezados.indexOf(c.campo) + 1;
+    if (!col) return;
+
+    var rango = hoja.getRange(2, col, filas, 1);
+    var valores = rango.getValues();
+    var llenadas = 0;
+    valores.forEach(function (fila) {
+      if (String(fila[0] || '').trim() !== '') return;
+      fila[0] = c.predeterminado;
+      llenadas++;
+    });
+    if (!llenadas) return;
+    rango.setValues(valores);
+    (resumen.columnasLlenadas = resumen.columnasLlenadas || [])
+        .push(hoja.getName() + '.' + c.campo + ' = ' + c.predeterminado +
+              ' (' + llenadas + ' fila(s))');
+  });
 }
 
 /**

@@ -150,6 +150,9 @@
   .e-finalizada{background:#DCFCE7;color:#15803D}
   .e-en-pausa{background:#FEE2E2;color:#B91C1C}
   .e-cancelada{background:#E5E7EB;color:#4B5563;text-decoration:line-through}
+  /* Una iniciativa inactiva solo se ve cuando alguien pide verlas, y entonces
+     tiene que distinguirse de un golpe de las que si estan en el portafolio. */
+  .b-inactiva{background:#E5E7EB;color:#4B5563;border:1px dashed #9CA3AF}
 
   /* Franja superior de la tarjeta, del mismo color que su estado */
   .ini.f-por-iniciar{border-top-color:#8A98B4}
@@ -778,6 +781,7 @@
      la marca con asterisco y la atenua. */
   .ti-etq-tenue{font-style:italic}
   .ti-etq-bloqueo{background:var(--alerta-bg);color:var(--alerta);font-weight:700}
+  .ti-inactiva{background:#E5E7EB;color:#4B5563;border:1px dashed #9CA3AF;font-weight:600}
   .ti-pri-PRI-01{background:#FDE7E7;color:var(--rojo);font-weight:700}
   .ti-pri-PRI-02{background:var(--alerta-bg);color:var(--alerta);font-weight:600}
   .ti-av{display:flex;align-items:center;gap:6px;margin:3px 0}

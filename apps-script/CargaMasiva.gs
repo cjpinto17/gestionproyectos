@@ -59,7 +59,10 @@ function prepararCargaMasiva() {
  */
 function aplicarListas_(hoja, def, filas) {
   var catalogos = {
-    Proyectos: leerTabla_('Proyectos').map(function (p) { return p.ID_Proyecto; }),
+    // Solo las activas: la hoja de carga es para trabajo nuevo, igual que el
+    // formulario de nueva solicitud.
+    Proyectos: leerTabla_('Proyectos').filter(iniciativaActiva)
+        .map(function (p) { return p.ID_Proyecto; }),
     Plataforma_Digital: PLATAFORMAS.map(function (p) { return p.id; }),
     Tipos_Solicitud: TIPOS_SOLICITUD.map(function (t) { return t.id; }),
     Prioridad: PRIORIDADES.map(function (p) { return p.id; }),
@@ -275,8 +278,13 @@ function crearSolicitudDesdeCarga_(datos, ctx) {
     var fase = datos.Fase_Actual || 'FAS-01';
     var bloqueo = String(datos.Tiene_Bloqueo || 'NO').toUpperCase().indexOf('S') === 0 ? 'SI' : 'NO';
 
-    if (!buscarPorPk_('Proyectos', datos.ID_Proyecto)) {
+    var iniciativa = buscarPorPk_('Proyectos', datos.ID_Proyecto);
+    if (!iniciativa) {
       throw new Error('La iniciativa ' + datos.ID_Proyecto + ' no existe.');
+    }
+    if (!iniciativaActiva(iniciativa)) {
+      throw new Error('La iniciativa ' + datos.ID_Proyecto + ' está inactiva y no recibe ' +
+                      'solicitudes nuevas.');
     }
     if (bloqueo === 'SI' && !datos.Causal_Bloqueo) {
       throw new Error('La solicitud esta marcada con bloqueo pero no tiene causal.');

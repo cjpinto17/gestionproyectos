@@ -877,7 +877,19 @@ var ESQUEMA_PARAMETRIZACION = {
       // iniciativa y no de cada solicitud: las solicitudes ya tienen la suya,
       // creada por el sistema, y esta es la del proyecto completo.
       { campo: 'Drive_URL', etiqueta: 'Carpeta de documentacion en Drive', tipo: 'url',
-        ayuda: 'Enlace a la carpeta de Drive donde vive la documentación de esta iniciativa.' }
+        ayuda: 'Enlace a la carpeta de Drive donde vive la documentación de esta iniciativa.' },
+      /* Retira la iniciativa de las listas donde se escoge y de los listados del
+         portafolio, sin borrar nada. Una iniciativa cerrada hace años seguia
+         apareciendo entre las 39 del combo de nueva solicitud, y colgar una
+         solicitud de la iniciativa equivocada es dificil de notar despues.
+         'predeterminado' hace dos cosas: llena la columna en las filas que ya
+         existen cuando se agrega (Setup.gs) y marca SI al crear una iniciativa
+         nueva. Sin eso, un boolSN vacio se muestra como NO (D-125) y la primera
+         edicion habria desactivado la iniciativa sin que nadie lo pidiera. */
+      { campo: 'Activo', etiqueta: 'Activo', tipo: 'boolSN', predeterminado: 'SI',
+        ayuda: 'NO la retira de las listas donde se escoge una iniciativa y de los listados ' +
+               'del portafolio. No borra nada: sus solicitudes, sus costos y los informes de ' +
+               'cada mes siguen igual.' }
     ]
   },
   Plataforma_Digital: {
@@ -1338,6 +1350,21 @@ function mapaEstadosIniciativa() { return mapaCatalogo_(ESTADOS_INICIATIVA); }
 
 /** @return {!Object<string,string>} Mapa ID_Plataforma -> nombre. */
 function mapaPlataformas() { return mapaCatalogo_(getPlataformas_()); }
+
+/**
+ * Si una iniciativa esta activa.
+ *
+ * La columna vacia cuenta como ACTIVA, igual que en Usuarios: solo el NO
+ * explicito desactiva. Es lo que permite agregar la columna sin que las
+ * iniciativas que ya existen desaparezcan de todas las pantallas mientras
+ * alguien las llena, y lo que protege de una fila escrita a mano en la hoja.
+ *
+ * @param {!Object} proyecto Fila de Proyectos.
+ * @return {boolean}
+ */
+function iniciativaActiva(proyecto) {
+  return String((proyecto || {}).Activo || '').trim().toUpperCase() !== 'NO';
+}
 
 /** @return {string} Nombre legible de un estado. @private */
 function nombreDeEstado_(estadoId) {

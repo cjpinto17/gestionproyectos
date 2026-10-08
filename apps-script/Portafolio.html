@@ -27,7 +27,12 @@
       </div>
     </div>
 
-    <div class="kpis k4" id="kpisPortafolio"></div>
+    <!-- "kpisPf" y no "kpisPortafolio": ese identificador ya lo usa el Home, y
+         dos elementos con el mismo id no son dos elementos para el navegador.
+         getElementById devuelve SIEMPRE el primero del documento —el del Home,
+         que se incluye antes— asi que esta caja se quedaba vacia y al abrir el
+         Portafolio se reescribian los indicadores del Home. -->
+    <div class="kpis k4" id="kpisPf"></div>
 
     <div class="fila" id="filtrosPortafolio" style="flex-wrap:wrap;margin:14px 0 0">
       <div class="combo"><label for="fPfEstado">Estado</label>
@@ -45,6 +50,7 @@
           <label class="pf-check"><input type="checkbox" id="fPfBloqueo"> Con bloqueo</label>
           <label class="pf-check"><input type="checkbox" id="fPfAtraso"> Por debajo del plan</label>
           <label class="pf-check"><input type="checkbox" id="fPfPausa"> En pausa</label>
+          <label class="pf-check" title="Las iniciativas marcadas como inactivas no se listan. Act&iacute;velas desde su ficha para volver a verlas siempre."><input type="checkbox" id="fPfInactivas"> Ver inactivas</label>
         </div></div>
       <div class="combo"><label>&nbsp;</label>
         <button class="btn-sec" id="btnPfLimpiar">Limpiar filtros</button></div>

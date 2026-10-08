@@ -733,16 +733,21 @@ function calcularMetricasHome_(n) {
   // ahi lo que se quiere saber es el ritmo del periodo que se esta mirando.
   var throughputGrafica = calcularThroughput_(datos.solicitudesFabrica, MESES_GRAFICA_THROUGHPUT);
 
+  /* El Home cuenta el portafolio ACTIVO, lo mismo que muestra la pagina de
+     Portafolio. Si contara las inactivas, dos pantallas abiertas al tiempo
+     dirian dos numeros distintos de iniciativas. */
+  var iniciativasActivas = datos.proyectos.filter(iniciativaActiva);
+
   return {
     generado: new Date().toISOString(),
     ventanaMeses: n,
 
     portafolio: {
-      iniciativasTotales: datos.proyectos.length,
-      iniciativasEnProgreso: datos.proyectos.filter(function (p) {
+      iniciativasTotales: iniciativasActivas.length,
+      iniciativasEnProgreso: iniciativasActivas.filter(function (p) {
         return p.Estado_Iniciativa === 'EIN-02';
       }).length,
-      iniciativasPorIniciar: datos.proyectos.filter(function (p) {
+      iniciativasPorIniciar: iniciativasActivas.filter(function (p) {
         return p.Estado_Iniciativa === 'EIN-01';
       }).length,
       solicitudesTotales: datos.solicitudesFabrica.length,
@@ -1585,7 +1590,12 @@ function calcularMatrizIniciativas_() {
       avanceReal: avanceRealIniciativa_(solicitudesPorProyecto[p.ID_Proyecto] || []),
       avanceEsperado: avanceEsperadoIniciativa_(p.Fecha_Inicio, p.Fecha_Fin_Estimada, ahora),
       lenId: p.LEN_ID || null,
-      verticalId: p.Vertical_ID || null
+      verticalId: p.Vertical_ID || null,
+      // Viajan todas con su marca: la pantalla esconde las inactivas, y las
+      // muestra rotuladas cuando se pide verlas. Filtrarlas aqui habria dejado
+      // sin forma de volver a activar una, porque la ficha se abre desde el
+      // listado.
+      activa: iniciativaActiva(p)
     });
   });
 

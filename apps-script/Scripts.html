@@ -683,7 +683,11 @@ function prepararFiltrosIniciativas(r) {
   // aparecer sin recargar la pagina. Rehacer un <datalist> no toca lo que haya
   // escrito la persona, asi que no se pierde el filtro puesto.
   var todas = todasLasIniciativas();
-  llenarCombo('dlIniIni', todas.map(function (i) {
+  // La lista predictiva ofrece lo mismo que el listado muestra: ofrecer una
+  // iniciativa que el filtro va a esconder es ofrecer un resultado vacio.
+  llenarCombo('dlIniIni', todas.filter(function (i) {
+    return $('fIniInactivas').checked || i.activa !== false;
+  }).map(function (i) {
     return { id: i.idProyecto, texto: i.nombre };
   }));
   var solicitantes = {};
@@ -721,6 +725,10 @@ function todasLasIniciativas() {
 });
 $('filtroTipoIni').addEventListener('change', pintarIniciativas);
 $('filtroPlataformaIni').addEventListener('change', pintarIniciativas);
+$('fIniInactivas').addEventListener('change', function () {
+  if (DATOS.matriz) prepararFiltrosIniciativas(DATOS.matriz);
+  pintarIniciativas();
+});
 
 /**
  * Vista activa del portafolio. Las tres leen los mismos datos y respetan los
@@ -803,6 +811,7 @@ function pintarListadoIniciativas() {
               ' aria-expanded="' + (abierta ? 'true' : 'false') + '">' +
             '<td class="ini-flecha">' + (abierta ? '&#9662;' : '&#9656;') + '</td>' +
             '<td style="font-weight:600">' + esc(i.nombre) +
+              (i.activa === false ? ' <span class="badge b-inactiva">inactiva</span>' : '') +
               botonComentarios(i.idProyecto, '') +
               (CTX.puedeEditarIniciativa
                 ? '<button class="lapiz" title="Editar iniciativa" data-editar-ini="' +
@@ -1103,12 +1112,17 @@ function versionDeSolicitud(s) {
  */
 function filtroIniciativas() {
   var q = $('buscIni').value.trim().toLowerCase();
+  var verInactivas = $('fIniInactivas').checked;
   var iniciativa = valorCombo('filtroIniIni', 'dlIniIni');
   var solicitante = valorCombo('filtroSolicitanteIni', 'dlSolicitanteIni');
   var tipo = $('filtroTipoIni').value;
   var plataforma = $('filtroPlataformaIni').value;
 
   return function (i) {
+    // Una iniciativa inactiva no se lista. Se puede pedir verlas, porque la
+    // ficha se abre desde aqui: sin esa casilla, una iniciativa desactivada por
+    // error no tendria desde donde volver a activarse.
+    if (!verInactivas && i.activa === false) return false;
     if (iniciativa && i.idProyecto !== iniciativa) return false;
     if (solicitante && i.solicitanteId !== solicitante) return false;
     if (tipo && i.tipo !== tipo) return false;
@@ -1409,6 +1423,7 @@ function tarjetaIniciativa(i, conClasificacion) {
       botonComentarios(i.idProyecto, ' ini-lapiz') + '</h4>' +
     '<div class="meta">' +
       '<span class="badge ' + clase + '">' + esc(nombreEst) + '</span>' +
+      (i.activa === false ? '<span class="badge b-inactiva">inactiva</span>' : '') +
       (i.prioridadNombre
         ? '<span class="chip ' + (PRIORIDAD_CLASE[i.prioridad] || 'p-baja') + '">' +
           esc(i.prioridadNombre) + '</span>'
@@ -1457,7 +1472,14 @@ function prepararFiltrosKanban(r) {
   r.proyectos.forEach(function (p) { proyectoPorId[p.ID_Proyecto] = p; });
   DATOS.proyectoPorId = proyectoPorId;
 
-  llenarCombo('dlProyecto', r.proyectos.map(function (p) {
+  /* El filtro ofrece las activas mas las que tienen trabajo en el tablero: un
+     filtro que no deja filtrar lo que se esta viendo no sirve, y una iniciativa
+     puede desactivarse con solicitudes todavia abiertas. */
+  var conTrabajo = {};
+  (r.solicitudes || []).forEach(function (x) { conTrabajo[x.ID_Proyecto] = true; });
+  llenarCombo('dlProyecto', r.proyectos.filter(function (p) {
+    return String(p.Activo || '').toUpperCase() !== 'NO' || conTrabajo[p.ID_Proyecto];
+  }).map(function (p) {
     return { id: p.ID_Proyecto, texto: p.Nombre_Proyecto };
   }));
   llenarCombo('dlPlataforma', r.plataformas.map(function (p) {
@@ -2825,8 +2847,23 @@ function formularioBloqueo(id) {
     });
 }
 
+/**
+ * Las iniciativas que se le pueden ofrecer a alguien para escoger.
+ *
+ * Una iniciativa inactiva sigue viajando en el catalogo —hace falta para
+ * resolver el nombre de las solicitudes que ya cuelgan de ella— pero no se
+ * ofrece para colgarle trabajo nuevo. El servidor aplica la misma regla al
+ * guardar: esto es comodidad, no la validacion.
+ */
+function iniciativasActivas() {
+  return CAT.proyectos.filter(function (p) {
+    return String(p.Activo || '').toUpperCase() !== 'NO';
+  });
+}
+
 /* --- Nueva solicitud --- */
 $('btnNueva').addEventListener('click', function () {
+  var activas = iniciativasActivas();
   var sel = function (id, lista, valor, texto) {
     return '<select id="' + id + '">' + lista.map(function (x) {
       return '<option value="' + esc(x[valor]) + '">' + esc(x[texto]) + '</option>';
@@ -2848,8 +2885,12 @@ $('btnNueva').addEventListener('click', function () {
       '<input type="text" id="nsProyecto" list="dlNsProyecto" autocomplete="off" ' +
         'placeholder="Escriba parte del nombre…">' +
       '<datalist id="dlNsProyecto"></datalist>' +
-      '<small style="color:var(--ink-faint)">Son ' + CAT.proyectos.length +
-      ' iniciativas: escriba una parte del nombre y la lista se reduce sola.</small></label>' +
+      '<small style="color:var(--ink-faint)">Son ' + activas.length +
+      ' iniciativas activas: escriba una parte del nombre y la lista se reduce sola.' +
+      (CAT.proyectos.length > activas.length
+        ? ' No se listan las ' + (CAT.proyectos.length - activas.length) +
+          ' que est&aacute;n marcadas como inactivas.'
+        : '') + '</small></label>' +
     '<label class="campo"><span>Nombre de la solicitud *</span>' +
       '<input type="text" id="nsNombre" maxlength="120"></label>' +
     '<label class="campo"><span>Alcance</span>' +
@@ -2956,7 +2997,7 @@ $('btnNueva').addEventListener('click', function () {
 
   // La lista se llena despues de pintar la ventana, cuando el <datalist> ya
   // existe en el documento. llenarCombo la deja en orden alfabetico.
-  llenarCombo('dlNsProyecto', CAT.proyectos.map(function (p) {
+  llenarCombo('dlNsProyecto', activas.map(function (p) {
     return { id: p.ID_Proyecto, texto: p.Nombre_Proyecto };
   }));
   $('nsProyecto').addEventListener('input', function () {
@@ -4615,6 +4656,13 @@ function pintarInformeIniciativas(r) {
          i.sumaFilas + ' porque ' + i.origen.varias + ' iniciativa(s) tocan más de una ' +
          'plataforma y se cuentan en cada una.</p>';
   }
+  // Un total que baja sin explicacion se lee como un dato perdido.
+  if (i.inactivas) {
+    h += '<p class="nota">No se cuentan ' + i.inactivas + ' iniciativa' +
+         (i.inactivas === 1 ? ' marcada como inactiva' : 's marcadas como inactivas') +
+         '. Lo entregado y lo costeado en el mes sí las incluye: esas cifras salen de ' +
+         'las solicitudes, que no desaparecen cuando se cierra su iniciativa.</p>';
+  }
   if (i.origen.deducida || i.origen.ninguna) {
     h += '<p class="nota">Plataforma <b>declarada</b> en ' + i.origen.declarada +
          ', <b>deducida</b> de sus solicitudes en ' + i.origen.deducida + ', y ' +
@@ -5033,6 +5081,12 @@ function tarjetaDeIniciativa(t) {
       desv +
     '</header>' +
     '<div class="ti-etqs">' +
+      // Solo sale cuando se pidio verlas: sin la marca no se distingue de las
+      // demas y la casilla parecia no haber hecho nada.
+      (t.activa === false
+        ? '<span class="ti-etq ti-inactiva" title="Iniciativa inactiva: no se ofrece al ' +
+          'crear solicitudes ni se lista en el portafolio">inactiva</span>'
+        : '') +
       '<span class="ti-etq">' + esc(t.estadoNombre) + '</span>' +
       '<span class="ti-etq ti-pri-' + esc(t.prioridad || 'x') + '">' +
         esc(t.prioridadNombre) + '</span>' +
@@ -5084,7 +5138,8 @@ function tarjetaDeIniciativa(t) {
  * proyectada es una vista que alguien va a leer como el total.
  */
 var PF_FILTRO = { estado: '', plataforma: '', prioridad: '', tipo: '',
-                  texto: '', bloqueo: false, atraso: false, pausa: false };
+                  texto: '', bloqueo: false, atraso: false, pausa: false,
+                  inactivas: false };
 var PF_ORDEN = { campo: 'finPlaneada', invertido: false };
 /* Lo ultimo que llego. Los filtros repintan con esto y no con DATOS, para que no
    dejen de responder en silencio si alguien limpia la cache del cliente. */
@@ -5092,13 +5147,13 @@ var PF_DATOS = null;
 
 function cargarPortafolio(forzar) {
   if (!forzar && PF_DATOS) { pintarPortafolio(PF_DATOS); return; }
-  cargando('kpisPortafolio', 'kpis');
+  cargando('kpisPf', 'kpis');
   api('getPortafolio', !!forzar).then(function (r) {
     PF_DATOS = r;
     pintarPortafolio(r);
   }).catch(function (e) {
     fallo(e);
-    $('kpisPortafolio').innerHTML = '';
+    $('kpisPf').innerHTML = '';
     $('notaPortafolio').innerHTML = '<b style="color:var(--rojo)">No se pudo cargar:</b> ' +
         esc(e && e.message ? e.message : String(e));
   });
@@ -5134,6 +5189,10 @@ function tarjetasVisiblesPortafolio(r) {
   var f = PF_FILTRO;
   var texto = f.texto.trim().toLowerCase();
   var lista = r.tarjetas.filter(function (t) {
+    // Una iniciativa inactiva no esta en el portafolio. Se pueden pedir porque
+    // la ficha se abre desde su tarjeta: escondidas sin remedio, una
+    // desactivada por error no tendria desde donde volver a activarse.
+    if (!f.inactivas && t.activa === false) return false;
     if (f.estado && t.estado !== f.estado) return false;
     if (f.plataforma && t.plataforma !== f.plataforma) return false;
     if (f.prioridad && t.prioridad !== f.prioridad) return false;
@@ -5182,14 +5241,14 @@ function tarjetasVisiblesPortafolio(r) {
 
 function pintarPortafolio(r) {
   if (!r) {
-    $('kpisPortafolio').innerHTML = '';
+    $('kpisPf').innerHTML = '';
     $('notaPortafolio').innerHTML = '<b style="color:var(--rojo)">El servidor no devolvió ' +
         'el portafolio.</b> Vuelva a oprimir <b>Actualizar</b>.';
     return;
   }
   PF_DATOS = r;
   if (!r.tarjetas || !r.tarjetas.length) {
-    $('kpisPortafolio').innerHTML = '';
+    $('kpisPf').innerHTML = '';
     $('tarjetasPortafolio').innerHTML = '';
     $('notaPortafolio').innerHTML = 'No hay iniciativas registradas. Se administran en ' +
         '<b>Administración → Iniciativas</b>.';
@@ -5197,8 +5256,10 @@ function pintarPortafolio(r) {
   }
   llenarFiltrosPortafolio(r);
 
-  $('kpisPortafolio').innerHTML = [
-    kpi('Iniciativas', numeroInforme(r.total), '',
+  $('kpisPf').innerHTML = [
+    // Dice "activas" porque cuenta las activas: con la casilla de ver inactivas
+    // puesta, un rotulo que dijera "Iniciativas" contradiria a la lista de abajo.
+    kpi('Iniciativas activas', numeroInforme(r.total), '',
         r.enPausa ? r.enPausa + ' en pausa' : 'Ninguna en pausa', r.enPausa ? 'mal' : ''),
     kpi('Por debajo del plan', numeroInforme(r.atrasadas), '',
         'Su avance real va detrás del esperado', r.atrasadas ? 'mal' : ''),
@@ -5211,10 +5272,20 @@ function pintarPortafolio(r) {
   ].join('');
 
   var visibles = tarjetasVisiblesPortafolio(r);
-  $('notaPortafolio').innerHTML = visibles.length === r.total
-    ? '<b>' + r.total + ' iniciativas</b>, ordenadas por ' + etiquetaOrdenPortafolio() + '.'
-    : '<b>' + visibles.length + ' de ' + r.total + ' iniciativas</b>, ordenadas por ' +
-      etiquetaOrdenPortafolio() + '. <a href="#" id="pfQuitarFiltros">Quitar los filtros</a>';
+  /* El total contra el que se compara es el portafolio activo, que es lo que
+     cuentan los indicadores de arriba. Al pedir ver las inactivas se suman al
+     universo, porque si no la nota diria "38 de 35". */
+  var universo = r.total + (PF_FILTRO.inactivas ? (r.inactivas || 0) : 0);
+  var cola = (!PF_FILTRO.inactivas && r.inactivas)
+    ? ' No se listan ' + r.inactivas +
+      (r.inactivas === 1 ? ' iniciativa inactiva.' : ' iniciativas inactivas.')
+    : '';
+  $('notaPortafolio').innerHTML = visibles.length === universo
+    ? '<b>' + universo + ' iniciativas</b>, ordenadas por ' + etiquetaOrdenPortafolio() +
+      '.' + cola
+    : '<b>' + visibles.length + ' de ' + universo + ' iniciativas</b>, ordenadas por ' +
+      etiquetaOrdenPortafolio() + '.' + cola +
+      ' <a href="#" id="pfQuitarFiltros">Quitar los filtros</a>';
   if ($('pfQuitarFiltros')) {
     $('pfQuitarFiltros').addEventListener('click', function (e) {
       e.preventDefault(); limpiarFiltrosPortafolio();
@@ -5256,12 +5327,14 @@ function etiquetaOrdenPortafolio() {
 
 function limpiarFiltrosPortafolio() {
   PF_FILTRO = { estado: '', plataforma: '', prioridad: '', tipo: '',
-                texto: '', bloqueo: false, atraso: false, pausa: false };
+                texto: '', bloqueo: false, atraso: false, pausa: false,
+                inactivas: false };
   ['fPfEstado', 'fPfPlataforma', 'fPfPrioridad', 'fPfTipo'].forEach(function (id) {
     $(id).value = '';
   });
   $('fPfBuscar').value = '';
-  ['fPfBloqueo', 'fPfAtraso', 'fPfPausa'].forEach(function (id) { $(id).checked = false; });
+  ['fPfBloqueo', 'fPfAtraso', 'fPfPausa', 'fPfInactivas']
+      .forEach(function (id) { $(id).checked = false; });
   if (PF_DATOS) pintarPortafolio(PF_DATOS);
 }
 $('btnPfLimpiar').addEventListener('click', limpiarFiltrosPortafolio);
@@ -5276,7 +5349,8 @@ Object.keys(PF_CAMPO_DE_CONTROL).forEach(function (id) {
     if (PF_DATOS) pintarPortafolio(PF_DATOS);
   });
 });
-[['fPfBloqueo', 'bloqueo'], ['fPfAtraso', 'atraso'], ['fPfPausa', 'pausa']]
+[['fPfBloqueo', 'bloqueo'], ['fPfAtraso', 'atraso'], ['fPfPausa', 'pausa'],
+ ['fPfInactivas', 'inactivas']]
   .forEach(function (par) {
     $(par[0]).addEventListener('change', function () {
       PF_FILTRO[par[1]] = this.checked;
@@ -5460,7 +5534,14 @@ function construirCampos(columnas, opciones, registro, campoBloqueado) {
          sin haberlo tocado. Con las columnas de "no aplica" eso dejo de ser un
          detalle: marcaba fases que nadie quiso marcar y sacaba la solicitud del
          costeo en silencio (D-125). */
+      /* Un campo puede declarar su predeterminado en el esquema, y entonces ese
+         manda cuando no hay valor: es el caso de "Activo", donde lo natural al
+         crear una iniciativa es SI y caer en NO la dejaria invisible desde el
+         primer dia. Los campos que no lo declaran siguen cayendo en NO. */
       var siMarcado = String(valor || '').trim().toUpperCase();
+      if (!siMarcado && c.predeterminado !== undefined) {
+        siMarcado = String(c.predeterminado).trim().toUpperCase();
+      }
       var esSi = siMarcado === 'SI' || siMarcado === 'SÍ' || siMarcado === 'TRUE' ||
                  siMarcado === 'VERDADERO' || siMarcado === 'X' || siMarcado === '1';
       control = '<select id="campo_' + c.campo + '"' + bloqueado + '>' +

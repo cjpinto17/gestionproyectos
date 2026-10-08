@@ -137,7 +137,16 @@ function informeIniciativasPorPlataforma_(datos) {
 
   var porPlataforma = {}, sinPlataforma = [], enVarias = [];
 
-  datos.proyectos.forEach(function (p) {
+  /* El volumen que se presenta es el del portafolio ACTIVO, el mismo que
+     muestran el Home y la pagina de Portafolio: llevar a un comite un numero de
+     iniciativas distinto del que el equipo ve todos los dias obliga a explicar
+     la diferencia en la reunion. Lo que se mide sobre el TRABAJO del mes
+     —versiones, embudo, bloqueos, ciclo, costos— no se toca: esas cifras salen
+     de las solicitudes, que siguen existiendo aunque su iniciativa se haya
+     cerrado. */
+  var proyectos = datos.proyectos.filter(iniciativaActiva);
+
+  proyectos.forEach(function (p) {
     var d = plataformaDe.de[p.ID_Proyecto] || { plat: '', como: 'ninguna', tocadas: [] };
     var plat = d.plat, como = d.como, tocadas = d.tocadas;
 
@@ -171,7 +180,10 @@ function informeIniciativasPorPlataforma_(datos) {
       .sort(function (a, b) { return b.total - a.total; });
 
   return {
-    total: datos.proyectos.length,
+    total: proyectos.length,
+    // Cuantas quedaron fuera, para que la caida del total tenga explicacion a
+    // la vista y nadie la lea como un dato que se perdio.
+    inactivas: datos.proyectos.length - proyectos.length,
     // Suma de las filas: distinta del total cuando una iniciativa toca varias
     // plataformas. Se manda calculada para que la pantalla no tenga que
     // explicar una resta que el servidor ya sabe hacer.
@@ -857,7 +869,13 @@ function calcularInforme_(mes) {
   var datos = cargarDatos_();
 
   var iniciativas = informeIniciativasPorPlataforma_(datos);
+  /* Las tarjetas del portafolio tambien van solo con las activas. La pagina de
+     Portafolio deja pedir las inactivas con una casilla, porque desde ahi se
+     vuelve a activar una; un informe que se proyecta en un comite no tiene esa
+     casilla ni esa necesidad, asi que aqui no viajan. Los contadores ya vienen
+     calculados sobre las activas. */
   var portafolio = tarjetasDeIniciativas_(datos);
+  portafolio.tarjetas = portafolio.tarjetas.filter(function (t) { return t.activa; });
   var versiones = informeVersiones_(datos, lim);
   var embudo = informeEmbudo_(datos, lim);
   var bloqueos = informeBloqueos_(datos, lim);

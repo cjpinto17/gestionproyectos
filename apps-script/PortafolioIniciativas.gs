@@ -179,6 +179,11 @@ function tarjetasDeIniciativas_(datos) {
     return {
       id: p.ID_Proyecto,
       nombre: p.Nombre_Proyecto || p.ID_Proyecto,
+      /* La tarjeta viaja siempre y la pantalla decide si la muestra. No se
+         filtra aqui porque la ficha de una iniciativa se abre desde su tarjeta:
+         escondida en el servidor, una iniciativa desactivada por error no
+         tendria desde donde volver a activarse. */
+      activa: iniciativaActiva(p),
       estado: p.Estado_Iniciativa || '',
       estadoNombre: nombreEstado[p.Estado_Iniciativa] || 'Sin estado',
       prioridad: prioridad,
@@ -237,18 +242,26 @@ function tarjetasDeIniciativas_(datos) {
     return String(a.nombre).localeCompare(String(b.nombre));
   });
 
+  /* Los indicadores de arriba cuentan el portafolio ACTIVO, que es el universo
+     de esta pantalla. Las inactivas viajan igual —la casilla "ver inactivas"
+     las muestra, y desde su tarjeta se vuelve a activar una desactivada por
+     error— pero no entran en las cuentas: un tablero que dice 39 iniciativas
+     sobre una lista de 35 obliga a buscar las otras cuatro. */
+  var activas = tarjetas.filter(function (t) { return t.activa; });
+
   return {
     tarjetas: tarjetas,
-    total: tarjetas.length,
-    conBloqueo: tarjetas.filter(function (t) { return t.tieneBloqueo; }).length,
-    atrasadas: tarjetas.filter(function (t) {
+    total: activas.length,
+    inactivas: tarjetas.length - activas.length,
+    conBloqueo: activas.filter(function (t) { return t.tieneBloqueo; }).length,
+    atrasadas: activas.filter(function (t) {
       return t.desviacion !== null && t.desviacion < 0;
     }).length,
-    sinPlan: tarjetas.filter(function (t) {
+    sinPlan: activas.filter(function (t) {
       return t.faltaFechaInicio || t.faltaFechaFin;
     }).length,
-    sinActividades: tarjetas.filter(function (t) { return t.avanceReal === null; }).length,
-    enPausa: tarjetas.filter(function (t) { return t.enPausa; }).length,
+    sinActividades: activas.filter(function (t) { return t.avanceReal === null; }).length,
+    enPausa: activas.filter(function (t) { return t.enPausa; }).length,
     estados: ESTADOS_INICIATIVA,
     // Los estados de SOLICITUD, para que la pantalla pueda rotular el desglose
     // sin tener que conocer el catalogo.
