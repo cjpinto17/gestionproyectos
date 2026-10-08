@@ -2587,17 +2587,56 @@ function verDetalle(id) {
           '</div>'
         : '';
 
+    /* Los bloqueos de esta solicitud, con su causal, quien y cuanto duro. Antes
+       no se veian: "Ultimos movimientos" solo imprime la fase, y un bloqueo no
+       cambia de fase (D-137). */
+    var bloqueos = (s.Bloqueos || []).map(function (b) {
+      var cierre = b.sigueAbierto
+        ? '<b style="color:var(--rojo)">sigue bloqueada</b>'
+        : 'hasta ' + esc(fechaHora(b.hasta));
+      return '<div class="it"><div>' +
+        '<b>' + esc(b.causalNombre) + '</b>' +
+        (b.causalPerdida
+          ? '<span style="color:var(--ink-faint)"> · se bloqueó antes de que la ' +
+            'bitácora guardara la causal</span>'
+          : '') + '<br>' +
+        '<span style="color:var(--ink-muted)">' + esc(fechaHora(b.desde)) + ' · ' +
+        cierre + '</span>' +
+        (b.quien ? '<br><span style="color:var(--ink-faint)">Lo marcó ' + esc(b.quien) +
+          (b.quienLibero && b.quienLibero !== b.quien
+            ? ' · lo levantó ' + esc(b.quienLibero) : '') + '</span>' : '') +
+        (b.observacion
+          ? '<br><span style="color:var(--ink-muted)">' + esc(b.observacion) + '</span>'
+          : '') +
+        // diasInforme ya trae su unidad: agregarle "d hab." dejaba "13,8 d d hab."
+        '</div><span class="dias" style="color:var(--ink-muted)">' +
+        diasInforme(b.diasHabiles) + ' háb.</span></div>';
+    }).join('');
+
+    /* Cuando la fase NO cambia, el movimiento se rotula con el estado. Antes
+       siempre se imprimia la fase, y como un bloqueo o un cambio de estado de
+       una tarea no mueven de fase, la lista mostraba la misma fase repetida tres
+       veces sin decir que habia pasado en cada renglon (D-137). */
     var historial = (s.Historial || []).slice(0, 6).map(function (a) {
-      return '<div class="it"><div><b>' + esc(nombreFase(a.Fase_Destino) || '—') + '</b><br>' +
+      var cambioFase = a.Fase_Origen !== a.Fase_Destino;
+      var rotulo = cambioFase
+          ? (nombreFase(a.Fase_Destino) || '—')
+          : (nombreEstado(a.Estado_Destino) || nombreFase(a.Fase_Destino) || '—');
+      return '<div class="it"><div><b>' + esc(rotulo) + '</b>' +
+             (cambioFase ? '' : '<span style="color:var(--ink-faint)"> · en ' +
+               esc(nombreFase(a.Fase_Destino) || 'sin fase') + '</span>') + '<br>' +
              '<span style="color:var(--ink-muted)">' + esc(fechaHora(a.Fecha_Hora_Cambio)) + '</span></div>' +
              '<span class="dias" style="color:var(--ink-muted)">' +
-             (a.Dias_Habiles_En_Fase || 0) + ' d háb.</span></div>';
+             diasInforme(a.Dias_Habiles_En_Fase || 0) + ' háb.</span></div>';
     }).join('');
 
     abrirModal(s.Nombre_Solicitud, s.ID_Solicitud + ' · ' + s.Nombre_Plataforma,
       '<dl>' + filas + '</dl>' + alcance + alerta +
       '<div style="margin-top:12px">' + enlaces + '</div>' + acciones +
       bloqueComentarios(s.Observaciones) +
+      (bloqueos ? tituloSeccion((s.Bloqueos.length === 1 ? 'Bloqueo' : 'Bloqueos') +
+        ' de esta actividad') +
+        '<div class="lista-simple">' + bloqueos + '</div>' : '') +
       (historial ? tituloSeccion('Últimos movimientos') +
         '<div class="lista-simple">' + historial + '</div>' : ''), null);
 

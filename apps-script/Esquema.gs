@@ -1240,7 +1240,15 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Fecha_Hora_Cambio', etiqueta: 'Fecha/hora del cambio', tipo: 'datetime', requerido: true },
       { campo: 'Usuario_Responsable', etiqueta: 'Usuario responsable', tipo: 'text', requerido: true },
       { campo: 'Horas_En_Fase', etiqueta: 'Horas calendario en fase origen', tipo: 'decimal' },
-      { campo: 'Dias_Habiles_En_Fase', etiqueta: 'Dias habiles en fase origen', tipo: 'decimal' }
+      { campo: 'Dias_Habiles_En_Fase', etiqueta: 'Dias habiles en fase origen', tipo: 'decimal' },
+      /* Por que se bloqueo. Solo se llenan en la fila del bloqueo (D-137).
+         Antes la causal vivia unicamente en la solicitud, y al levantar el
+         bloqueo se borraba: de un bloqueo ya resuelto quedaba cuando y cuanto,
+         nunca por que. Y si la solicitud se volvia a bloquear por otra causa, el
+         informe le ponia al episodio viejo la causal del nuevo. Aqui no se borra
+         ni se pisa, porque la bitacora no se reescribe. */
+      { campo: 'Causal_Bloqueo', etiqueta: 'Causal del bloqueo', tipo: 'text' },
+      { campo: 'Observacion_Bloqueo', etiqueta: 'Observacion del bloqueo', tipo: 'longtext' }
     ]
   },
   Carga_Solicitudes: {

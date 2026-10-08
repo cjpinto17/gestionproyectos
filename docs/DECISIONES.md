@@ -3439,6 +3439,45 @@ correspondían a las actividades. Ahora la matriz de plataforma por mes se arma 
 los totales por mes se recalculan desde ella: un ensayo cuyas filas no suman lo que dice su total no
 sirve para revisar una tabla cuyo punto es justamente que cuadre.
 
+### D-137 · La trazabilidad de los bloqueos
+
+Tres arreglos sobre lo mismo: de un bloqueo ya resuelto quedaba **cuándo** y **cuánto**, nunca **por
+qué**, y en la pantalla de una solicitud no se veía en absoluto.
+
+**La bitácora ahora guarda la causal y la observación.** Vivían solo en la fila de la solicitud y se
+borraban al levantar el bloqueo. La fila que ABRE el episodio se las lleva; la que lo cierra no las
+repite, porque ese renglón cierra el episodio, no lo explica, y repetirlas haría que un mismo bloqueo
+se contara con dos causales. Solo sirve hacia adelante: lo que ya se borró no se puede recuperar.
+
+**Un defecto que estaba en producción.** El informe leía la causal de la **solicitud**, no del
+episodio. Con una que se bloqueó, se liberó y se volvió a bloquear por otra causa, al episodio viejo
+se le colgaba la causal del nuevo, y el resumen por causal mostraba **una sola fila** donde había dos
+causas distintas. Comprobado corriendo el motor anterior y el nuevo con el mismo caso: antes los dos
+episodios salían con CB-02; ahora cada uno con la suya. Ahora la causal viaja con su episodio, y para
+uno que **sigue abierto** se acepta la de la solicitud solo si la bitácora no la trae —ese bloqueo es
+el vigente, así que esa causal es la suya—. Para uno cerrado no: lo que la solicitud tenga hoy no es
+lo que tuvo ese episodio.
+
+**Los bloqueos se ven en el detalle de la solicitud.** Antes no se veían en ninguna parte: «Últimos
+movimientos» solo imprime la fase, y un bloqueo no cambia de fase, así que bloquear y liberar se leían
+como la misma fase repetida dos veces. Hay una sección propia con cada episodio: causal, quién lo marcó
+y quién lo levantó, desde cuándo y hasta cuándo, la observación y los días hábiles que costó. Los
+anteriores a este cambio salen rotulados «No quedó registrada», con la razón a la vista.
+
+**Y «Últimos movimientos» se volvió legible.** Cuando la fase no cambia, el renglón se rotula con el
+**estado**: un bloqueo dice «Bloqueada» y una liberación «En progreso», en vez de tres «Desarrollo»
+seguidos. También arregla los cambios de estado de una tarea, que tenían el mismo problema.
+
+**El emparejado de entradas y salidas vive en un solo sitio.** `episodiosDeBloqueo_` está en Codigo.gs
+y lo consumen el informe del mes y el detalle de una solicitud. Dos copias de esa regla terminarían
+contando bloqueos distintos en cada pantalla, que es exactamente lo que se estaba corrigiendo.
+
+**Cuatro revisiones mías que miraban el texto del código.** Comprobaban que ciertas cadenas existieran
+en `Scripts.html`, lo cual prueba que la cadena está en el archivo, no que la sección se pinte. Se
+reemplazaron por un ensayo de la pantalla real (`armarDetalleSol.py` + `verDetalleSol.js`) que se pinta
+con la salida de verdad de `getDetalleSolicitud` y mira el DOM. Ese ensayo destapó de inmediato un
+«13,8 d d háb.»: `diasInforme` ya trae su unidad y yo le estaba agregando otra.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |

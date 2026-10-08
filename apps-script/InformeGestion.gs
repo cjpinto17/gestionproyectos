@@ -409,34 +409,10 @@ function informeBloqueos_(datos, lim) {
   var porId = {};
   datos.solicitudes.forEach(function (s) { porId[s.ID_Solicitud] = s; });
 
-  // La bitacora en orden cronologico: para emparejar cada entrada con su salida
-  // hay que recorrerla hacia adelante.
-  var orden = datos.auditoria.slice().filter(function (a) {
-    return !!aFecha_(a.Fecha_Hora_Cambio);
-  }).sort(function (a, b) {
-    return aFecha_(a.Fecha_Hora_Cambio) - aFecha_(b.Fecha_Hora_Cambio);
-  });
-
-  var abierto = {};        // solicitud -> fecha de entrada al bloqueo
-  var episodios = [];
-
-  orden.forEach(function (a) {
-    var f = aFecha_(a.Fecha_Hora_Cambio);
-    var id = a.ID_Solicitud;
-    var entra = String(a.Estado_Destino) === INFORME_ESTADO_BLOQUEADA;
-    var sale = String(a.Estado_Origen) === INFORME_ESTADO_BLOQUEADA && !entra;
-
-    if (entra && !abierto[id]) { abierto[id] = f; return; }
-    if (sale && abierto[id]) {
-      episodios.push({ id: id, desde: abierto[id], hasta: f, abierto: false });
-      delete abierto[id];
-    }
-  });
-
-  // Los que no se cerraron: siguen bloqueados hoy.
-  Object.keys(abierto).forEach(function (id) {
-    episodios.push({ id: id, desde: abierto[id], hasta: null, abierto: true });
-  });
+  /* El emparejado de entradas y salidas vive en Codigo.gs y lo comparten esta
+     pantalla y el detalle de una solicitud: dos copias de esa regla terminarian
+     contando bloqueos distintos en cada una (D-137). */
+  var episodios = episodiosDeBloqueo_(datos.auditoria);
 
   /* Un episodio cuenta en el mes si lo TOCA, no solo si empezo en el: un
      bloqueo que arranco en agosto y se levanto el 10 de septiembre es un
@@ -449,7 +425,12 @@ function informeBloqueos_(datos, lim) {
     var s = porId[e.id] || {};
     var desde = e.desde > lim.inicio ? e.desde : lim.inicio;
     var hasta = (e.hasta && finDelDia_(e.hasta) < lim.fin) ? finDelDia_(e.hasta) : lim.fin;
-    var causal = String(s.Causal_Bloqueo || '').trim();
+    /* La del episodio manda. Para uno que SIGUE abierto, si la bitacora no la
+       trae —filas escritas antes de D-137— se acepta la de la solicitud: ese
+       bloqueo es el vigente, asi que esa causal es la suya. Para uno cerrado no:
+       lo que tenga la solicitud hoy no es lo que tuvo ese episodio. */
+    var causal = e.causal ||
+        (e.abierto ? String(s.Causal_Bloqueo || '').trim() : '');
     return {
       id: e.id, nombre: s.Nombre_Solicitud || e.id,
       iniciativa: s.ID_Proyecto || '',
@@ -457,10 +438,15 @@ function informeBloqueos_(datos, lim) {
       fase: s.Fase_Actual || '',
       desde: e.desde, hasta: e.hasta,
       sigueAbierto: e.abierto,
+      // Quien lo puso y quien lo levanto: en un comite la pregunta que sigue a
+      // "cuanto costo" es "con quien hay que hablar".
+      quien: e.quien || '', quienLibero: e.quienLibero || '',
+      nota: e.nota || '',
       diasHabiles: red_(diasHabilesEntre(desde, hasta) || 0, 1),
       causal: causal,
-      // La causal solo sobrevive mientras el bloqueo esta abierto. En uno ya
-      // resuelto, vacia no significa "sin causa": significa que se borro.
+      /* Desde D-137 la causal queda en la bitacora y sobrevive al desbloqueo.
+         Un episodio cerrado sin causal es uno anterior a ese cambio: vacia no
+         significa "sin causa", significa que en su momento no se guardo. */
       causalNombre: causal ? (nombreCausal[causal] || causal)
                            : (e.abierto ? 'Sin causal registrada' : 'No quedo registrada'),
       causalPerdida: !causal && !e.abierto

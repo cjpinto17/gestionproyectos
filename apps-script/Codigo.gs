@@ -859,11 +859,32 @@ function getDetalleSolicitud(idSolicitud) {
   s.Nombre_Responsable = nombreUsuario[s.Responsable_ID] || '';
   s.Nombre_Solicitante = nombreUsuario[s.Solicitante_ID] || '';
   s.Nombre_Plataforma = mapaPlataformas()[s.Plataforma_ID] || s.Plataforma_ID;
-  s.Historial = leerTabla_('Auditoria_Transiciones')
-      .filter(function (a) { return a.ID_Solicitud === idSolicitud; })
-      .sort(function (a, b) {
-        return String(b.Fecha_Hora_Cambio).localeCompare(String(a.Fecha_Hora_Cambio));
-      });
+  var auditoria = leerTabla_('Auditoria_Transiciones')
+      .filter(function (a) { return a.ID_Solicitud === idSolicitud; });
+  s.Historial = auditoria.slice().sort(function (a, b) {
+    return String(b.Fecha_Hora_Cambio).localeCompare(String(a.Fecha_Hora_Cambio));
+  });
+
+  /* Los bloqueos de ESTA solicitud, del mas reciente al mas antiguo.
+     Antes no se veian en ninguna parte: "Ultimos movimientos" solo imprime la
+     fase, y un bloqueo no cambia de fase, asi que bloquear y liberar se leian
+     como la misma fase repetida dos veces (D-137). */
+  var nombreCausal = mapaCatalogo_(getCausalesBloqueo_());
+  var ahoraBloq = new Date();
+  s.Bloqueos = episodiosDeBloqueo_(auditoria).reverse().map(function (e) {
+    return {
+      desde: e.desde, hasta: e.hasta, sigueAbierto: e.abierto,
+      // La causal del episodio, no la que la solicitud tenga hoy. Un episodio
+      // cerrado sin causal es uno anterior a que la bitacora la guardara.
+      causal: e.causal,
+      causalNombre: e.causal ? (nombreCausal[e.causal] || e.causal)
+                             : (e.abierto ? 'Sin causal registrada' : 'No quedó registrada'),
+      causalPerdida: !e.causal && !e.abierto,
+      observacion: e.nota,
+      quien: e.quien, quienLibero: e.quienLibero,
+      diasHabiles: red_(diasHabilesEntre(e.desde, e.hasta || ahoraBloq) || 0, 1)
+    };
+  });
   s.Observaciones = observacionesDe_('Observaciones_Solicitud', 'ID_Solicitud',
                                      idSolicitud, nombreUsuario);
   return s;
@@ -2307,8 +2328,12 @@ function marcarBloqueo(idSolicitud, bloqueada, idCausal, observacion) {
 
     escribirFila_('Solicitudes', s._fila, nuevo);
 
-    // El bloqueo tambien se audita: de ahi sale el tiempo bloqueado que
-    // descuenta la eficiencia de flujo.
+    /* El bloqueo tambien se audita: de ahi sale el tiempo bloqueado que
+       descuenta la eficiencia de flujo. Y desde D-137 la fila se lleva TAMBIEN
+       la causal y la observacion: la solicitud las borra al liberar, y sin esta
+       copia un bloqueo resuelto quedaba sin por que. Al LEVANTAR no se copian:
+       esa fila cierra el episodio, no lo explica, y repetir ahi la causal haria
+       que un mismo bloqueo se contara con dos causales. */
     registrarTransicionAudit_({
       idSolicitud: idSolicitud,
       faseOrigen: s.Fase_Actual,
@@ -2316,7 +2341,9 @@ function marcarBloqueo(idSolicitud, bloqueada, idCausal, observacion) {
       estadoOrigen: estadoOrigen,
       estadoDestino: nuevo.Estado_Actual,
       desde: aFecha_(s.Fecha_Ultimo_Cambio) || aFecha_(s.Fecha_Registro),
-      correoUsuario: ctx.correo
+      correoUsuario: ctx.correo,
+      causalBloqueo: bloqueada ? idCausal : '',
+      observacionBloqueo: bloqueada ? nota : ''
     });
 
     /* Liberar tambien avisa. Antes solo avisaba el bloqueo: a quien estaba
@@ -2376,6 +2403,69 @@ function sincronizarRoadmap_(solicitud) {
 /* 7. Auditoria                                                        */
 /* ================================================================== */
 
+/** Estado con el que la bitacora marca una solicitud bloqueada. */
+var ESTADO_BLOQUEADA_AUDIT = 'EST-04';
+
+/**
+ * Los episodios de bloqueo que cuenta la bitacora.
+ *
+ * Empareja cada entrada al estado "Bloqueada" con la salida que la cierra y
+ * devuelve un episodio por cada par, mas los que siguen abiertos. La causal, la
+ * observacion y quien lo puso salen de la fila que ABRE el episodio y viajan con
+ * el: la solicitud solo guarda la del bloqueo vigente, y leerla de ahi le ponia
+ * al episodio viejo la causal del nuevo (D-137).
+ *
+ * Vive aqui y no en el informe porque lo consumen DOS pantallas —el informe del
+ * mes y el detalle de una solicitud— y dos copias de esta regla terminarian
+ * contando bloqueos distintos en cada una.
+ *
+ * @param {!Array<!Object>} filas Filas de Auditoria_Transiciones, en cualquier
+ *     orden. Pueden ser las de una sola solicitud o las de todas.
+ * @return {!Array<!Object>} Episodios de mas antiguo a mas reciente.
+ */
+function episodiosDeBloqueo_(filas) {
+  // En orden cronologico: para emparejar cada entrada con su salida hay que
+  // recorrer la bitacora hacia adelante.
+  var orden = (filas || []).filter(function (a) {
+    return !!aFecha_(a.Fecha_Hora_Cambio);
+  }).sort(function (a, b) {
+    return aFecha_(a.Fecha_Hora_Cambio) - aFecha_(b.Fecha_Hora_Cambio);
+  });
+
+  var abierto = {}, episodios = [];
+
+  orden.forEach(function (a) {
+    var f = aFecha_(a.Fecha_Hora_Cambio);
+    var id = a.ID_Solicitud;
+    var entra = String(a.Estado_Destino) === ESTADO_BLOQUEADA_AUDIT;
+    var sale = String(a.Estado_Origen) === ESTADO_BLOQUEADA_AUDIT && !entra;
+
+    if (entra && !abierto[id]) {
+      abierto[id] = { desde: f, causal: String(a.Causal_Bloqueo || '').trim(),
+                      nota: String(a.Observacion_Bloqueo || '').trim(),
+                      quien: a.Usuario_Responsable || '' };
+      return;
+    }
+    if (sale && abierto[id]) {
+      var e = abierto[id];
+      episodios.push({ id: id, desde: e.desde, hasta: f, abierto: false,
+                       causal: e.causal, nota: e.nota, quien: e.quien,
+                       quienLibero: a.Usuario_Responsable || '' });
+      delete abierto[id];
+    }
+  });
+
+  // Los que no se cerraron: siguen bloqueados hoy.
+  Object.keys(abierto).forEach(function (id) {
+    var e = abierto[id];
+    episodios.push({ id: id, desde: e.desde, hasta: null, abierto: true,
+                     causal: e.causal, nota: e.nota, quien: e.quien,
+                     quienLibero: '' });
+  });
+
+  return episodios.sort(function (a, b) { return a.desde - b.desde; });
+}
+
 /**
  * Inserta una fila inmutable en Auditoria_Transiciones.
  *  Horas_En_Fase        = horas calendario desde el ultimo cambio.
@@ -2402,7 +2492,11 @@ function registrarTransicionAudit_(datos) {
     Fecha_Hora_Cambio: ahora,
     Usuario_Responsable: datos.correoUsuario || '',
     Horas_En_Fase: Math.round(horas * 10) / 10,
-    Dias_Habiles_En_Fase: desde ? diasHabilesEntre(desde, ahora) : 0
+    Dias_Habiles_En_Fase: desde ? diasHabilesEntre(desde, ahora) : 0,
+    // Solo las llena el bloqueo. En las demas transiciones van vacias, que es
+    // lo correcto: no todas las filas de la bitacora hablan de un bloqueo.
+    Causal_Bloqueo: datos.causalBloqueo || '',
+    Observacion_Bloqueo: datos.observacionBloqueo || ''
   });
   return id;
 }
