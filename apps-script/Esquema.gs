@@ -1116,7 +1116,10 @@ var ESQUEMA_TRANSACCIONAL = {
       // exactamente y que se esta esperando. Sin ella el tablero muestra la
       // etiqueta pero no el contexto que necesita quien tiene que destrabarlo.
       { campo: 'Observacion_Bloqueo', etiqueta: 'Observacion del bloqueo', tipo: 'longtext' },
-      { campo: 'Link_Taiga', etiqueta: 'Issue en Taiga', tipo: 'url',
+      /* El CAMPO se sigue llamando Link_Taiga y la columna de la hoja tambien:
+         renombrarla seria mover el dato de las solicitudes que ya existen. Lo
+         que cambia es el rotulo que se ve, que es lo que pidio el usuario. */
+      { campo: 'Link_Taiga', etiqueta: 'Link Issue/Mantis', tipo: 'url',
         ayuda: 'Enlace al issue donde la fábrica construye esta solicitud. Al guardarlo aparece el ícono 🎫 en su tarjeta del tablero.' },
       // Orden de atencion dentro de su columna del tablero, puesto a mano
       // arrastrando (D-96). Solo lo usan las tres primeras fases.
@@ -1318,7 +1321,7 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Responsable_ID', etiqueta: 'Responsable', tipo: 'enum', fk: 'Usuarios' },
       { campo: 'Version_Semantica', etiqueta: 'Version estimada', tipo: 'text' },
       { campo: 'Proceso_Impactado', etiqueta: 'Proceso impactado', tipo: 'text' },
-      { campo: 'Link_Taiga', etiqueta: 'Issue en Taiga', tipo: 'url' },
+      { campo: 'Link_Taiga', etiqueta: 'Link Issue/Mantis', tipo: 'url' },
       // Lo escribe el proceso: queda el ID creado o el motivo del rechazo.
       { campo: 'Resultado', etiqueta: 'Resultado', tipo: 'text' }
     ]

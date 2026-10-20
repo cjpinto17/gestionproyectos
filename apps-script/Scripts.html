@@ -1030,8 +1030,8 @@ function filaSolicitud(s) {
  * Los enlaces de una solicitud, en su propia tarjeta del tablero.
  *
  * Son dos, y cada uno lleva a un sitio distinto: 📄 al documento donde esta
- * escrito el requerimiento, y 🎫 al issue de Taiga, que es donde la fabrica lo
- * esta construyendo. Antes iban en el correo de creacion; alli envejecian,
+ * escrito el requerimiento, y 🎫 al issue (Mantis) donde la fabrica lo esta
+ * construyendo. Antes iban en el correo de creacion; alli envejecian,
  * porque el correo se recibe una vez y despues hay que buscarlo, mientras que
  * la tarjeta se tiene delante cada vez que se mira el tablero.
  *
@@ -1047,7 +1047,7 @@ function filaSolicitud(s) {
 function enlacesDeSolicitud(s) {
   var enlaces = [
     { url: s.Doc_Requerimiento_URL, icono: '&#128196;', titulo: 'Documento de requerimiento' },
-    { url: s.Link_Taiga, icono: '&#127915;', titulo: 'Issue en Taiga' }
+    { url: s.Link_Taiga, icono: '&#127915;', titulo: 'Link Issue/Mantis' }
   ].filter(function (e) { return e.url; });
 
   if (!enlaces.length) return '';
@@ -2573,7 +2573,7 @@ function verDetalle(id) {
     // detalle hay sitio y no hay que adivinar a donde lleva cada icono.
     var enlaces = [
       { url: s.Doc_Requerimiento_URL, texto: 'Requerimiento' },
-      { url: s.Link_Taiga, texto: 'Issue en Taiga' }
+      { url: s.Link_Taiga, texto: 'Link Issue/Mantis' }
     ].filter(function (e) { return e.url; }).map(function (e) {
       return '<a class="btn-sec" style="text-decoration:none;display:inline-block" href="' +
              esc(e.url) + '" target="_blank" rel="noopener">' + esc(e.texto) + '</a>';

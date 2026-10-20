@@ -3603,6 +3603,40 @@ y la fila huérfana. Las diez revisiones nuevas fallan contra el código anterio
 blindarlas para que **reporten** la falla en vez de reventar con la tabla vacía, que es la misma
 corrección de D-136 y de D-138.
 
+### D-141 · El enlace del issue se llama «Link Issue/Mantis», y las peceras dejan de envejecer
+
+**El rótulo.** El enlace al issue decía «Issue en Taiga» en cuatro sitios visibles: el formulario de
+edición, la plantilla de carga masiva, el ícono de la tarjeta del tablero y el botón del detalle.
+Cambiar solo el formulario habría dejado el mismo dato con dos nombres según la pantalla, así que se
+cambiaron los cuatro.
+
+**El campo y la columna siguen llamándose `Link_Taiga`.** Renombrar la columna sería mover el dato de
+todas las solicitudes que ya existen, y no hace falta para lo que se pidió: lo que se ve es el rótulo.
+
+**Las revisiones ya no repiten el texto.** Cuatro aserciones tenían «Issue en Taiga» escrito a mano, así
+que renombrar obligaba a tocar cuatro sitios más. Ahora el rótulo se **fija una vez** —en la que
+comprueba el esquema, que es donde vive el requisito del usuario— y las otras tres lo **derivan** de
+ahí: comprueban que la tarjeta, el `aria-label` y el detalle digan lo mismo que el esquema declara.
+Contra el código anterior falla exactamente una, la que pide el texto nuevo; las derivadas pasan porque
+el código viejo también era coherente consigo mismo. Es la estructura correcta: una revisión fija el
+requisito y las demás cuidan que nada se separe.
+
+**Y una bomba de tiempo en mis propias peceras.** La batería de pantalla se cayó sola doce días después
+de escribirla, sin que nadie tocara la aplicación: el ensayo del Portafolio tenía las fechas de plan
+**escritas fijas** (julio a diciembre de 2026) mientras el avance esperado se mide contra **la fecha de
+hoy**. Con el paso de los días toda iniciativa quedó vencida, el portafolio salió entero en rojo y la
+revisión de los colores —que exige ver al menos una verde y una roja— falló sin que nada estuviera
+mal.
+
+Las fechas de **plan** de los ensayos del Portafolio y del Informe se calculan ahora **contra hoy**
+(`enDias(-40)`, `enDias(60)`…), así que el portafolio siempre tiene una adelantada y dos vencidas,
+corra la batería cuando corra. Las fechas del **trabajo del mes** —solicitudes, versiones, bitácora—
+siguen fijas a propósito: el informe es de septiembre de 2026 y ese mes no se mueve.
+
+**Una aserción más que había que soltar del calendario.** La del Informe comprobaba «Inicio 2026-07-01»
+y «Fin plan. 2026-12-31» escritos a mano; ahora toma las dos fechas de los propios datos y comprueba
+que la tarjeta las muestre. Si no, anclar la pecera habría roto la revisión en el mismo movimiento.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
