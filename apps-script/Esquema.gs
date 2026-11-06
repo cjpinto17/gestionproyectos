@@ -288,6 +288,56 @@ function faseExigeAnalista(faseId) {
 }
 
 /**
+ * La fase que no se puede empezar sin saber quien la construye (D-142).
+ *
+ * Mismo criterio que el analista: se pregunta al ENTRAR, porque es el momento en
+ * que se decide a quien se le asigna. Preguntarlo al salir seria preguntar quien
+ * hizo algo que ya esta hecho, y es justo el dato que hoy no queda en ninguna
+ * parte: el costo de la etapa de desarrollo se reparte sin saber quien la
+ * ocupo.
+ */
+var FASES_CON_DESARROLLADORES = ['FAS-04'];
+
+/**
+ * @param {string} faseId
+ * @return {boolean} True si entrar a esa fase exige desarrolladores asignados.
+ */
+function faseExigeDesarrolladores(faseId) {
+  return FASES_CON_DESARROLLADORES.indexOf(String(faseId || '')) !== -1;
+}
+
+/**
+ * Los ids que trae un campo de varios valores.
+ *
+ * Un campo multienum guarda sus ids separados por coma en UNA celda, y no en una
+ * tabla de relacion, porque la hoja de calculo es el almacenamiento de verdad de
+ * esta herramienta: una tabla aparte obligaria a cruzarla a mano cada vez que
+ * alguien quiera leer la hoja, que es exactamente lo que el equipo hace.
+ *
+ * @param {*} valor
+ * @return {!Array<string>} Sin vacios y sin repetidos, en el orden en que vienen.
+ */
+function listaDeIds(valor) {
+  var vistos = {};
+  return String(valor === null || valor === undefined ? '' : valor)
+      .split(',')
+      .map(function (x) { return x.trim(); })
+      .filter(function (x) {
+        if (!x || vistos[x]) return false;
+        vistos[x] = true;
+        return true;
+      });
+}
+
+/**
+ * @param {!Array<string>} ids
+ * @return {string} Como se guardan en la celda.
+ */
+function textoDeIds(ids) {
+  return listaDeIds([].concat(ids || []).join(',')).join(',');
+}
+
+/**
  * Las columnas del tablero de fabrica cuyo orden se pone a mano, arrastrando.
  *
  * Son las tres donde todavia se decide QUE se atiende primero. De Desarrollo en
@@ -398,6 +448,16 @@ var CAUSAS_RAIZ = [
  * y se llena desde Administracion → Analistas (D-102).
  */
 var ANALISTAS = [];
+
+/**
+ * Desarrolladores que pueden quedar asignados a una solicitud en Desarrollo.
+ *
+ * Lista propia, como la de analistas y por el mismo motivo: quien construye
+ * trabaja en la fabrica y casi nunca es usuario de la aplicacion. Nace VACIA a
+ * proposito —inventar nombres aqui seria poner en la hoja gente que no existe—
+ * y se llena desde Administracion -> Desarrolladores (D-142).
+ */
+var DESARROLLADORES = [];
 
 var CAUSALES_BLOQUEO = [
   { id: 'CAU-01', nombre: 'Falta de capacidad' },
@@ -555,7 +615,12 @@ var CAMPOS_AVISAN_EDICION = [
   { campo: 'Version_Semantica', nombre: 'Versión estimada' },
   { campo: 'Fecha_Compromiso', nombre: 'Fecha de compromiso' },
   { campo: 'Plataforma_ID', nombre: 'Plataforma', catalogo: 'Plataforma_Digital' },
-  { campo: 'Analista_ID', nombre: 'Analista', catalogo: 'Analistas' }
+  { campo: 'Analista_ID', nombre: 'Analista', catalogo: 'Analistas' },
+  /* Quien construye y para cuando se comprometio SI avisan, aunque sean de una
+     fase: no son una estampa que se diligencia hacia atras, son el reparto del
+     trabajo y la fecha contra la que a alguien le van a preguntar (D-142). */
+  { campo: 'Desarrolladores_IDs', nombre: 'Desarrolladores', catalogo: 'Desarrolladores' },
+  { campo: 'Fecha_Fin_Dev_Estimada', nombre: 'Fin estimado de desarrollo' }
 ];
 
 /* ================================================================== */
@@ -606,7 +671,9 @@ var CAMPOS_SOLO_DE = {
   Fecha_Fin_Analisis: ['fabrica'],
   No_Aplica_Analisis: ['fabrica'],
   Fecha_Inicio_Dev: ['fabrica', 'estabilizacion'],
+  Fecha_Fin_Dev_Estimada: ['fabrica', 'estabilizacion'],
   Fecha_Fin_Dev: ['fabrica', 'estabilizacion'],
+  Desarrolladores_IDs: ['fabrica', 'estabilizacion'],
   No_Aplica_Dev: ['fabrica', 'estabilizacion'],
   Fecha_Inicio_QA: ['fabrica', 'estabilizacion'],
   Fecha_Fin_QA: ['fabrica', 'estabilizacion'],
@@ -658,8 +725,9 @@ var FORMULARIO_SOLICITUD = {
       { fase: 'FAS-02', campos: ['Fecha_Inicio_Backlog', 'Fecha_Fin_Backlog'] },
       { fase: 'FAS-03', campos: ['Fecha_Inicio_Analisis', 'Fecha_Fin_Analisis',
                                  'No_Aplica_Analisis', 'Analista_ID', 'Estado_Historias'] },
-      { fase: 'FAS-04', campos: ['Fecha_Inicio_Dev', 'Fecha_Fin_Dev', 'No_Aplica_Dev',
-                                 'Version_Semantica'] },
+      { fase: 'FAS-04', campos: ['Fecha_Inicio_Dev', 'Fecha_Fin_Dev_Estimada',
+                                 'Fecha_Fin_Dev', 'No_Aplica_Dev',
+                                 'Desarrolladores_IDs', 'Version_Semantica'] },
       { fase: 'FAS-05', campos: ['Fecha_Inicio_QA', 'Fecha_Fin_QA', 'No_Aplica_QA'] },
       { fase: 'FAS-06', campos: ['Fecha_Inicio_UAT', 'Fecha_Fin_UAT', 'No_Aplica_UAT'] },
       { fase: 'FAS-07', campos: ['Fecha_Socializacion'] },
@@ -676,8 +744,10 @@ var FORMULARIO_SOLICITUD = {
        correccion (D-101). */
     estabilizacion: [
       { titulo: 'Desarrollo del arreglo',
-        campos: ['Fecha_Inicio_Dev', 'Fecha_Fin_Dev', 'No_Aplica_Dev'],
-        ayuda: 'Con estas fechas se cuantifica lo que el incidente ocupó de la fábrica.' },
+        campos: ['Fecha_Inicio_Dev', 'Fecha_Fin_Dev_Estimada', 'Fecha_Fin_Dev',
+                 'No_Aplica_Dev', 'Desarrolladores_IDs'],
+        ayuda: 'Con la fecha real se cuantifica lo que el incidente ocupó de la fábrica; ' +
+               'la estimada queda para comparar contra lo que se prometió.' },
       { titulo: 'Pruebas',
         campos: ['Fecha_Inicio_QA', 'Fecha_Fin_QA', 'No_Aplica_QA',
                  'Fecha_Inicio_UAT', 'Fecha_Fin_UAT', 'No_Aplica_UAT'] },
@@ -1026,6 +1096,18 @@ var ESQUEMA_PARAMETRIZACION = {
       { campo: 'Nombre_Analista', etiqueta: 'Nombre del analista', tipo: 'text', requerido: true }
     ]
   },
+  /* Quienes construyen. Es una lista aparte de Usuarios por lo mismo que la de
+     analistas: el desarrollador trabaja en la fabrica y no entra a la
+     aplicacion, asi que exigirle usuario seria crear usuarios que nadie usa. */
+  Desarrolladores: {
+    etiqueta: 'Desarrolladores',
+    pk: 'ID_Desarrollador',
+    columnas: [
+      { campo: 'ID_Desarrollador', etiqueta: 'ID Desarrollador', tipo: 'text', requerido: true },
+      { campo: 'Nombre_Desarrollador', etiqueta: 'Nombre del desarrollador', tipo: 'text',
+        requerido: true }
+    ]
+  },
   Causas_Raiz: {
     etiqueta: 'Causas raiz de estabilizacion',
     pk: 'ID_Causa',
@@ -1167,6 +1249,13 @@ var ESQUEMA_TRANSACCIONAL = {
         ayuda: 'En qué va la escritura de las historias dentro de Análisis y diseño. Se cambia desde la tarjeta del tablero.' },
       { campo: 'Analista_ID', etiqueta: 'Analista asignado', tipo: 'enum', fk: 'Analistas',
         ayuda: 'Quién hace el análisis y diseño. Se pide al mover la tarjeta a esa fase, y la lista se administra en Administración → Analistas.' },
+      /* Quien o quienes construyen. Son varios y no uno: un desarrollo se
+         reparte entre dos o tres personas, y guardar solo a una convertiria el
+         seguimiento de la fase en una media verdad. Se guardan como ids
+         separados por coma en una sola celda (ver listaDeIds) (D-142). */
+      { campo: 'Desarrolladores_IDs', etiqueta: 'Desarrolladores asignados',
+        tipo: 'multienum', fk: 'Desarrolladores',
+        ayuda: 'Quiénes construyen. Puede marcar varios. Se pide al mover la tarjeta a Desarrollo, y la lista se administra en Administración → Desarrolladores.' },
       // Las ocho fases dejan su estampa. Gestion de la demanda y Backlog no la
       // tenian, asi que el tiempo que una solicitud esperaba antes de arrancar
       // no se podia medir sin reconstruirlo desde la bitacora (D-92).
@@ -1177,7 +1266,18 @@ var ESQUEMA_TRANSACCIONAL = {
       { campo: 'Fecha_Inicio_Analisis', etiqueta: 'Inicio analisis', tipo: 'datetime' },
       { campo: 'Fecha_Fin_Analisis', etiqueta: 'Fin analisis', tipo: 'datetime' },
       { campo: 'Fecha_Inicio_Dev', etiqueta: 'Inicio desarrollo', tipo: 'datetime' },
-      { campo: 'Fecha_Fin_Dev', etiqueta: 'Fin desarrollo', tipo: 'datetime' },
+      /* La estimacion y el hecho, separados (D-142). "Fin desarrollo" era una
+         sola fecha y servia para las dos cosas: al ponerla al empezar era un
+         compromiso, al corregirla al terminar era el dato real, y al final no se
+         podia saber si se entrego cuando se dijo porque el compromiso se habia
+         sobrescrito. La real es la que el costeo lee —no se renombro la columna
+         para no tocar lo ya calculado—, y la estimada es la que se pacta al
+         arrancar y no se vuelve a mover. */
+      { campo: 'Fecha_Fin_Dev_Estimada', etiqueta: 'Fin estimado de desarrollo',
+        tipo: 'datetime',
+        ayuda: 'Para cuándo se comprometió el desarrollo. Se pone al arrancar y no se cambia: es contra esto que se mide la entrega.' },
+      { campo: 'Fecha_Fin_Dev', etiqueta: 'Fin real de desarrollo', tipo: 'datetime',
+        ayuda: 'El día en que el desarrollo terminó de verdad. De aquí sale el costo de la etapa y la desviación contra lo estimado.' },
       { campo: 'Fecha_Inicio_QA', etiqueta: 'Inicio QA', tipo: 'datetime' },
       { campo: 'Fecha_Fin_QA', etiqueta: 'Fin QA', tipo: 'datetime' },
       { campo: 'Fecha_Inicio_UAT', etiqueta: 'Inicio UAT', tipo: 'datetime' },
@@ -1485,6 +1585,7 @@ var CATALOGOS_AMPLIABLES = {
   Causales_Bloqueo: function () { return CAUSALES_BLOQUEO; },
   Causas_Raiz: function () { return CAUSAS_RAIZ; },
   Analistas: function () { return ANALISTAS; },
+  Desarrolladores: function () { return DESARROLLADORES; },
   Tipos_Solicitud: function () { return TIPOS_SOLICITUD; },
   Tipos_Iniciativa: function () { return TIPOS_INICIATIVA; },
   Fabricas: function () { return FABRICAS; }
@@ -1538,6 +1639,8 @@ function getLineasEstrategicas_() { return catalogoVigente('Lineas_Estrategicas'
 function getVerticales_() { return catalogoVigente('Verticales'); }
 /** @return {!Array} Analistas registrados. */
 function getAnalistas_() { return catalogoVigente('Analistas'); }
+/** @return {!Array} Desarrolladores registrados. */
+function getDesarrolladores_() { return catalogoVigente('Desarrolladores'); }
 /** @return {!Array} Causas raiz vigentes. */
 function getCausasRaiz_() { return catalogoVigente('Causas_Raiz'); }
 /** @return {!Array} Causales de bloqueo vigentes. */

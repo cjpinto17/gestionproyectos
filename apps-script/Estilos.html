@@ -568,6 +568,15 @@
   .t-analista.vacio{background:var(--alerta-bg);color:var(--alerta)}
   span.t-analista{cursor:default}
   span.t-analista:hover{background:#EAF4EC}
+  /* Quien construye: se ve en Desarrollo y se cambia desde ahi (D-142). Azul y
+     no verde para no confundirlo de un vistazo con el analista. */
+  .t-devs{background:#EDF1F8;color:#42557A;border:0;border-radius:4px;padding:1px 6px;
+          font-size:10.5px;font-family:inherit;cursor:pointer;max-width:100%;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .t-devs:hover{background:#DDE5F2}
+  .t-devs.vacio{background:var(--alerta-bg);color:var(--alerta)}
+  span.t-devs{cursor:default}
+  span.t-devs:hover{background:#EDF1F8}
   /* En que van las historias de usuario, solo en Analisis y diseno (D-108) */
   .t-hist{border:0;border-radius:4px;padding:1px 6px;font-size:10.5px;font-family:inherit;
           cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -748,6 +757,16 @@
     outline:2px solid var(--esmeralda);outline-offset:-1px}
   .campo input:disabled,.campo select:disabled{background:var(--line-soft);color:var(--ink-muted)}
   .campo textarea{resize:vertical}
+  /* Campo de varios valores: una lista de casillas con su propio desplazamiento,
+     para que veinte desarrolladores no empujen el resto del formulario fuera de
+     la pantalla (D-142). La casilla no hereda el width:100% de los demas
+     controles: se estiraria de lado a lado y el nombre quedaria lejisimos. */
+  .multi{border:1px solid var(--line);border-radius:8px;background:var(--surface);
+         padding:7px 9px;max-height:148px;overflow-y:auto;display:flex;
+         flex-direction:column;gap:5px}
+  .multi-op{display:flex;align-items:center;gap:7px;font-size:13.5px;cursor:pointer;
+            color:var(--ink)}
+  .campo .multi-op input{width:auto;margin:0;padding:0}
   .campo small{font-size:11px}
   .modal{max-height:88vh;overflow-y:auto}
 

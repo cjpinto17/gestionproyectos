@@ -1789,6 +1789,7 @@ function tarjetaActividad(s, posicion) {
       (s.Nombre_Plataforma ? '<span class="t-plat">' + esc(s.Nombre_Plataforma) + '</span>' : '') +
       '<span>' + esc(s.Nombre_Responsable || '—') + '</span>' +
       selloAnalista(s) +
+      selloDesarrolladores(s) +
       selloHistorias(s) +
       enlacesDeSolicitud(s) + '</div>' +
   '</article>';
@@ -1870,6 +1871,59 @@ function selloAnalista(s) {
     (puede ? ' data-analista="' + esc(s.ID_Solicitud) + '"' : '') +
     ' title="' + esc(titulo) + '" aria-label="' + esc(titulo) + '">&#128100; ' +
     esc(nombre) + '</' + (puede ? 'button' : 'span') + '>';
+}
+
+/**
+ * Quien construye, en la tarjeta de Desarrollo (D-142).
+ *
+ * Mismo criterio que el sello del analista: se ve solo en la fase que lo pide y
+ * se cambia desde ahi. El reparto del desarrollo cambia a mitad de camino —entra
+ * alguien, sale alguien— y obligar a abrir la solicitud para corregirlo es el
+ * tramite que la pregunta al mover vino a evitar.
+ */
+function selloDesarrolladores(s) {
+  if (!esDeFabrica(s) ||
+      (CAT.fasesConDesarrolladores || []).indexOf(s.Fase_Actual) === -1) return '';
+  // Un desarrollo marcado como que no aplica no tiene a quien asignarle.
+  if (String(s.No_Aplica_Dev || '').toUpperCase().indexOf('S') === 0) return '';
+
+  var puede = CTX.puedeEditarSolicitud && (CAT.desarrolladores || []).length;
+  var cuantos = idsDelCampo(s.Desarrolladores_IDs).length;
+  var nombres = s.Nombre_Desarrolladores || '';
+  // En la tarjeta no caben tres nombres: va el primero y cuantos mas hay.
+  var corto = !cuantos ? 'sin desarrollador'
+      : cuantos === 1 ? nombres
+      : nombres.split(', ')[0] + ' +' + (cuantos - 1);
+  var titulo = cuantos
+      ? ('Construye' + (cuantos > 1 ? 'n' : '') + ': ' + nombres +
+         (puede ? ' · clic para cambiarlo' : ''))
+      : (puede ? 'Sin desarrollador · clic para asignarlo' : 'Sin desarrollador asignado');
+
+  return '<' + (puede ? 'button' : 'span') + ' class="t-devs' + (cuantos ? '' : ' vacio') + '"' +
+    (puede ? ' data-devs="' + esc(s.ID_Solicitud) + '"' : '') +
+    ' title="' + esc(titulo) + '" aria-label="' + esc(titulo) + '">&#128187; ' +
+    esc(corto) + '</' + (puede ? 'button' : 'span') + '>';
+}
+
+/** Cambia el reparto del desarrollo desde la tarjeta, sin abrir la solicitud. */
+function cambiarDesarrolladores(id) {
+  var s = solicitudPorId(id);
+  if (!s) return;
+  preguntarDesarrolladores(s, function (ids) {
+    var antes = { ids: s.Desarrolladores_IDs, nombres: s.Nombre_Desarrolladores };
+    s.Desarrolladores_IDs = ids.join(',');
+    s.Nombre_Desarrolladores = nombresDeIds(CAT.desarrolladores, s.Desarrolladores_IDs);
+    pintarKanban();
+    api('asignarDesarrolladores', id, s.Desarrolladores_IDs).then(function () {
+      toast(id + ': ' + (ids.length > 1 ? 'construyen ' : 'construye ') +
+            s.Nombre_Desarrolladores + '.');
+    }).catch(function (err) {
+      s.Desarrolladores_IDs = antes.ids;
+      s.Nombre_Desarrolladores = antes.nombres;
+      pintarKanban();
+      fallo(err);
+    });
+  });
 }
 
 /** Cambia el analista desde la tarjeta, sin abrir la solicitud. */
@@ -2169,6 +2223,14 @@ document.addEventListener('drop', function (e) {
     preguntarAnalista(s, function (idAnalista) { moverTarjeta_(s, col, idAnalista); });
     return;
   }
+
+  // Y entrar a Desarrollo sin saber quien construye, igual: se pregunta (D-142).
+  // Nunca coinciden las dos preguntas: una es al entrar a Analisis y diseno y la
+  // otra al entrar a Desarrollo.
+  if (faltaPreguntarDesarrolladores(s, col.dataset.fase)) {
+    preguntarDesarrolladores(s, function (ids) { moverTarjeta_(s, col, '', ids); });
+    return;
+  }
   moverTarjeta_(s, col);
 });
 
@@ -2183,6 +2245,46 @@ function faltaPreguntarAnalista(s, faseDestino) {
          (CAT.fasesConAnalista || []).indexOf(faseDestino) !== -1 &&
          !String(s.Analista_ID || '').trim() &&
          (CAT.analistas || []).length > 0;
+}
+
+/**
+ * @return {boolean} True si hay que preguntar quien construye antes de mover.
+ *
+ * Gemelo de faltaDesarrolladores_() del servidor, con sus mismas valvulas: no
+ * frena si el desarrollo no aplica ni si la lista de desarrolladores esta vacia,
+ * que seria una ventana con casillas que no existen.
+ */
+function faltaPreguntarDesarrolladores(s, faseDestino) {
+  return esDeFabrica(s) &&
+         (CAT.fasesConDesarrolladores || []).indexOf(faseDestino) !== -1 &&
+         !idsDelCampo(s.Desarrolladores_IDs).length &&
+         String(s.No_Aplica_Dev || '').toUpperCase().indexOf('S') !== 0 &&
+         (CAT.desarrolladores || []).length > 0;
+}
+
+/** Pregunta quien o quienes construyen y sigue con lo que se estaba haciendo. */
+function preguntarDesarrolladores(s, seguir) {
+  var marcados = {};
+  idsDelCampo(s.Desarrolladores_IDs).forEach(function (x) { marcados[x] = true; });
+
+  abrirModal('¿Quién construye ' + s.ID_Solicitud + '?',
+    s.Nombre_Solicitud,
+    '<div class="formulario">' +
+      '<label class="campo"><span>Desarrolladores asignados *</span>' +
+        '<div class="multi" id="movDevs">' +
+        (CAT.desarrolladores || []).map(function (d) {
+          return '<label class="multi-op"><input type="checkbox" value="' + esc(d.id) + '"' +
+                 (marcados[String(d.id)] ? ' checked' : '') + '> ' + esc(d.nombre) + '</label>';
+        }).join('') + '</div>' +
+        '<small style="color:var(--ink-faint)">Marque a todos los que van a trabajar en ' +
+        'esta solicitud. La lista se administra en Administración → Desarrolladores.</small>' +
+      '</label>' +
+    '</div>',
+    function () {
+      var ids = idsMarcados($('movDevs'));
+      if (!ids.length) throw new Error('Marque al menos un desarrollador.');
+      seguir(ids);
+    });
 }
 
 /** Pregunta quien analiza y sigue con lo que se estaba haciendo. */
@@ -2210,7 +2312,7 @@ function preguntarAnalista(s, seguir) {
  * dice que no. Vive aparte del manejador de soltar porque tambien se llama
  * despues de preguntar quien analiza.
  */
-function moverTarjeta_(s, col, idAnalista) {
+function moverTarjeta_(s, col, idAnalista, idsDesarrolladores) {
   var id = s.ID_Solicitud;
 
   // Cada gobierno mueve su propio campo con su propio metodo (D-79, D-101).
@@ -2224,10 +2326,16 @@ function moverTarjeta_(s, col, idAnalista) {
   var original = s[campo];
 
   var analistaAntes = s.Analista_ID;
+  var devsAntes = { ids: s.Desarrolladores_IDs, nombres: s.Nombre_Desarrolladores };
   s[campo] = destino;               // se mueve ya, y se revierte si el servidor dice que no
   if (idAnalista) {
     s.Analista_ID = idAnalista;
     s.Nombre_Analista = nombreDeCatalogo(CAT.analistas, idAnalista);
+  }
+  var devs = (idsDesarrolladores || []).join(',');
+  if (devs) {
+    s.Desarrolladores_IDs = devs;
+    s.Nombre_Desarrolladores = nombresDeIds(CAT.desarrolladores, devs);
   }
   pintarKanban();
 
@@ -2236,7 +2344,7 @@ function moverTarjeta_(s, col, idAnalista) {
   // fase que todavia no es la suya. El estado destino va vacio: lo decide el
   // servidor.
   var argumentos = porEstado ? [metodo, id, destino]
-                             : [metodo, id, destino, '', idAnalista || ''];
+                             : [metodo, id, destino, '', idAnalista || '', devs];
   api.apply(null, argumentos).then(function (r) {
     toast(id + ' pasó a ' + (porEstado ? nombreEstado(destino) : nombreFase(destino)) + '.');
     (r.avisos || []).forEach(function (a) { toast(a, true); });
@@ -2245,6 +2353,8 @@ function moverTarjeta_(s, col, idAnalista) {
   }).catch(function (err) {
     s[campo] = original;
     s.Analista_ID = analistaAntes;
+    s.Desarrolladores_IDs = devsAntes.ids;
+    s.Nombre_Desarrolladores = devsAntes.nombres;
     pintarKanban();
     fallo(err);
   });
@@ -2366,6 +2476,8 @@ document.addEventListener('click', function (e) {
   if (sello) { alternarAprobacion(sello.dataset.aprobar); return; }
   var quienAnaliza = e.target.closest('[data-analista]');
   if (quienAnaliza) { cambiarAnalista(quienAnaliza.dataset.analista); return; }
+  var quienConstruye = e.target.closest('[data-devs]');
+  if (quienConstruye) { cambiarDesarrolladores(quienConstruye.dataset.devs); return; }
   var historias = e.target.closest('[data-historias]');
   if (historias) { cambiarHistorias(historias.dataset.historias); return; }
   var lapiz = e.target.closest('[data-editar-sol]');
@@ -2633,6 +2745,7 @@ function verDetalle(id) {
     abrirModal(s.Nombre_Solicitud, s.ID_Solicitud + ' · ' + s.Nombre_Plataforma,
       '<dl>' + filas + '</dl>' + alcance + alerta +
       '<div style="margin-top:12px">' + enlaces + '</div>' + acciones +
+      seccionDesarrollo(s) +
       bloqueComentarios(s.Observaciones) +
       (bloqueos ? tituloSeccion((s.Bloqueos.length === 1 ? 'Bloqueo' : 'Bloqueos') +
         ' de esta actividad') +
@@ -2656,6 +2769,54 @@ function verDetalle(id) {
       });
     }
   }).catch(function (err) { cerrarModal(); fallo(err); });
+}
+
+/**
+ * La etapa de desarrollo en el detalle: quien construye, para cuando se
+ * comprometio, cuando termino de verdad y cuanto se desvio (D-142).
+ *
+ * Es su propia seccion y no tres renglones mas del listado de datos porque son
+ * la pregunta que llega de afuera —"¿cuando lo entregan y quien lo esta
+ * haciendo?"— y la respuesta tiene que estar junta.
+ *
+ * No se dibuja si la solicitud no tiene nada de desarrollo: una tarea no pasa
+ * por esa etapa y la seccion seria un titulo con tres guiones.
+ */
+function seccionDesarrollo(s) {
+  var noAplica = String(s.No_Aplica_Dev || '').toUpperCase().indexOf('S') === 0;
+  var hay = s.Fecha_Inicio_Dev || s.Fecha_Fin_Dev_Estimada || s.Fecha_Fin_Dev ||
+            s.Nombre_Desarrolladores;
+  if (noAplica || !hay) return '';
+
+  /* La desviacion la calcula el SERVIDOR: son dias habiles, y los festivos
+     colombianos no viven en el navegador. Aqui solo se rotula. */
+  var d = s.Desvio_Dev;
+  var desvio;
+  if (d === null || d === undefined) {
+    desvio = '<span style="color:var(--ink-faint)">' +
+      (s.Fecha_Fin_Dev_Estimada ? 'Falta la fecha real para poder comparar.'
+                                : 'Sin fecha estimada: no hay contra qué comparar.') + '</span>';
+  } else if (d > 0) {
+    desvio = '<b style="color:var(--rojo)">' + diasInforme(d) + ' háb. después</b> ' +
+             '<span style="color:var(--ink-muted)">de lo estimado</span>';
+  } else if (d < 0) {
+    desvio = '<b style="color:var(--verde)">' + diasInforme(-d) + ' háb. antes</b> ' +
+             '<span style="color:var(--ink-muted)">de lo estimado</span>';
+  } else {
+    desvio = '<b style="color:var(--verde)">el día estimado</b>';
+  }
+
+  var filas = [
+    ['Quién construye', esc(s.Nombre_Desarrolladores || 'sin asignar')],
+    ['Inicio', esc(s.Fecha_Inicio_Dev ? fechaHora(s.Fecha_Inicio_Dev) : '—')],
+    ['Fin estimado', esc(s.Fecha_Fin_Dev_Estimada ? fechaHora(s.Fecha_Fin_Dev_Estimada) : '—')],
+    ['Fin real', esc(s.Fecha_Fin_Dev ? fechaHora(s.Fecha_Fin_Dev) : 'todavía abierto')],
+    ['Entrega', desvio]
+  ].map(function (p) {
+    return '<dt>' + esc(p[0]) + '</dt><dd>' + p[1] + '</dd>';
+  }).join('');
+
+  return tituloSeccion('Desarrollo') + '<dl>' + filas + '</dl>';
 }
 
 /** Titulo de seccion dentro del detalle de una solicitud. */
@@ -5707,7 +5868,7 @@ var TABLAS_ADMIN = [
   'Usuarios', 'Proyectos', 'Plataforma_Digital', 'Roles', 'Lineas_Estrategicas',
   'Verticales', 'Tipos_Iniciativa', 'Tipos_Solicitud', 'Estados_Iniciativa',
   'Estados', 'Fases', 'SLA_Fases', 'Causales_Bloqueo', 'Causas_Raiz', 'Analistas',
-  'Fabricas', 'Costos_Fabrica', 'Festivos',
+  'Desarrolladores', 'Fabricas', 'Costos_Fabrica', 'Festivos',
   'Roadmap_Versiones'
 ];
 
@@ -5775,6 +5936,14 @@ function textoCelda(col, valor) {
   if (col.tipo === 'date') return fecha(valor);
   if (col.tipo === 'datetime') return fechaHora(valor);
   var opciones = DATOS.admin.opciones[col.campo];
+  if (col.tipo === 'multienum' && opciones) {
+    return idsDelCampo(valor).map(function (id) {
+      for (var j = 0; j < opciones.length; j++) {
+        if (String(opciones[j].valor) === String(id)) return opciones[j].texto;
+      }
+      return id;
+    }).join(', ');
+  }
   if (opciones) {
     for (var i = 0; i < opciones.length; i++) {
       if (String(opciones[i].valor) === String(valor)) return opciones[i].texto;
@@ -5829,7 +5998,29 @@ function construirCampos(columnas, opciones, registro, campoBloqueado) {
     var lista = opciones[c.campo];
     var control;
 
-    if (lista) {
+    /* Varios valores en un solo campo: una lista de casillas, no un desplegable.
+       Va ANTES del desplegable porque un multienum tambien trae su lista de
+       opciones, y el desplegable se habria quedado con el campo y solo habria
+       podido guardar a una persona (D-142). */
+    if (c.tipo === 'multienum') {
+      var marcados = {};
+      idsDelCampo(valor).forEach(function (x) { marcados[x] = true; });
+      /* Con el catalogo vacio NO se dibuja el control y el campo queda sin id:
+         leerCampos lo salta y no toca lo que haya guardado. Dibujar una lista
+         sin casillas haria que guardar el formulario borrara el reparto. */
+      if (!(lista || []).length) {
+        control = '<p class="nota" style="margin:0">La lista está vacía. Se administra en ' +
+                  'Administración → ' + esc(c.fk || '') + '.' +
+                  (valor ? ' Hoy tiene: ' + esc(valor) + '.' : '') + '</p>';
+      } else {
+        control = '<div class="multi" id="campo_' + c.campo + '">' +
+          lista.map(function (o) {
+            return '<label class="multi-op"><input type="checkbox" value="' + esc(o.valor) + '"' +
+                   (marcados[String(o.valor)] ? ' checked' : '') +
+                   (bloqueado ? ' disabled' : '') + '> ' + esc(o.texto) + '</label>';
+          }).join('') + '</div>';
+      }
+    } else if (lista) {
       control = '<select id="campo_' + c.campo + '"' + bloqueado + '>' +
         (c.requerido ? '' : '<option value="">(sin asignar)</option>') +
         lista.map(function (o) {
@@ -5889,10 +6080,44 @@ function construirCampos(columnas, opciones, registro, campoBloqueado) {
 function leerCampos(columnas) {
   var datos = {};
   columnas.forEach(function (c) {
+    if (c.tipo === 'multienum') {
+      var caja = $('campo_' + c.campo);
+      // Sin control dibujado el campo NO viaja: el servidor conserva lo que
+      // tenga. Mandar '' borraria el reparto de quien abrio el formulario con
+      // el catalogo vacio y guardo cualquier otra cosa.
+      if (caja) datos[c.campo] = idsMarcados(caja).join(',');
+      return;
+    }
     var el = $('campo_' + c.campo);
     datos[c.campo] = el ? el.value : '';
   });
   return datos;
+}
+
+/** Los ids que trae un campo de varios valores. Gemelo de listaDeIds() del servidor. */
+function idsDelCampo(valor) {
+  var vistos = {};
+  return String(valor === null || valor === undefined ? '' : valor).split(',')
+      .map(function (x) { return x.trim(); })
+      .filter(function (x) {
+        if (!x || vistos[x]) return false;
+        vistos[x] = true;
+        return true;
+      });
+}
+
+/** Los valores marcados dentro de un control de varios valores. */
+function idsMarcados(caja) {
+  return Array.prototype.slice.call(caja.querySelectorAll('input[type=checkbox]'))
+      .filter(function (ch) { return ch.checked; })
+      .map(function (ch) { return ch.value; });
+}
+
+/** Los nombres de los ids de un campo de varios valores, como se leen. */
+function nombresDeIds(catalogo, valor) {
+  return idsDelCampo(valor).map(function (id) {
+    return nombreDeCatalogo(catalogo, id) || id;
+  }).join(', ');
 }
 
 function formularioRegistro(valorPk) {

@@ -3637,6 +3637,80 @@ siguen fijas a propósito: el informe es de septiembre de 2026 y ese mes no se m
 y «Fin plan. 2026-12-31» escritos a mano; ahora toma las dos fechas de los propios datos y comprueba
 que la tarjeta las muestre. Si no, anclar la pecera habría roto la revisión en el mismo movimiento.
 
+### D-142 · El seguimiento de la etapa de desarrollo: quién construye y qué se prometió
+
+**Dos cosas faltaban, y no eran las dos que parecían.** Se pidió (1) registrar al desarrollador o
+desarrolladores de cada solicitud y (2) un campo para la fecha de fin **real** del desarrollo, «para dar
+trazabilidad a la estimación y los tiempos de entrega».
+
+Lo segundo ya existía a medias y ahí estaba el problema: `Fecha_Fin_Dev` era **una sola fecha** usada
+para las dos cosas. Puesta al arrancar era un compromiso; corregida al terminar era el dato real. Al
+final del mes no se podía saber si se entregó cuando se dijo, porque **la promesa se había sobrescrito
+con el hecho**. Y para las solicitudes de fábrica no había ningún otro compromiso: `Fecha_Compromiso`
+existe solo para las tareas.
+
+Así que la mejora no es agregar la fecha real —estaba— sino **separar las dos**:
+
+| Campo | Qué es | Quién lo lee |
+| --- | --- | --- |
+| `Fecha_Fin_Dev_Estimada` | «Fin estimado de desarrollo»: para cuándo se comprometió. Se pone al arrancar y no se vuelve a mover | La desviación de la entrega |
+| `Fecha_Fin_Dev` | «Fin real de desarrollo»: el día en que terminó | El **costeo**, igual que antes |
+
+La columna del costeo **no se renombró**: `ETAPAS_COSTO` sigue midiendo la ocupación de la fábrica con
+`Fecha_Fin_Dev`, y hay una revisión que lo vigila. Si alguien apuntara el rango a la estimada, el costo
+de la fábrica se calcularía sobre una promesa y no sobre lo que pasó, y nada en pantalla lo diría. Lo
+que cambió es el **rótulo**: ahora dice «Fin real» donde decía «Fin desarrollo».
+
+**El desarrollador son varios, no uno.** `Analista_ID` era el precedente, pero un análisis lo hace una
+persona y un desarrollo se reparte entre dos o tres. Un solo valor habría obligado a elegir a uno y el
+seguimiento de la fase habría quedado en una media verdad.
+
+Se resolvió con un **tipo de campo nuevo** —`multienum`— y no con una tabla de relación:
+`Desarrolladores_IDs` guarda los ids separados por coma en **una celda**, porque la hoja de cálculo es
+el almacenamiento de verdad de esta herramienta y el equipo la abre y la lee. Una tabla aparte habría
+obligado a cruzarla a mano cada vez. El tipo es **declarativo**, como el resto del esquema: se dibuja
+solo como una lista de casillas, se lee solo, se valida solo contra su catálogo y cualquier otro campo
+que mañana necesite varios valores lo usa sin tocar la pantalla.
+
+**El catálogo `Desarrolladores` es nuevo y nace vacío**, por lo mismo que el de analistas (D-102): quien
+construye trabaja en la fábrica y casi nunca es usuario de la aplicación, así que exigirle usuario sería
+crear usuarios que nadie usa. Se administra en Administración → Desarrolladores.
+
+**Se pregunta al entrar a Desarrollo, no después.** Igual que el analista: arrastrar la tarjeta a
+Desarrollo sin saber quién construye abre la pregunta ahí mismo, con casillas para marcar a varios.
+Frenar la tarjeta para que la persona abra la solicitud, busque el campo y vuelva a arrastrarla son tres
+pasos para un dato que cabe en una pregunta. Con las **mismas tres válvulas** del analista, porque una
+compuerta que nadie puede abrir detiene el tablero entero: no pregunta si la lista de desarrolladores
+está vacía, no pregunta si el desarrollo está marcado como que no aplica, y no pregunta a una tarea o a
+una estabilización, que no recorren el embudo. Y el reparto cambia a mitad de camino —entra alguien, sale
+alguien—, así que la tarjeta lleva su propio sello azul: un clic y se corrige sin abrir la solicitud.
+
+**La desviación la calcula el servidor.** En el detalle de la solicitud hay ahora una sección
+*Desarrollo* con quién construye, inicio, fin estimado, fin real y la entrega: «5 d háb. después de lo
+estimado» en rojo, o «4 d háb. antes» en verde. Son **días hábiles**, y los festivos colombianos viven
+en el servidor: calcularla en el navegador habría dado otro número. Viaja como número, nunca como
+`Date`: un `Date` de verdad no sobrevive a `google.script.run` y el navegador recibe `null` por toda la
+respuesta, que es exactamente D-122 y D-138.
+
+**Lo que se cuidó de no romper.** Guardar el formulario con el catálogo de desarrolladores vacío **no
+borra el reparto**: el control no se dibuja, el campo no viaja y el servidor conserva lo que haya. Es el
+mismo tipo de trampa silenciosa que D-125 (un «SI» que nadie escribió sacaba solicitudes del costeo) y
+que la de las iniciativas inactivas (un desplegable sin la opción que el registro trae marca la
+primera, y guardar sin tocar nada la cambiaba).
+
+**Y una lección sobre mis propias revisiones.** La batería vive fuera del repositorio y **se perdió** al
+cambiar de sesión. Se reconstruyó sobre las fuentes reales: `verificar.js` (todo compila, ningún id se
+repite entre páginas, todo catálogo ampliable es administrable) y dos pruebas nuevas. Pero, al
+comprobarlas contra una mutación —hacer que el campo de varios valores cayera por la rama del
+desplegable—, una **se cayó** en lugar de reportar el fallo. Es la tercera vez que aparece la misma
+debilidad, así que quedó anotada aquí: una revisión que revienta deja a quien la corre adivinando si el
+error es del código o de la prueba. Ahora comprueba primero que el control tenga sus casillas y, si no
+las tiene, **lo dice** y no sigue.
+
+**Lo que hay que hacer en la hoja.** Ejecutar `actualizarEstructura` —crea la hoja `Desarrolladores` y
+las dos columnas nuevas de `Solicitudes`— y registrar a los desarrolladores desde Administración. Hasta
+que esa lista tenga gente, el tablero no pregunta nada y todo sigue funcionando como hoy.
+
 ## Supuestos abiertos
 
 | # | Tema | Pendiente |
@@ -3658,6 +3732,7 @@ que la tarjeta las muestre. Si no, anclar la pecera habría roto la revisión en
 | S-09 | SLA | ¿Días calendario o días hábiles? (ver D-10) |
 | S-10 | Aplicación de la iniciativa | ¿Una aplicación principal por iniciativa, o varias? (ver D-08) |
 | S-21 | Historial de versión | Para medir cumplimiento de alcance y tiempo comprometido→entregado hay que registrar en la bitácora los cambios de versión de una solicitud (ver D-104) |
+| S-22 | Lista de desarrolladores | La hoja `Desarrolladores` se crea vacía: hay que registrar quiénes construyen desde Administración → Desarrolladores. Mientras esté vacía, el tablero no pregunta nada (ver D-142) |
 | S-20 | Lista de analistas | La hoja `Analistas` se crea vacía: hay que registrar quiénes analizan desde Administración → Analistas (ver D-102) |
 | S-18 | Ventana de servicio | Para el % de disponibilidad por plataforma: ¿24×7 o jornada hábil? Sin eso el indicador no se puede calcular (ver D-101) |
 | S-19 | SLA de estabilización | ¿Cuántas horas objetivo para atender una crítica y una alta? Hoy se mide el tiempo, sin meta contra la cual compararlo |

@@ -476,6 +476,28 @@ function normalizarFechas_(tabla, registro) {
 }
 
 /**
+ * Deja los campos de varios valores limpios: sin espacios, sin vacios y sin
+ * repetidos.
+ *
+ * Importa porque el valor viaja como texto desde el navegador: una casilla
+ * marcada y desmarcada puede dejar comas sueltas, y "DEV-01,,DEV-01" guardado
+ * tal cual haria que el mismo desarrollador contara dos veces.
+ *
+ * @param {string} tabla
+ * @param {!Object} registro
+ * @return {!Object} El mismo registro.
+ * @private
+ */
+function normalizarMultivalores_(tabla, registro) {
+  getDefinicionTabla(tabla).def.columnas.forEach(function (c) {
+    if (c.tipo !== 'multienum') return;
+    if (registro[c.campo] === undefined) return;
+    registro[c.campo] = textoDeIds(listaDeIds(registro[c.campo]));
+  });
+  return registro;
+}
+
+/**
  * Valida un registro contra el esquema: obligatorios y tipos basicos.
  * @param {string} tabla
  * @param {!Object} registro
@@ -510,6 +532,17 @@ function validarRegistro_(tabla, registro, esNuevo) {
     }
     if (col.opciones && col.opciones.indexOf(valor) === -1) {
       errores.push('"' + col.etiqueta + '" debe ser uno de: ' + col.opciones.join(', '));
+    }
+    /* Un campo de varios valores se valida valor por valor contra su catalogo.
+       Sin esto, un id mal escrito se guardaba y despues no resolvia a ningun
+       nombre: la pantalla mostraba el id crudo y nadie sabia de quien era. */
+    if (col.tipo === 'multienum' && col.fk) {
+      var faltantes = idsQueNoExisten_(col.fk, listaDeIds(valor));
+      if (faltantes.length) {
+        errores.push('"' + col.etiqueta + '" trae ' +
+                     (faltantes.length === 1 ? 'un valor que no existe' :
+                      'valores que no existen') + ': ' + faltantes.join(', ') + '.');
+      }
     }
   });
 
@@ -686,6 +719,8 @@ function armarCatalogos_() {
     causasRaiz: getCausasRaiz_(),
     analistas: getAnalistas_(),
     fasesConAnalista: FASES_CON_ANALISTA,
+    desarrolladores: getDesarrolladores_(),
+    fasesConDesarrolladores: FASES_CON_DESARROLLADORES,
     estadosHistorias: ESTADOS_HISTORIAS,
     faseHistorias: FASE_HISTORIAS,
     tiposIndisponibilidad: TIPOS_INDISPONIBILIDAD,
@@ -776,6 +811,7 @@ function armarDatosKanban_(filtros) {
   var nombreVersion = mapaVersiones_();
   var nombreCausaRaiz = mapaCatalogo_(getCausasRaiz_());
   var nombreAnalista = mapaCatalogo_(getAnalistas_());
+  var nombreDesarrollador = mapaCatalogo_(getDesarrolladores_());
 
   // Los dias habiles no se pueden calcular en el navegador: dependen de los
   // festivos, que viven en el servidor. Se envian resueltos, junto al SLA de la
@@ -793,6 +829,8 @@ function armarDatosKanban_(filtros) {
     // Una tarea no tiene SLA de fase: su compromiso es una fecha (D-79). Una
     // estabilizacion tampoco: se mide en horas de reloj, no en dias habiles.
     s.Nombre_Analista = nombreAnalista[s.Analista_ID] || '';
+    s.Nombre_Desarrolladores = nombresDeDesarrolladores_(s.Desarrolladores_IDs,
+                                                         nombreDesarrollador);
     s.gobierno = gobiernoDeTipo(s.Tipo_Solicitud);
     s.esTarea = s.gobierno === GOBIERNO_TAREA;
     s.esEstabilizacion = s.gobierno === GOBIERNO_ESTABILIZACION;
@@ -892,6 +930,21 @@ function getDetalleSolicitud(idSolicitud) {
       diasHabiles: red_(diasHabilesEntre(e.desde, e.hasta || ahoraBloq) || 0, 1)
     };
   });
+  s.Nombre_Desarrolladores = nombresDeDesarrolladores_(s.Desarrolladores_IDs);
+
+  /* La desviacion de la entrega, en dias habiles: positiva si se entrego
+     despues de lo estimado, negativa si se entrego antes. Se calcula AQUI y no
+     en el navegador porque depende de los festivos colombianos, que viven en el
+     servidor (D-142). */
+  var devEst = aFecha_(s.Fecha_Fin_Dev_Estimada);
+  var devReal = aFecha_(s.Fecha_Fin_Dev);
+  s.Desvio_Dev = null;
+  if (devEst && devReal) {
+    var tarde = devReal.getTime() > devEst.getTime();
+    var corrido = tarde ? diasHabilesEntre(devEst, devReal) : diasHabilesEntre(devReal, devEst);
+    if (corrido !== null) s.Desvio_Dev = red_(tarde ? corrido : -corrido, 1);
+  }
+
   s.Observaciones = observacionesDe_('Observaciones_Solicitud', 'ID_Solicitud',
                                      idSolicitud, nombreUsuario);
   return s;
@@ -1742,6 +1795,7 @@ function actualizarSolicitudCompleta(idSolicitud, datos) {
     }
 
     normalizarFechas_('Solicitudes', nuevo);
+    normalizarMultivalores_('Solicitudes', nuevo);
     validarRegistro_('Solicitudes', nuevo, false);
 
     var cambioFase = nuevo.Fase_Actual !== actual.Fase_Actual;
@@ -1786,9 +1840,12 @@ function actualizarSolicitudCompleta(idSolicitud, datos) {
  * @param {string} idSolicitud
  * @param {string} faseDestino
  * @param {string=} estadoDestino
+ * @param {string=} idAnalista
+ * @param {(string|!Array<string>)=} idsDesarrolladores
  * @return {!Object}
  */
-function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino, idAnalista) {
+function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino, idAnalista,
+                              idsDesarrolladores) {
   var ctx = exigirSesion_();
 
   return conBloqueo_(function () {
@@ -1810,6 +1867,19 @@ function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino, idAnalist
                       'Se administra en Administracion → Analistas.');
     }
     falta = faltaAnalista_(s, faseDestino, analista);
+    if (falta) throw new Error(falta);
+
+    // Lo mismo con quien construye: llega en la misma operacion que el
+    // movimiento a Desarrollo (D-142).
+    var devs = listaDeIds([].concat(idsDesarrolladores || []).join(','));
+    var sinRegistrar = idsQueNoExisten_('Desarrolladores', devs);
+    if (sinRegistrar.length) {
+      throw new Error((sinRegistrar.length === 1 ? 'El desarrollador ' : 'Los desarrolladores ') +
+                      sinRegistrar.join(', ') +
+                      (sinRegistrar.length === 1 ? ' no esta' : ' no estan') +
+                      ' en la lista. Se administra en Administracion → Desarrolladores.');
+    }
+    falta = faltaDesarrolladores_(s, faseDestino, devs);
     if (falta) throw new Error(falta);
 
     if (String(s.Tiene_Bloqueo).toUpperCase().indexOf('S') === 0) {
@@ -1838,6 +1908,9 @@ function cambiarFaseSolicitud(idSolicitud, faseDestino, estadoDestino, idAnalist
     // la aprobacion vale para una fase, el analista es un hecho de la historia
     // de la solicitud y sigue sirviendo despues (D-102).
     if (analista) nuevo.Analista_ID = analista;
+    // Y por el mismo motivo tampoco se borran los desarrolladores: quien
+    // construyo es un hecho de la historia de la solicitud.
+    if (devs.length) nuevo.Desarrolladores_IDs = textoDeIds(devs);
     // Al llegar a Analisis y diseno las historias empiezan a escribirse: el
     // control arranca solo, sin que nadie tenga que acordarse de iniciarlo. Si
     // la solicitud vuelve a pasar por la fase se respeta lo que ya tenia.
@@ -1988,6 +2061,100 @@ function asignarAnalista(idSolicitud, idAnalista) {
  */
 function analistaExiste_(idAnalista) {
   return getAnalistas_().some(function (a) { return String(a.id) === String(idAnalista); });
+}
+
+/**
+ * Los ids que NO estan en la tabla a la que apunta un campo.
+ *
+ * @param {string} tabla La tabla referenciada.
+ * @param {!Array<string>} ids
+ * @return {!Array<string>} Los que no existen; vacio si todos existen.
+ * @private
+ */
+function idsQueNoExisten_(tabla, ids) {
+  if (!ids.length) return [];
+  var info = getDefinicionTabla(tabla);
+  if (!info) return [];
+  var pk = info.def.pk;
+  var existe = {};
+  leerTabla_(tabla).forEach(function (f) { existe[String(f[pk])] = true; });
+  return ids.filter(function (id) { return !existe[String(id)]; });
+}
+
+/**
+ * Deja asignados los desarrolladores de una solicitud.
+ *
+ * Vive aparte del cambio de fase por lo mismo que el analista: el reparto
+ * cambia —alguien entra, alguien sale, se refuerza— y hay que poder corregirlo
+ * sin mover la tarjeta (D-142).
+ *
+ * @param {string} idSolicitud
+ * @param {(string|!Array<string>)} ids Vacio los quita.
+ * @return {!Object}
+ */
+function asignarDesarrolladores(idSolicitud, ids) {
+  exigirPermiso_('Editar_Solicitud', 'Su rol no puede asignar los desarrolladores.');
+
+  return conBloqueo_(function () {
+    var s = buscarPorPk_('Solicitudes', idSolicitud);
+    if (!s) throw new Error('No existe la solicitud ' + idSolicitud + '.');
+
+    var lista = listaDeIds([].concat(ids || []).join(','));
+    var faltantes = idsQueNoExisten_('Desarrolladores', lista);
+    if (faltantes.length) {
+      throw new Error((faltantes.length === 1 ? 'El desarrollador ' : 'Los desarrolladores ') +
+                      faltantes.join(', ') + (faltantes.length === 1 ? ' no esta' : ' no estan') +
+                      ' en la lista. Se administra en Administracion → Desarrolladores.');
+    }
+
+    var nuevo = {};
+    Object.keys(s).forEach(function (k) { if (k !== '_fila') nuevo[k] = s[k]; });
+    nuevo.Desarrolladores_IDs = textoDeIds(lista);
+    escribirFila_('Solicitudes', s._fila, nuevo);
+
+    return { ok: true, idSolicitud: idSolicitud, desarrolladores: nuevo.Desarrolladores_IDs,
+             nombres: nombresDeDesarrolladores_(nuevo.Desarrolladores_IDs) };
+  });
+}
+
+/**
+ * Los nombres de los desarrolladores de una celda, como se leen.
+ *
+ * @param {*} valor Los ids separados por coma.
+ * @param {!Object<string,string>=} mapa El catalogo ya resuelto, si se tiene.
+ * @return {string} 'Ana Gomez, Luis Diaz', o '' si no hay ninguno.
+ * @private
+ */
+function nombresDeDesarrolladores_(valor, mapa) {
+  var nombre = mapa || mapaCatalogo_(getDesarrolladores_());
+  return listaDeIds(valor).map(function (id) { return nombre[id] || id; }).join(', ');
+}
+
+/**
+ * El motivo por el que una solicitud todavia no puede ENTRAR a desarrollo, o ''.
+ *
+ * Gemelo de faltaAnalista_, y con la misma valvula: si no hay ningun
+ * desarrollador registrado NO frena. Seria una compuerta que nadie puede abrir,
+ * y quien mueve la tarjeta no suele ser quien administra las listas.
+ *
+ * @param {!Object} solicitud
+ * @param {string} faseDestino
+ * @param {!Array<string>=} ids Los que vienen en la misma operacion, si vienen.
+ * @return {string}
+ * @private
+ */
+function faltaDesarrolladores_(solicitud, faseDestino, ids) {
+  if (!recorreEmbudo(solicitud.Tipo_Solicitud)) return '';
+  if (!faseExigeDesarrolladores(faseDestino)) return '';
+  if ((ids || []).length) return '';
+  if (listaDeIds(solicitud.Desarrolladores_IDs).length) return '';
+  if (!getDesarrolladores_().length) return '';
+  /* Un desarrollo marcado como que no aplica no tiene a quien asignarle: la
+     solicitud pasa por la columna sin que nadie construya nada (D-116). */
+  if (String(solicitud.No_Aplica_Dev || '').toUpperCase().indexOf('S') === 0) return '';
+
+  return 'Antes de pasar ' + solicitud.ID_Solicitud + ' a "' + nombreDeFase_(faseDestino) +
+         '" hay que decir quien la construye.';
 }
 
 /** @return {boolean} Si la solicitud tiene hoy el visto bueno de su fase. */
@@ -2783,7 +2950,8 @@ function opcionesDeReferencia_(columnas, valores) {
     Tipos_Solicitud: getTiposSolicitud_(), Tipos_Iniciativa: getTiposIniciativa_(),
     Causales_Bloqueo: getCausalesBloqueo_(), Plataforma_Digital: getPlataformas_(),
     Lineas_Estrategicas: getLineasEstrategicas_(), Verticales: getVerticales_(),
-    Causas_Raiz: getCausasRaiz_(), Analistas: getAnalistas_()
+    Causas_Raiz: getCausasRaiz_(), Analistas: getAnalistas_(),
+    Desarrolladores: getDesarrolladores_()
   };
   var opciones = {};
   columnas.forEach(function (col) {
@@ -3257,6 +3425,7 @@ var METODOS_PUBLICOS = {
   aprobarSolicitud: true,
   cambiarEstadoEstabilizacion: true,
   asignarAnalista: true,
+  asignarDesarrolladores: true,
   cambiarEstadoHistorias: true,
   getCostos: true,
   getCostosDetalle: true,

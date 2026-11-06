@@ -106,6 +106,10 @@ movimientos antiguos.
 ### `Analistas` *(D-102)*
 `ID_Analista` (PK), `Nombre_Analista`, `Activo`: quién analiza y diseña. Configurable; llega vacía.
 
+### `Desarrolladores` *(D-142)*
+`ID_Desarrollador` (PK), `Nombre_Desarrollador`: quién construye. Configurable; llega vacía, por lo
+mismo que `Analistas`: el desarrollador trabaja en la fábrica y casi nunca es usuario de la aplicación.
+
 ### `Costos_Fabrica` *(D-110)*
 `ID_Costo` (PK), `Etapa` (`ETA-ANA` | `ETA-DEV` | `ETA-QA`), `Concepto`, `Valor_Mensual`,
 `Vigencia_Desde`, `Vigencia_Hasta`, `ID_Proyecto` (FK → `Proyectos`, vacío = bolsa general).
@@ -149,6 +153,11 @@ se borra al levantar el bloqueo), `Responsable_Actual`, `Version_Semantica`,
 `Fecha_Inicio_Backlog`, `Fecha_Fin_Backlog`, `Fecha_Inicio_Analisis`, `Fecha_Fin_Analisis`,
 `Fecha_Inicio_Dev`, `Fecha_Fin_Dev`, `Fecha_Inicio_QA`, `Fecha_Fin_QA`, `Fecha_Inicio_UAT`,
 `Fecha_Fin_UAT`, `Fecha_Socializacion`, `Fecha_Despliegue`.
+
+**La etapa de desarrollo, aparte** (D-142): `Fecha_Fin_Dev_Estimada` es el compromiso —para cuándo se
+dijo que estaría— y `Fecha_Fin_Dev` es el hecho. El **costeo lee la real**; la estimada solo sirve para
+medir la desviación de la entrega. `Desarrolladores_IDs` (FK múltiple → `Desarrolladores`) guarda a
+quienes construyen: varios ids separados por coma en una celda (tipo `multienum`).
 
 El **inicio** se escribe la primera vez que la solicitud entra a la fase y no se vuelve a tocar;
 el **fin**, cada vez que sale de ella *hacia adelante*. Devolver una solicitud no cierra la fase

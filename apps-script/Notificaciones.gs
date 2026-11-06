@@ -1157,6 +1157,14 @@ function traducirValor_(def, valor) {
   if (valor === null || valor === undefined || String(valor).trim() === '') return '';
   if (!def.catalogo) return valor;
   var id = String(valor).trim();
+  /* Un campo de varios valores se traduce valor por valor: con la lista entera
+     como una sola llave, "DEV-01,DEV-02" no resolvia a ningun nombre y el aviso
+     decia los ids crudos, que es justo lo que nadie reconoce (D-142). */
+  if (id.indexOf(',') !== -1) {
+    return listaDeIds(id).map(function (uno) {
+      return traducirValor_(def, uno);
+    }).join(', ');
+  }
   // El catalogo se lee de la HOJA: uno editado desde Administracion tiene que
   // salir con su nombre nuevo, no con el de la lista del codigo.
   var mapas = {
@@ -1167,6 +1175,7 @@ function traducirValor_(def, valor) {
       return m;
     },
     Analistas: function () { return mapaCatalogo_(getAnalistas_()); },
+    Desarrolladores: function () { return mapaCatalogo_(getDesarrolladores_()); },
     Proyectos: function () {
       var m = {};
       leerTabla_('Proyectos').forEach(function (p) { m[p.ID_Proyecto] = p.Nombre_Proyecto; });
